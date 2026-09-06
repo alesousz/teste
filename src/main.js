@@ -9,6 +9,7 @@ import { ObligationSystem } from './schedule.js';
 import { UI } from './ui.js';
 import { hasSave, loadSave, writeSave, clearSave } from './save.js';
 import { preloadCharacterAssets } from './assets.js';
+import { createTrainingDummy } from './combat.js';
 
 class InputManager {
   constructor(canvas) {
@@ -18,6 +19,7 @@ class InputManager {
     this.mouseDy = 0;
     this.canvas = canvas;
     this.justPressed = new Set();
+    this.attackJustPressed = false;
 
     window.addEventListener('keydown', e => {
       if (!this.keys.has(e.code)) this.justPressed.add(e.code);
@@ -28,6 +30,12 @@ class InputManager {
 
     canvas.addEventListener('click', () => {
       if (document.pointerLockElement !== canvas) canvas.requestPointerLock();
+    });
+    // Só conta como soco se o clique aconteceu com o ponteiro já travado —
+    // senão o primeiro clique (que só serve pra travar o mouse) já sairia
+    // socando.
+    canvas.addEventListener('mousedown', e => {
+      if (e.button === 0 && this.pointerLocked) this.attackJustPressed = true;
     });
     document.addEventListener('pointerlockchange', () => {
       this.pointerLocked = document.pointerLockElement === canvas;
@@ -51,6 +59,11 @@ class InputManager {
     this.mouseDx = 0; this.mouseDy = 0;
     return d;
   }
+  consumeAttack() {
+    const a = this.attackJustPressed;
+    this.attackJustPressed = false;
+    return a;
+  }
 }
 
 class Game {
@@ -71,6 +84,7 @@ class Game {
     this.world = new World(this.scene);
     this.player = null;
     this.npcs = [];
+    this.dummy = createTrainingDummy(this.scene);
 
     this.quests = new QuestSystem(() => this._onQuestChange());
     this.collectibles = new CollectibleSystem(this.scene, this.quests);
@@ -159,6 +173,7 @@ class Game {
 
     if (this.player) this.scene.remove(this.player.mesh);
     this.player = new Player(this.scene, this.world, this.profile.sex === 'f' ? 'female' : 'male');
+    this.player.onAttackImpact = () => this._resolvePlayerAttack();
 
     this.needs = new NeedsSystem(origin.startMoney);
     this.obligation = new ObligationSystem(OBLIGATIONS[origin.obligation]);
@@ -217,6 +232,20 @@ class Game {
     this._saveGame();
   }
 
+  // Checa se o boneco de treino está dentro do alcance e do cone frontal
+  // do soco (~72° pra cada lado) antes de aplicar dano.
+  _resolvePlayerAttack() {
+    const dx = this.dummy.position.x - this.player.position.x;
+    const dz = this.dummy.position.z - this.player.position.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist > CONFIG.PUNCH_RANGE) return;
+    const toTarget = Math.atan2(dx, dz);
+    let diff = toTarget - this.player.facingAngle;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    if (Math.abs(diff) > Math.PI / 2.5) return;
+    this.dummy.takeDamage(CONFIG.PUNCH_DAMAGE);
+  }
+
   _nearSleepSpot() {
     return Math.hypot(
       this.player.position.x - this.homeSleepSpot.x,
@@ -259,6 +288,9 @@ class Game {
       this.ui.showPrompt('E — Dormir (recuperar energia e avançar o dia)');
       promptShown = true;
       if (this.input.wasPressed('KeyE')) this._sleep();
+    } else if (Math.hypot(this.player.position.x - this.dummy.position.x, this.player.position.z - this.dummy.position.z) < CONFIG.PUNCH_RANGE + 1) {
+      this.ui.showPrompt('Clique com o botão esquerdo — Socar o boneco de treino');
+      promptShown = true;
     }
 
     if (nearbyFragment) {
@@ -321,6 +353,7 @@ class Game {
     for (const npc of this.npcs) npc.update(uiBlocking ? 0 : dt);
     this.collectibles.update(uiBlocking ? 0 : dt);
     this.world.update(uiBlocking ? 0 : dt);
+    this.dummy.update(uiBlocking ? 0 : dt);
 
     if (this.world.dayCount !== this._lastDayCount) {
       const result = this.obligation.processDayEnd(this._lastDayCount, this.needs);

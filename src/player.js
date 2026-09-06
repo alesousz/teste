@@ -13,6 +13,12 @@ export class Player {
     this.velocity = new THREE.Vector3();
     this.facingAngle = Math.PI;
     this.isRunning = false;
+    this.velocityY = 0;
+    this.isGrounded = true;
+    this.isAttacking = false;
+    // Definido externamente (pelo Game) pra resolver o "quem foi atingido"
+    // no momento em que o soco começa.
+    this.onAttackImpact = null;
 
     // Câmera terceira-pessoa em coordenadas esféricas relativas ao jogador
     this.camYaw = Math.PI;
@@ -40,7 +46,16 @@ export class Player {
     const baseSpeed = this.isRunning ? CONFIG.PLAYER_SPEED_RUN : CONFIG.PLAYER_SPEED_WALK;
     const speed = this.exhausted ? baseSpeed * 0.55 : baseSpeed;
 
-    if (hasInput) {
+    // Soco trava o personagem no lugar por um instante (mesma lógica de
+    // "root" de jogos de ação simples) e resolve o acerto já no começo do
+    // movimento, sem esperar o quadro exato do impacto na animação.
+    if (input.consumeAttack() && this.isGrounded && !this.isAttacking) {
+      this.isAttacking = true;
+      this.onAttackImpact?.();
+      this.rig.playOnce('attack', () => { this.isAttacking = false; });
+    }
+
+    if (hasInput && !this.isAttacking) {
       const forward = new THREE.Vector3(Math.sin(this.camYaw), 0, Math.cos(this.camYaw));
       const right = new THREE.Vector3(Math.sin(this.camYaw + Math.PI / 2), 0, Math.cos(this.camYaw + Math.PI / 2));
       const move = new THREE.Vector3();
@@ -56,12 +71,28 @@ export class Player {
       this.facingAngle += diff * Math.min(1, dt * 10);
     }
 
+    if (input.wasPressed('Space') && this.isGrounded && !this.isAttacking) {
+      this.velocityY = CONFIG.JUMP_SPEED;
+      this.isGrounded = false;
+    }
+    this.velocityY -= CONFIG.GRAVITY * dt;
+    this.position.y += this.velocityY * dt;
+    if (this.position.y <= 0) {
+      this.position.y = 0;
+      this.velocityY = 0;
+      this.isGrounded = true;
+    }
+
     this.world.resolveCollision(this.position, CONFIG.PLAYER_RADIUS);
 
     this.mesh.position.copy(this.position);
     this.mesh.rotation.y = this.facingAngle;
 
-    this.rig.setState(!hasInput ? 'idle' : (this.isRunning ? 'run' : 'walk'));
+    if (!this.isGrounded) {
+      this.rig.setState('jump');
+    } else if (!this.isAttacking) {
+      this.rig.setState(!hasInput ? 'idle' : (this.isRunning ? 'run' : 'walk'));
+    }
     this.rig.update(dt);
 
     this._updateCamera();

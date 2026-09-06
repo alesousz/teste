@@ -12,6 +12,12 @@ export const CONFIG = {
   PLAYER_RADIUS: 0.45,
   INTERACT_RADIUS: 3.2,
   PHOTO_RADIUS: 3.5,
+  GRAVITY: 18,
+  JUMP_SPEED: 6.5,
+  PUNCH_RANGE: 1.8,
+  PUNCH_DAMAGE: 12,
+  DUMMY_MAX_HP: 100,
+  DUMMY_RESPAWN_DELAY: 1.4,
 };
 CONFIG.CELL = CONFIG.BLOCK_SIZE + CONFIG.ROAD_WIDTH;
 CONFIG.WORLD_HALF = (CONFIG.GRID_SIZE * CONFIG.CELL) / 2;
@@ -128,6 +134,10 @@ function generateCity() {
 
 export const CITY = generateCity();
 export const BUILDING_COLOR_PALETTE = BUILDING_COLORS;
+
+// Boneco de treino de combate: fica num canto livre da praça central,
+// longe o bastante da fonte (raio 4.4) pra não sobrepor.
+export const DUMMY_POS = { x: CITY.plazaCenter.x + 9, z: CITY.plazaCenter.z + 9 };
 
 export function landmarkCenter(kind) {
   const b = CITY.buildings.find(b => b.kind === kind);
