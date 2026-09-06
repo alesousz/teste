@@ -102,7 +102,11 @@ class Game {
   }
 
   async _boot() {
-    await preloadCharacterAssets();
+    const [, dialogueTrees] = await Promise.all([
+      preloadCharacterAssets(),
+      fetch('src/data/dialogues.json').then(r => r.json()),
+    ]);
+    this.dialogueTrees = dialogueTrees;
     this.npcs = createNpcs(this.scene, this.world);
     this.ui.hideLoading();
     this.ui.showMenu(hasSave());
@@ -177,7 +181,7 @@ class Game {
 
     this.needs = new NeedsSystem(origin.startMoney);
     this.obligation = new ObligationSystem(OBLIGATIONS[origin.obligation]);
-    this.dialogue = new DialogueSystem(this.quests, {
+    this.dialogue = new DialogueSystem(this.dialogueTrees, this.quests, {
       show: (text, options) => this.ui.showDialogue(text, options, i => this.dialogue.choose(i)),
       hide: () => this.ui.hideDialogue(),
     }, this.collectibles, this.needs, this.obligation, this.profile.originId, this.profile.sex);

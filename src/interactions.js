@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { DIALOGUES, QUESTS, FRAGMENT_SPOTS, ITEM_PROPS, CONFIG } from './data.js';
+import { QUESTS, FRAGMENT_SPOTS, ITEM_PROPS, CONFIG } from './data.js';
 
 // ---------------------------------------------------------------------------
 // Sistema de missões
@@ -88,14 +88,22 @@ export class QuestSystem {
 }
 
 // ---------------------------------------------------------------------------
-// Sistema de diálogo
+// Sistema de diálogo — as árvores em si (texto/opções/regras de início) vêm
+// de src/data/dialogues.json como dados simples (sem função embutida), pra
+// poder ser lido e escrito por um editor visual no futuro. Só a metadata de
+// "quem é família/chefe de quem" continua aqui, por ser propriedade da
+// definição do NPC, não do conteúdo do diálogo.
 // ---------------------------------------------------------------------------
 const FAMILY_NPCS = { mae_operaria: 'operario', mae_nobre: 'nobre' };
 const BOSS_NPCS = { seu_ivo: 'operario', professora: 'nobre' };
-const DYNAMIC_PREFIX = { mae_operaria: 'ro', seu_ivo: 'iv', mae_nobre: 'bt', professora: 'el' };
+
+// Sintaxe {{m:X|f:Y|x:Z}} num texto escolhe a variante certa pro pronome do
+// personagem — usada pelo poucos nós que precisam disso (falas de mãe/pai).
+const PRONOUN_PATTERN = /\{\{m:([^|}]*)\|f:([^|}]*)\|x:([^|}]*)\}\}/g;
 
 export class DialogueSystem {
-  constructor(questSystem, uiCallbacks, collectibleSystem, needsSystem, obligationSystem, originId, sex) {
+  constructor(dialogueTrees, questSystem, uiCallbacks, collectibleSystem, needsSystem, obligationSystem, originId, sex) {
+    this.trees = dialogueTrees;
     this.quests = questSystem;
     this.ui = uiCallbacks; // { show(text, options), hide() }
     this.collectibles = collectibleSystem;
@@ -107,37 +115,31 @@ export class DialogueSystem {
     this.currentNpcId = null;
   }
 
+  // Avalia um único critério de uma regra de início de diálogo. O vocabulário
+  // é fechado de propósito (só o que os diálogos atuais realmente precisam)
+  // — crescer esse vocabulário é uma decisão de conteúdo, não só técnica.
+  _evalCondition(cond, npcId, npc) {
+    switch (cond.type) {
+      case 'questDone': return this.quests.isDone(cond.quest);
+      case 'questActive': return this.quests.isActive(cond.quest);
+      case 'objectiveDone': return !!this.quests.state[cond.quest]?.objectives[cond.objective]?.done;
+      case 'isNight': return !!this._isNight;
+      case 'hasMetPlayer': return !!npc?.hasMetPlayer;
+      case 'obligationActive': return !!this.obligation.active;
+      case 'obligationHasMisses': return this.obligation.misses > 0;
+      case 'isPlayerFamily': return FAMILY_NPCS[npcId] === this.originId;
+      case 'isPlayerBoss': return BOSS_NPCS[npcId] === this.originId;
+      case 'not': return !this._evalCondition(cond.of, npcId, npc);
+      default: return false;
+    }
+  }
+
   _resolveStartNode(npcId, npc) {
-    const tree = DIALOGUES[npcId];
-    if (tree.start !== 'dynamic') return tree.start;
-
-    if (npcId === 'almeida') {
-      return this.quests.isDone('boas_vindas') ? 'idle' : 'a1';
+    const tree = this.trees[npcId];
+    for (const rule of tree.startRules || []) {
+      if (rule.if.every(cond => this._evalCondition(cond, npcId, npc))) return rule.node;
     }
-    if (npcId === 'marina') {
-      if (this.quests.isDone('livro_esquecido')) return 'm_done';
-      const bookFound = this.quests.state.livro_esquecido.objectives.find_book.done;
-      const questActive = this.quests.isActive('livro_esquecido');
-      if (questActive && bookFound) return 'm_return';
-      if (questActive) return 'm_wait';
-      return 'm_intro';
-    }
-    if (npcId === 'diego') {
-      if (this.quests.isDone('desconectar')) return 'd_after';
-      if (this._isNight) return 'd_night';
-      return 'd_day';
-    }
-
-    const prefix = DYNAMIC_PREFIX[npcId];
-    if (prefix) {
-      const belongsToPlayer = FAMILY_NPCS[npcId] === this.originId || BOSS_NPCS[npcId] === this.originId;
-      if (!belongsToPlayer) return `${prefix}_stranger`;
-      if (!npc.hasMetPlayer) return `${prefix}_${npcId in FAMILY_NPCS ? 'greet' : 'intro'}`;
-      if (!this.obligation.active) return `${prefix}_fired`;
-      if (this.obligation.misses > 0) return `${prefix}_warning` in tree.nodes ? `${prefix}_warning` : `${prefix}_worried`;
-      return `${prefix}_ok`;
-    }
-    return tree.start;
+    return tree.startDefault;
   }
 
   start(npcId, isNight, npc) {
@@ -151,9 +153,11 @@ export class DialogueSystem {
   }
 
   _render() {
-    const tree = DIALOGUES[this.currentNpcId];
+    const tree = this.trees[this.currentNpcId];
     const node = tree.nodes[this.nodeId];
-    const text = typeof node.text === 'function' ? node.text(this.sex) : node.text;
+    const sex = this.sex;
+    const text = node.text.replace(PRONOUN_PATTERN, (_, m, f, x) => (sex === 'f' ? f : sex === 'x' ? x : m));
+    this._lastText = text;
     this._visibleOptions = node.options.filter(o =>
       (!o.minMoney || this.needs.money >= o.minMoney) &&
       (!o.maxHunger || this.needs.hunger <= o.maxHunger)
