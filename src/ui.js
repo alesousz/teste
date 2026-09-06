@@ -1,4 +1,4 @@
-import { CONFIG, CITY, QUESTS } from './data.js';
+import { CONFIG, CITY, QUESTS, ITEM_CATEGORIES } from './data.js';
 
 export class UI {
   constructor() {
@@ -17,8 +17,13 @@ export class UI {
     this.journal = document.getElementById('journal');
     this.journalQuests = document.getElementById('journal-quests');
     this.journalGallery = document.getElementById('journal-gallery');
-    this.journalItems = document.getElementById('journal-items');
     this.pauseMenu = document.getElementById('pause-menu');
+    this.itemMenu = document.getElementById('item-menu');
+    this.itemMenuCategories = document.getElementById('item-menu-categories');
+    this.itemMenuList = document.getElementById('item-menu-list');
+    this.itemMenuDetail = document.getElementById('item-menu-detail');
+    this._selectedCategory = null;
+    this._selectedItemId = null;
     this.flashEl = document.getElementById('photo-flash');
     this.crosshairHint = document.getElementById('crosshair-hint');
     this.minimapCanvas = document.getElementById('minimap');
@@ -149,16 +154,16 @@ export class UI {
   }
   hideDialogue() { this.dialogueBox.classList.add('hidden'); }
 
-  toggleJournal(questSystem, collectibleSystem, inventorySystem, onUseItem) {
+  toggleJournal(questSystem, collectibleSystem) {
     const isHidden = this.journal.classList.contains('hidden');
-    if (isHidden) this.renderJournal(questSystem, collectibleSystem, inventorySystem, onUseItem);
+    if (isHidden) this.renderJournal(questSystem, collectibleSystem);
     this.journal.classList.toggle('hidden');
     return isHidden;
   }
   hideJournal() { this.journal.classList.add('hidden'); }
   isJournalOpen() { return !this.journal.classList.contains('hidden'); }
 
-  renderJournal(questSystem, collectibleSystem, inventorySystem, onUseItem) {
+  renderJournal(questSystem, collectibleSystem) {
     const parts = [];
     for (const q of Object.values(QUESTS)) {
       const s = questSystem.state[q.id];
@@ -183,23 +188,81 @@ export class UI {
     this.journalGallery.innerHTML = photos.length
       ? photos.map(p => `<div class="photo-card"><img src="${p.thumb}" alt="fragmento"/><p>${p.note}</p></div>`).join('')
       : '<p>Nenhum fragmento fotografado ainda. Procure por brilhos dourados pela cidade.</p>';
+  }
 
-    if (this.journalItems) {
-      const owned = inventorySystem?.getOwnedItems() || [];
-      this.journalItems.innerHTML = owned.length
-        ? owned.map(({ def, count }) => `
-          <div class="journal-item">
-            <span class="journal-item-icon">${def.icon}</span>
-            <span class="journal-item-name">${def.name} <span class="journal-item-count">x${count}</span></span>
-            <p class="journal-item-desc">${def.description}</p>
-            <button class="journal-item-use" data-use="${def.id}">Usar</button>
-          </div>
-        `).join('')
-        : '<p>Nenhum item guardado ainda.</p>';
-      this.journalItems.querySelectorAll('[data-use]').forEach(btn => {
-        btn.onclick = () => onUseItem?.(btn.dataset.use);
-      });
+  // -------------------------------------------------------------------
+  // Menu de itens (tela cheia, com categorias) — separado do diário.
+  // -------------------------------------------------------------------
+  toggleItemMenu(inventorySystem, onUseItem, onDiscardItem) {
+    const isHidden = this.itemMenu.classList.contains('hidden');
+    if (isHidden) this.renderItemMenu(inventorySystem, onUseItem, onDiscardItem);
+    this.itemMenu.classList.toggle('hidden');
+    return isHidden;
+  }
+  hideItemMenu() { this.itemMenu.classList.add('hidden'); }
+  isItemMenuOpen() { return !this.itemMenu.classList.contains('hidden'); }
+
+  renderItemMenu(inventorySystem, onUseItem, onDiscardItem) {
+    const owned = inventorySystem.getOwnedItems();
+    const categoriesWithItems = Object.values(ITEM_CATEGORIES).filter(cat =>
+      owned.some(({ def }) => def.category === cat.id)
+    );
+
+    if (!this._selectedCategory || !categoriesWithItems.some(c => c.id === this._selectedCategory)) {
+      this._selectedCategory = categoriesWithItems[0]?.id || null;
     }
+
+    this.itemMenuCategories.innerHTML = categoriesWithItems.length
+      ? categoriesWithItems.map(cat => `
+        <div class="item-menu-category ${cat.id === this._selectedCategory ? 'selected' : ''}" data-cat="${cat.id}">${cat.label}</div>
+      `).join('')
+      : '<p class="item-menu-empty">Nenhum item guardado ainda.</p>';
+    this.itemMenuCategories.querySelectorAll('[data-cat]').forEach(el => {
+      el.onclick = () => {
+        this._selectedCategory = el.dataset.cat;
+        this._selectedItemId = null;
+        this.renderItemMenu(inventorySystem, onUseItem, onDiscardItem);
+      };
+    });
+
+    const itemsInCategory = owned.filter(({ def }) => def.category === this._selectedCategory);
+    if (!this._selectedItemId || !itemsInCategory.some(({ def }) => def.id === this._selectedItemId)) {
+      this._selectedItemId = itemsInCategory[0]?.def.id || null;
+    }
+
+    this.itemMenuList.innerHTML = itemsInCategory.length
+      ? itemsInCategory.map(({ def, count }) => `
+        <div class="item-menu-row ${def.id === this._selectedItemId ? 'selected' : ''}" data-item="${def.id}">
+          <span class="item-menu-row-icon">${def.icon}</span>
+          <span>${def.name}</span>
+          <span class="item-menu-row-count">x${count}</span>
+        </div>
+      `).join('')
+      : '<p class="item-menu-empty">Nada por aqui.</p>';
+    this.itemMenuList.querySelectorAll('[data-item]').forEach(el => {
+      el.onclick = () => {
+        this._selectedItemId = el.dataset.item;
+        this.renderItemMenu(inventorySystem, onUseItem, onDiscardItem);
+      };
+    });
+
+    const selected = itemsInCategory.find(({ def }) => def.id === this._selectedItemId);
+    if (!selected) {
+      this.itemMenuDetail.innerHTML = '';
+      return;
+    }
+    this.itemMenuDetail.innerHTML = `
+      <div class="item-menu-detail-icon">${selected.def.icon}</div>
+      <h3 class="item-menu-detail-name">${selected.def.name}</h3>
+      <div class="item-menu-detail-count">Quantidade: ${selected.count}</div>
+      <p class="item-menu-detail-desc">${selected.def.description}</p>
+      <div class="item-menu-detail-actions">
+        <button class="item-menu-btn item-menu-btn-use" data-act="use">Usar</button>
+        <button class="item-menu-btn item-menu-btn-discard" data-act="discard">Descartar</button>
+      </div>
+    `;
+    this.itemMenuDetail.querySelector('[data-act="use"]').onclick = () => onUseItem?.(selected.def.id);
+    this.itemMenuDetail.querySelector('[data-act="discard"]').onclick = () => onDiscardItem?.(selected.def.id);
   }
 
   flashPhoto() {
