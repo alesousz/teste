@@ -124,11 +124,12 @@ export class UI {
     }
   }
 
-  showPrompt(text) {
+  showPrompt(text, warning = false) {
     this.promptEl.textContent = text;
+    this.promptEl.classList.toggle('warning', warning);
     this.promptEl.classList.remove('hidden');
   }
-  hidePrompt() { this.promptEl.classList.add('hidden'); }
+  hidePrompt() { this.promptEl.classList.add('hidden'); this.promptEl.classList.remove('warning'); }
 
   showDialogue(text, optionLabels, onChoose) {
     this.dialogueBox.classList.remove('hidden');

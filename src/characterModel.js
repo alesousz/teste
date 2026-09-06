@@ -17,6 +17,7 @@ const STATE_CLIPS = {
 const ONE_SHOT_CLIPS = {
   attack: 'Punch_Jab',
   hit: 'Hit_Chest',
+  dodge: 'Roll',
 };
 const FADE_SECONDS = 0.25;
 const ONE_SHOT_FADE_SECONDS = 0.08;

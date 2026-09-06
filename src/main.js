@@ -178,6 +178,9 @@ class Game {
     if (this.player) this.scene.remove(this.player.mesh);
     this.player = new Player(this.scene, this.world, this.profile.sex === 'f' ? 'female' : 'male');
     this.player.onAttackImpact = () => this._resolvePlayerAttack();
+    this.dummy.onTelegraphExpire = () => {
+      if (!this.player.isDodging) this.player.takeDamage(CONFIG.DUMMY_COUNTER_DAMAGE);
+    };
 
     this.needs = new NeedsSystem(origin.startMoney);
     this.obligation = new ObligationSystem(OBLIGATIONS[origin.obligation]);
@@ -265,6 +268,13 @@ class Game {
   _handleInteractionPrompt() {
     if (this.dialogue.active) return;
 
+    // O aviso de contra-ataque tem prioridade sobre qualquer outro prompt —
+    // é a janela real pra esquivar (Q), então precisa ficar bem visível.
+    if (this.dummy.telegraphActive) {
+      this.ui.showPrompt('Q — Esquivar do contra-ataque!', true);
+      return;
+    }
+
     let nearestNpc = null;
     let nearestDist = CONFIG.INTERACT_RADIUS;
     for (const npc of this.npcs) {
@@ -347,10 +357,12 @@ class Game {
       const { x, y } = this.input.consumeMouseDelta();
       this.player.applyCameraInput(x, y);
       this.player.update(dt, this.input);
-      // Contra-ataque do boneco só resolve quando o jogador não está mais
+      // O aviso do contra-ataque só começa quando o jogador não está mais
       // travado no próprio soco, pra não cortar a animação de ataque dele.
-      if (this.dummy.pendingCounter && !this.player.isAttacking) {
-        if (this.dummy.consumePendingCounter()) this.player.takeDamage(CONFIG.DUMMY_COUNTER_DAMAGE);
+      // O dano em si só é resolvido depois (ver onTelegraphExpire), dando
+      // tempo do jogador esquivar (Q) durante o aviso.
+      if (this.dummy.counterPending && !this.player.isAttacking && !this.dummy.telegraphActive) {
+        this.dummy.startTelegraph();
       }
       this._handleInteractionPrompt();
       this.needs.update(dt);
