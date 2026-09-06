@@ -73,9 +73,10 @@ export class Player {
     const moveX = (input.isDown('KeyD') ? 1 : 0) - (input.isDown('KeyA') ? 1 : 0);
     const moveZ = (input.isDown('KeyS') ? 1 : 0) - (input.isDown('KeyW') ? 1 : 0);
     const hasInput = moveX !== 0 || moveZ !== 0;
-    this.isRunning = input.isDown('ShiftLeft') || input.isDown('ShiftRight');
+    this.isRunning = (input.isDown('ShiftLeft') || input.isDown('ShiftRight')) && !this.exhausted;
 
-    const speed = this.isRunning ? CONFIG.PLAYER_SPEED_RUN : CONFIG.PLAYER_SPEED_WALK;
+    const baseSpeed = this.isRunning ? CONFIG.PLAYER_SPEED_RUN : CONFIG.PLAYER_SPEED_WALK;
+    const speed = this.exhausted ? baseSpeed * 0.55 : baseSpeed;
 
     if (hasInput) {
       const forward = new THREE.Vector3(Math.sin(this.camYaw), 0, Math.cos(this.camYaw));

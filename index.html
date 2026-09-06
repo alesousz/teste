@@ -38,6 +38,41 @@
       </div>
     </div>
 
+    <!-- Criação de personagem -->
+    <div id="creation-screen" class="overlay hidden">
+      <div class="menu-panel creation-panel">
+        <h2>Antes de começar...</h2>
+        <p class="menu-desc">Toda vida começa em algum lugar. A sua começa aqui.</p>
+
+        <label class="cc-label" for="cc-name">Como você se chama?</label>
+        <input id="cc-name" class="cc-input" type="text" maxlength="24" placeholder="Seu nome" />
+
+        <label class="cc-label">Você é...</label>
+        <div class="cc-row">
+          <button class="cc-chip" data-sex="m">Homem</button>
+          <button class="cc-chip" data-sex="f">Mulher</button>
+          <button class="cc-chip" data-sex="x">Não-binário</button>
+        </div>
+
+        <label class="cc-label">Onde você nasceu?</label>
+        <div class="cc-origin-row">
+          <button class="cc-origin-card" data-origin="operario">
+            <strong>Bairro Operário</strong>
+            <span>Você cresceu apertado, mas cercado de gente que se ajuda. Começa hoje seu primeiro turno no mercado — R$60 no bolso.</span>
+          </button>
+          <button class="cc-origin-card" data-origin="nobre">
+            <strong>Bairro Nobre</strong>
+            <span>Você nunca precisou se preocupar com dinheiro, mas a cobrança em casa é constante. Começa hoje numa escola nova — R$250 no bolso.</span>
+          </button>
+        </div>
+
+        <div class="menu-buttons">
+          <button id="cc-back">Voltar</button>
+          <button id="cc-confirm" disabled>Começar a Vida</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Menu de pausa -->
     <div id="pause-menu" class="overlay hidden">
       <div class="menu-panel">
@@ -52,10 +87,23 @@
 
     <!-- HUD -->
     <div id="hud" class="hidden">
-      <div id="objective-box"></div>
+      <div id="hud-left">
+        <div id="objective-box"></div>
+        <div id="needs-bar">
+          <div class="needs-row">
+            <span class="needs-icon">⚡</span>
+            <div class="needs-track"><div id="energy-fill" class="needs-fill"></div></div>
+          </div>
+          <div class="needs-row">
+            <span class="needs-icon">💰</span>
+            <span id="money-value">R$0</span>
+          </div>
+        </div>
+      </div>
       <div id="top-right">
         <div id="clock">00:00</div>
         <div id="day-counter">Dia 1</div>
+        <div id="schedule-box"></div>
       </div>
       <canvas id="minimap" width="150" height="150"></canvas>
       <div id="interact-prompt" class="hidden"></div>
