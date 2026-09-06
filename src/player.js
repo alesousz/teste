@@ -13,6 +13,7 @@ export class Player {
     this.velocity = new THREE.Vector3();
     this.facingAngle = Math.PI;
     this.isRunning = false;
+    this.isCrouching = false;
     this.velocityY = 0;
     this.isGrounded = true;
     this.isAttacking = false;
@@ -60,9 +61,10 @@ export class Player {
     const moveX = (input.isDown('KeyD') ? 1 : 0) - (input.isDown('KeyA') ? 1 : 0);
     const moveZ = (input.isDown('KeyS') ? 1 : 0) - (input.isDown('KeyW') ? 1 : 0);
     const hasInput = moveX !== 0 || moveZ !== 0;
-    this.isRunning = (input.isDown('ShiftLeft') || input.isDown('ShiftRight')) && !this.exhausted;
+    this.isCrouching = input.isDown('KeyC');
+    this.isRunning = !this.isCrouching && (input.isDown('ShiftLeft') || input.isDown('ShiftRight')) && !this.exhausted;
 
-    const baseSpeed = this.isRunning ? CONFIG.PLAYER_SPEED_RUN : CONFIG.PLAYER_SPEED_WALK;
+    const baseSpeed = this.isCrouching ? CONFIG.PLAYER_SPEED_CROUCH : (this.isRunning ? CONFIG.PLAYER_SPEED_RUN : CONFIG.PLAYER_SPEED_WALK);
     const speed = this.exhausted ? baseSpeed * 0.55 : baseSpeed;
 
     if (this.koTimer > 0) {
@@ -82,7 +84,7 @@ export class Player {
     // "root" de jogos de ação simples) e resolve o acerto já no começo do
     // movimento, sem esperar o quadro exato do impacto na animação. Socar
     // de novo dentro da janela de combo encadeia o segundo golpe.
-    if (input.consumeAttack() && this.isGrounded && !this.isAttacking && !this.isHitStunned && !this.isDodging && this.stamina >= CONFIG.PUNCH_STAMINA_COST) {
+    if (input.consumeAttack() && this.isGrounded && !this.isAttacking && !this.isHitStunned && !this.isDodging && !this.isCrouching && this.stamina >= CONFIG.PUNCH_STAMINA_COST) {
       const isCombo = this.comboStage === 1 && this.comboTimer > 0;
       this.isAttacking = true;
       this.comboTimer = 0;
@@ -99,7 +101,7 @@ export class Player {
     // Esquiva: enquanto isDodging for true, takeDamage() não faz nada — é
     // a janela de invulnerabilidade que dá sentido a esquivar do
     // contra-ataque telegrafado do boneco de treino.
-    if (input.wasPressed('KeyQ') && this.isGrounded && !this.isAttacking && !this.isHitStunned && !this.isDodging && this.stamina >= CONFIG.DODGE_STAMINA_COST) {
+    if (input.wasPressed('KeyQ') && this.isGrounded && !this.isAttacking && !this.isHitStunned && !this.isDodging && !this.isCrouching && this.stamina >= CONFIG.DODGE_STAMINA_COST) {
       this.isDodging = true;
       this.stamina -= CONFIG.DODGE_STAMINA_COST;
       this.rig.playOnce('dodge', () => { this.isDodging = false; });
@@ -121,7 +123,7 @@ export class Player {
       this.facingAngle += diff * Math.min(1, dt * 10);
     }
 
-    if (input.wasPressed('Space') && this.isGrounded && !this.isAttacking && !this.isHitStunned && !this.isDodging) {
+    if (input.wasPressed('Space') && this.isGrounded && !this.isAttacking && !this.isHitStunned && !this.isDodging && !this.isCrouching) {
       this.velocityY = CONFIG.JUMP_SPEED;
       this.isGrounded = false;
     }
@@ -141,7 +143,11 @@ export class Player {
     if (!this.isGrounded) {
       this.rig.setState('jump');
     } else if (!this.isAttacking && !this.isHitStunned && !this.isDodging) {
-      this.rig.setState(!hasInput ? 'idle' : (this.isRunning ? 'run' : 'walk'));
+      if (this.isCrouching) {
+        this.rig.setState(hasInput ? 'crouchWalk' : 'crouchIdle');
+      } else {
+        this.rig.setState(!hasInput ? 'idle' : (this.isRunning ? 'run' : 'walk'));
+      }
     }
     this.rig.update(dt);
 
