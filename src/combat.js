@@ -26,8 +26,13 @@ export class TrainingDummy {
     // Chance de "revidar" a cada soco recebido — dá um motivo real pra ter
     // HP e reação de dano no jogador, sem introduzir NPC hostil nem
     // inimigo pela cidade. O contra-ataque fica pendente até o jogador
-    // sair do meio do próprio soco (ver consumePendingCounter).
-    this.pendingCounter = false;
+    // sair do meio do próprio soco (ver startTelegraph), e só acerta de
+    // verdade depois de um aviso visual (telegraphActive) que dá tempo do
+    // jogador esquivar. Definido externamente pelo Game.
+    this.counterPending = false;
+    this.telegraphActive = false;
+    this.telegraphTimer = 0;
+    this.onTelegraphExpire = null;
 
     this.group = new THREE.Group();
     this.group.position.copy(this.position);
@@ -46,7 +51,7 @@ export class TrainingDummy {
     chain.position.y = 2.25;
     this.group.add(chain);
 
-    const bagMat = new THREE.MeshStandardMaterial({ color: 0xb04a3a, roughness: 0.7 });
+    const bagMat = new THREE.MeshStandardMaterial({ color: 0xb04a3a, roughness: 0.7, emissive: 0x000000 });
     this.bag = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 0.9, 4, 10), bagMat);
     this.bag.position.y = 1.55;
     this.bag.castShadow = true;
@@ -86,19 +91,20 @@ export class TrainingDummy {
     this._redrawBar();
     if (this.isDown) {
       this.respawnTimer = CONFIG.DUMMY_RESPAWN_DELAY;
-    } else if (!this.pendingCounter && Math.random() < CONFIG.DUMMY_COUNTER_CHANCE) {
-      this.pendingCounter = true;
+    } else if (!this.counterPending && !this.telegraphActive && Math.random() < CONFIG.DUMMY_COUNTER_CHANCE) {
+      this.counterPending = true;
     }
     return true;
   }
 
-  // Consumida pelo Game assim que o jogador não estiver mais travado no
-  // próprio soco — evita que o contra-ataque interrompa a animação de
-  // ataque em andamento.
-  consumePendingCounter() {
-    if (!this.pendingCounter) return false;
-    this.pendingCounter = false;
-    return true;
+  // Chamado pelo Game assim que o jogador não estiver mais travado no
+  // próprio soco — inicia o aviso visual; o contra-ataque só acerta de
+  // verdade quando o telegraphTimer zera (ver update()).
+  startTelegraph() {
+    if (!this.counterPending) return;
+    this.counterPending = false;
+    this.telegraphActive = true;
+    this.telegraphTimer = CONFIG.COUNTER_TELEGRAPH_DURATION;
   }
 
   update(dt) {
@@ -108,6 +114,16 @@ export class TrainingDummy {
       this.bag.rotation.z = Math.sin(this.hitFlash * 45) * 0.3 * f;
     } else {
       this.bag.rotation.z *= 0.8;
+    }
+    if (this.telegraphActive) {
+      const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.02);
+      this.bag.material.emissive.setRGB(pulse, pulse * 0.55, 0);
+      this.telegraphTimer -= dt;
+      if (this.telegraphTimer <= 0) {
+        this.telegraphActive = false;
+        this.bag.material.emissive.setRGB(0, 0, 0);
+        this.onTelegraphExpire?.();
+      }
     }
     if (this.respawnTimer > 0) {
       this.respawnTimer -= dt;

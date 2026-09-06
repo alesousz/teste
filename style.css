@@ -101,6 +101,11 @@ html, body {
   background: rgba(10,12,16,0.7); padding: 8px 16px; border-radius: 20px; font-size: 0.9em;
   border: 1px solid rgba(255,255,255,0.15);
 }
+#interact-prompt.warning {
+  background: rgba(120,35,15,0.9); border-color: #ff9a5c; color: #ffe2cf; font-weight: 700;
+  animation: prompt-pulse 0.4s infinite alternate;
+}
+@keyframes prompt-pulse { from { opacity: 0.7; } to { opacity: 1; } }
 
 #crosshair-hint {
   position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px;

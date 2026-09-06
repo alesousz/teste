@@ -17,6 +17,7 @@ export class Player {
     this.isGrounded = true;
     this.isAttacking = false;
     this.isHitStunned = false;
+    this.isDodging = false;
     this.hp = CONFIG.PLAYER_MAX_HP;
     this.koTimer = 0;
     // Definido externamente (pelo Game) pra resolver o "quem foi atingido"
@@ -41,7 +42,7 @@ export class Player {
   }
 
   takeDamage(amount) {
-    if (this.hp <= 0 || this.isHitStunned) return;
+    if (this.hp <= 0 || this.isHitStunned || this.isDodging) return;
     this.hp = Math.max(0, this.hp - amount);
     this.isHitStunned = true;
     this.rig.playOnce('hit', () => { this.isHitStunned = false; });
@@ -64,13 +65,21 @@ export class Player {
     // Soco trava o personagem no lugar por um instante (mesma lógica de
     // "root" de jogos de ação simples) e resolve o acerto já no começo do
     // movimento, sem esperar o quadro exato do impacto na animação.
-    if (input.consumeAttack() && this.isGrounded && !this.isAttacking && !this.isHitStunned) {
+    if (input.consumeAttack() && this.isGrounded && !this.isAttacking && !this.isHitStunned && !this.isDodging) {
       this.isAttacking = true;
       this.onAttackImpact?.();
       this.rig.playOnce('attack', () => { this.isAttacking = false; });
     }
 
-    if (hasInput && !this.isAttacking && !this.isHitStunned) {
+    // Esquiva: enquanto isDodging for true, takeDamage() não faz nada — é
+    // a janela de invulnerabilidade que dá sentido a esquivar do
+    // contra-ataque telegrafado do boneco de treino.
+    if (input.wasPressed('KeyQ') && this.isGrounded && !this.isAttacking && !this.isHitStunned && !this.isDodging) {
+      this.isDodging = true;
+      this.rig.playOnce('dodge', () => { this.isDodging = false; });
+    }
+
+    if (hasInput && !this.isAttacking && !this.isHitStunned && !this.isDodging) {
       const forward = new THREE.Vector3(Math.sin(this.camYaw), 0, Math.cos(this.camYaw));
       const right = new THREE.Vector3(Math.sin(this.camYaw + Math.PI / 2), 0, Math.cos(this.camYaw + Math.PI / 2));
       const move = new THREE.Vector3();
@@ -86,7 +95,7 @@ export class Player {
       this.facingAngle += diff * Math.min(1, dt * 10);
     }
 
-    if (input.wasPressed('Space') && this.isGrounded && !this.isAttacking && !this.isHitStunned) {
+    if (input.wasPressed('Space') && this.isGrounded && !this.isAttacking && !this.isHitStunned && !this.isDodging) {
       this.velocityY = CONFIG.JUMP_SPEED;
       this.isGrounded = false;
     }
@@ -105,7 +114,7 @@ export class Player {
 
     if (!this.isGrounded) {
       this.rig.setState('jump');
-    } else if (!this.isAttacking && !this.isHitStunned) {
+    } else if (!this.isAttacking && !this.isHitStunned && !this.isDodging) {
       this.rig.setState(!hasInput ? 'idle' : (this.isRunning ? 'run' : 'walk'));
     }
     this.rig.update(dt);
