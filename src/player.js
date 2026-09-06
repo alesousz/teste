@@ -13,7 +13,6 @@ export class Player {
     this.velocity = new THREE.Vector3();
     this.facingAngle = Math.PI;
     this.isRunning = false;
-    this.walkT = 0;
 
     // Câmera terceira-pessoa em coordenadas esféricas relativas ao jogador
     this.camYaw = Math.PI;
@@ -55,10 +54,6 @@ export class Player {
       let diff = targetAngle - this.facingAngle;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
       this.facingAngle += diff * Math.min(1, dt * 10);
-
-      this.walkT += dt * (this.isRunning ? 10 : 6);
-    } else {
-      this.walkT *= 0.9;
     }
 
     this.world.resolveCollision(this.position, CONFIG.PLAYER_RADIUS);
@@ -66,8 +61,8 @@ export class Player {
     this.mesh.position.copy(this.position);
     this.mesh.rotation.y = this.facingAngle;
 
-    const swing = Math.sin(this.walkT) * (hasInput ? 0.6 : 0);
-    this.rig.applyWalkSwing(swing);
+    this.rig.setState(!hasInput ? 'idle' : (this.isRunning ? 'run' : 'walk'));
+    this.rig.update(dt);
 
     this._updateCamera();
   }

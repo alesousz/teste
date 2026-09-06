@@ -54,7 +54,7 @@ export class NPC {
     this.target = this.position.clone();
     this.waitTimer = Math.random() * 3;
     this.facing = 0;
-    this.walkT = 0;
+    this.isWalking = false;
     this.hasMetPlayer = false;
     this.questGiven = false;
   }
@@ -71,6 +71,7 @@ export class NPC {
   }
 
   update(dt) {
+    this.isWalking = false;
     if (this.def.speed > 0) {
       const toTarget = this.target.clone().sub(this.position);
       toTarget.y = 0;
@@ -81,7 +82,6 @@ export class NPC {
           this._pickNewTarget();
           this.waitTimer = 2 + Math.random() * 4;
         }
-        this.walkT *= 0.9;
       } else {
         toTarget.normalize();
         this.position.addScaledVector(toTarget, this.def.speed * dt);
@@ -89,14 +89,14 @@ export class NPC {
         let diff = targetAngle - this.facing;
         diff = Math.atan2(Math.sin(diff), Math.cos(diff));
         this.facing += diff * Math.min(1, dt * 6);
-        this.walkT += dt * 6;
+        this.isWalking = true;
       }
     }
     this.world.resolveCollision(this.position, 0.4);
     this.mesh.position.copy(this.position);
     this.mesh.rotation.y = this.facing;
-    const swing = Math.sin(this.walkT) * 0.5;
-    this.rig.applyWalkSwing(swing);
+    this.rig.setState(this.isWalking ? 'walk' : 'idle');
+    this.rig.update(dt);
   }
 }
 
