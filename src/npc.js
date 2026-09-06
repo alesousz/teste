@@ -1,6 +1,14 @@
 import * as THREE from 'three';
-import { NPC_DEFS } from './data.js';
+import { NPC_DEFS, OBLIGATIONS } from './data.js';
 import { buildHumanoid } from './characterModel.js';
+
+// NPCs com um turno fixo (dono do mercado, professora) usam o mesmo horário
+// que o próprio sistema de obrigação do jogador já define — sem duplicar
+// dado nenhum. Fora do turno eles "fecham" (ficam parados no lugar).
+const NPC_OBLIGATIONS = {};
+for (const ob of Object.values(OBLIGATIONS)) {
+  if (ob.npc) NPC_OBLIGATIONS[ob.npc] = ob;
+}
 
 const FEMALE_NPCS = new Set(['mae_operaria', 'mae_nobre', 'marina', 'busker', 'professora']);
 
@@ -57,9 +65,31 @@ export class NPC {
     this.isWalking = false;
     this.hasMetPlayer = false;
     this.questGiven = false;
+
+    // Ritmo dia/noite: NPC com obrigação fixa (ver NPC_OBLIGATIONS) só fica
+    // "ativo" dentro do próprio horário de turno; os demais que perambulam
+    // ficam ativos de dia e voltam pra casa (parados) de noite. A checagem
+    // roda só ~1x/s (com um atraso inicial aleatório pra não sincronizar
+    // todo mundo no mesmo frame) — não precisa ser por frame.
+    this.obligation = NPC_OBLIGATIONS[def.id] || null;
+    this.resting = false;
+    this._scheduleCheckTimer = Math.random();
+  }
+
+  _isActiveNow(world) {
+    if (this.obligation) {
+      const hour = world.timeOfDay * 24;
+      return hour >= this.obligation.startHour && hour < this.obligation.endHour;
+    }
+    if (this.def.wanderRadius > 0) return !world.isNight;
+    return true;
   }
 
   _pickNewTarget() {
+    if (this.resting) {
+      this.target = new THREE.Vector3(this.def.home.x, 0, this.def.home.z);
+      return;
+    }
     if (this.def.wanderRadius <= 0) return;
     const angle = Math.random() * Math.PI * 2;
     const r = Math.random() * this.def.wanderRadius;
@@ -71,6 +101,17 @@ export class NPC {
   }
 
   update(dt) {
+    this._scheduleCheckTimer -= dt;
+    if (this._scheduleCheckTimer <= 0) {
+      this._scheduleCheckTimer = 1 + Math.random() * 0.5;
+      const shouldRest = !this._isActiveNow(this.world);
+      if (shouldRest !== this.resting) {
+        this.resting = shouldRest;
+        this._pickNewTarget();
+        this.waitTimer = 0;
+      }
+    }
+
     this.isWalking = false;
     if (this.def.speed > 0) {
       const toTarget = this.target.clone().sub(this.position);
