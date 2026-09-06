@@ -277,7 +277,7 @@ class Game {
     const def = ITEM_DEFS[itemId];
     if (this.inventory.useItem(itemId, this.needs)) {
       this.ui.showToast(`Usou: ${def.name}`);
-      if (this.ui.isItemMenuOpen()) this.ui.renderItemMenu(this.inventory, this._boundUseItem, this._boundDiscardItem);
+      if (this.ui.isItemMenuOpen()) this.ui.renderItemMenu(this.inventory, this.needs, this._boundUseItem, this._boundDiscardItem);
     }
   }
 
@@ -285,7 +285,7 @@ class Game {
     const def = ITEM_DEFS[itemId];
     if (this.inventory.discardItem(itemId)) {
       this.ui.showToast(`Descartou: ${def.name}`);
-      if (this.ui.isItemMenuOpen()) this.ui.renderItemMenu(this.inventory, this._boundUseItem, this._boundDiscardItem);
+      if (this.ui.isItemMenuOpen()) this.ui.renderItemMenu(this.inventory, this.needs, this._boundUseItem, this._boundDiscardItem);
     }
   }
 
@@ -374,7 +374,7 @@ class Game {
       }
     }
     if (this.input.wasPressed('KeyI')) {
-      const opened = this.ui.toggleItemMenu(this.inventory, this._boundUseItem, this._boundDiscardItem);
+      const opened = this.ui.toggleItemMenu(this.inventory, this.needs, this._boundUseItem, this._boundDiscardItem);
       if (opened) {
         if (document.pointerLockElement) document.exitPointerLock();
       }
@@ -382,6 +382,15 @@ class Game {
     if (this.input.wasPressed('Escape')) {
       if (this.ui.isJournalOpen()) this.ui.hideJournal();
       if (this.ui.isItemMenuOpen()) this.ui.hideItemMenu();
+    }
+
+    if (this.ui.isItemMenuOpen()) {
+      if (this.input.wasPressed('ArrowDown')) this.ui.itemMenuMoveSelection(1);
+      if (this.input.wasPressed('ArrowUp')) this.ui.itemMenuMoveSelection(-1);
+      if (this.input.wasPressed('ArrowRight')) this.ui.itemMenuCycleCategory(1);
+      if (this.input.wasPressed('ArrowLeft')) this.ui.itemMenuCycleCategory(-1);
+      if (this.input.wasPressed('KeyE') || this.input.wasPressed('Enter')) this.ui.itemMenuUseSelected();
+      if (this.input.wasPressed('KeyR')) this.ui.itemMenuDiscardSelected();
     }
 
     if (this.dialogue.active) {

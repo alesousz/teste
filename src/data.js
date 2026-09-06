@@ -408,13 +408,15 @@ export const FRAGMENT_SPOTS = sceneFragments.length > 0 ? sceneFragments : [
 // aplicado só quando o jogador usa o item de verdade, pelo diário.
 // ---------------------------------------------------------------------------
 export const ITEM_CATEGORIES = {
-  consumivel: { id: 'consumivel', label: 'Consumíveis' },
+  consumivel: { id: 'consumivel', label: 'Consumíveis', icon: '🍽' },
 };
 
+// `weight`/`value` são só de exibição (colunas da tabela, estilo SkyUI) —
+// não existe limite de peso pra carregar nem loja pra vender itens.
 export const ITEM_DEFS = {
-  coffee: { id: 'coffee', name: 'Café', icon: '☕', category: 'consumivel', description: 'Recupera um pouco de energia.', effect: { type: 'restoreEnergy', amount: 25 } },
-  snack: { id: 'snack', name: 'Lanche', icon: '🥪', category: 'consumivel', description: 'Mata a fome rapidamente.', effect: { type: 'restoreHunger', amount: 60 } },
-  homeMeal: { id: 'homeMeal', name: 'Comida Caseira', icon: '🍲', category: 'consumivel', description: 'Uma refeição completa.', effect: { type: 'restoreHunger', amount: 100 } },
+  coffee: { id: 'coffee', name: 'Café', icon: '☕', category: 'consumivel', weight: 0.2, value: 5, description: 'Recupera um pouco de energia.', effect: { type: 'restoreEnergy', amount: 25 } },
+  snack: { id: 'snack', name: 'Lanche', icon: '🥪', category: 'consumivel', weight: 0.3, value: 8, description: 'Mata a fome rapidamente.', effect: { type: 'restoreHunger', amount: 60 } },
+  homeMeal: { id: 'homeMeal', name: 'Comida Caseira', icon: '🍲', category: 'consumivel', weight: 0.5, value: 12, description: 'Uma refeição completa.', effect: { type: 'restoreHunger', amount: 100 } },
 };
 
 export const WORLD_ITEM_SPOTS = [
