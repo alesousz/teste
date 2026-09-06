@@ -20,6 +20,12 @@ export class Player {
     this.isDodging = false;
     this.hp = CONFIG.PLAYER_MAX_HP;
     this.koTimer = 0;
+    // Combo de socos: comboStage 1 = janela aberta pra encadear o segundo
+    // golpe (Punch_Cross) enquanto comboTimer > 0; expira de volta pro
+    // primeiro soco (Punch_Jab) se não for continuado a tempo.
+    this.comboStage = 0;
+    this.comboTimer = 0;
+    this.attackDamage = CONFIG.PUNCH_DAMAGE;
     // Definido externamente (pelo Game) pra resolver o "quem foi atingido"
     // no momento em que o soco começa.
     this.onAttackImpact = null;
@@ -62,13 +68,26 @@ export class Player {
       this.koTimer -= dt;
       if (this.koTimer <= 0) { this.koTimer = 0; this.hp = CONFIG.PLAYER_MAX_HP; }
     }
+    if (this.comboTimer > 0) {
+      this.comboTimer -= dt;
+      if (this.comboTimer <= 0) { this.comboTimer = 0; this.comboStage = 0; }
+    }
+
     // Soco trava o personagem no lugar por um instante (mesma lógica de
     // "root" de jogos de ação simples) e resolve o acerto já no começo do
-    // movimento, sem esperar o quadro exato do impacto na animação.
+    // movimento, sem esperar o quadro exato do impacto na animação. Socar
+    // de novo dentro da janela de combo encadeia o segundo golpe.
     if (input.consumeAttack() && this.isGrounded && !this.isAttacking && !this.isHitStunned && !this.isDodging) {
+      const isCombo = this.comboStage === 1 && this.comboTimer > 0;
       this.isAttacking = true;
+      this.comboTimer = 0;
+      this.attackDamage = isCombo ? CONFIG.PUNCH_COMBO_DAMAGE : CONFIG.PUNCH_DAMAGE;
       this.onAttackImpact?.();
-      this.rig.playOnce('attack', () => { this.isAttacking = false; });
+      this.comboStage = isCombo ? 0 : 1;
+      this.rig.playOnce(isCombo ? 'attackCross' : 'attack', () => {
+        this.isAttacking = false;
+        if (this.comboStage === 1) this.comboTimer = CONFIG.PUNCH_COMBO_WINDOW;
+      });
     }
 
     // Esquiva: enquanto isDodging for true, takeDamage() não faz nada — é

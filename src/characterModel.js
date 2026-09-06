@@ -16,6 +16,7 @@ const STATE_CLIPS = {
 // controle pro estado de locomoção corrente via callback.
 const ONE_SHOT_CLIPS = {
   attack: 'Punch_Jab',
+  attackCross: 'Punch_Cross',
   hit: 'Hit_Chest',
   dodge: 'Roll',
 };
