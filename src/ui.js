@@ -35,6 +35,8 @@ export class UI {
     this.journal = document.getElementById('journal');
     this.journalQuests = document.getElementById('journal-quests');
     this.journalGallery = document.getElementById('journal-gallery');
+    this.journalStamp = document.getElementById('journal-stamp');
+    this.journalFragCount = document.getElementById('journal-fragcount');
     this.pauseMenu = document.getElementById('pause-menu');
     this.itemMenu = document.getElementById('item-menu');
     this.itemMenuTitle = document.getElementById('item-menu-title');
@@ -216,35 +218,50 @@ export class UI {
   isJournalOpen() { return !this.journal.classList.contains('hidden'); }
 
   renderJournal(questSystem, collectibleSystem) {
-    const parts = [];
-    for (const q of Object.values(QUESTS)) {
-      const s = questSystem.state[q.id];
-      if (!s.active && !s.done) continue;
-      const status = s.done ? '✔ Concluída' : 'Em andamento';
+    // O carimbo reaproveita o que o HUD já calculou (dia + hora), pra não
+    // precisar passar o `world` até aqui.
+    if (this.journalStamp) this.journalStamp.textContent = `${this.dayEl.textContent} · ${this.clockEl.textContent}`;
+
+    const fragments = collectibleSystem.fragments || [];
+    const photos = collectibleSystem.photos || [];
+    if (this.journalFragCount) this.journalFragCount.textContent = `${photos.length} / ${fragments.length} fragmentos`;
+
+    // Em andamento primeiro, concluídas depois.
+    const shown = Object.values(QUESTS)
+      .map(q => ({ q, s: questSystem.state[q.id] }))
+      .filter(({ s }) => s.active || s.done)
+      .sort((a, b) => Number(a.s.done) - Number(b.s.done));
+
+    this.journalQuests.innerHTML = shown.map(({ q, s }) => {
       const objs = q.objectives.map(o => {
         const done = s.objectives[o.id].done;
-        return `<li class="${done ? 'done' : ''}">${questSystem.getObjectiveText(q.id, o.id)}</li>`;
+        const glyph = done ? 'check_circle' : 'radio_button_unchecked';
+        return `<li class="${done ? 'done' : ''}"><span class="ms">${glyph}</span><span>${questSystem.getObjectiveText(q.id, o.id)}</span></li>`;
       }).join('');
-      parts.push(`
-        <div class="journal-quest">
-          <h3>${q.title} <span class="quest-status">${status}</span></h3>
-          <p>${q.description}</p>
+      return `
+        <div class="journal-quest ${s.done ? 'done' : ''}">
+          <div class="journal-quest-head">
+            <h3>${q.title}</h3>
+            <span class="quest-status">${s.done ? 'Concluída' : 'Em andamento'}</span>
+          </div>
+          ${s.done ? '' : `<p>${q.description}</p>`}
           <ul>${objs}</ul>
           ${s.done ? `<p class="quest-reward">${q.reward}</p>` : ''}
         </div>
-      `);
-    }
-    this.journalQuests.innerHTML = parts.join('') || '<p>Nenhuma missão iniciada ainda.</p>';
+      `;
+    }).join('') || '<p class="item-menu-empty">Nenhuma missão iniciada ainda.</p>';
 
-    const photos = collectibleSystem.photos;
-    this.journalGallery.innerHTML = photos.length
-      ? photos.map(p => `<div class="photo-card"><img src="${p.thumb}" alt="fragmento"/><p>${p.note}</p></div>`).join('')
-      : '<p>Nenhum fragmento fotografado ainda. Procure por brilhos dourados pela cidade.</p>';
+    // Fotos primeiro, depois os slots que faltam — dá noção de progresso.
+    const emptySlots = Math.max(0, fragments.length - photos.length);
+    this.journalGallery.innerHTML = [
+      ...photos.map(p => `<div class="photo-card"><img src="${p.thumb}" alt="fragmento"/><p>${p.note}</p></div>`),
+      ...Array.from({ length: emptySlots }, () => '<div class="photo-card empty"><div class="photo-slot"></div><p>vazio</p></div>'),
+    ].join('');
   }
 
   // -------------------------------------------------------------------
-  // Menu de itens — no estilo SkyUI: abas de categoria em ícones, uma
-  // tabela ordenável, ficha do item ancorada, navegação por teclado.
+  // Menu de itens — abas de categoria em texto, uma tabela ordenável,
+  // ficha do item na coluna da direita, navegação por teclado.
   // -------------------------------------------------------------------
   toggleItemMenu(inventorySystem, needsSystem, onUseItem, onDiscardItem) {
     const isHidden = this.itemMenu.classList.contains('hidden');
@@ -267,7 +284,7 @@ export class UI {
 
     const tabs = [{ id: 'all', icon: '★', label: 'Tudo' }, ...categoriesPresent];
     this.itemMenuTabs.innerHTML = tabs.map(tab => `
-      <div class="item-menu-tab ${tab.id === this._itemMenuCategory ? 'selected' : ''}" data-tab="${tab.id}" title="${tab.label}">${tab.icon}</div>
+      <div class="item-menu-tab ${tab.id === this._itemMenuCategory ? 'selected' : ''}" data-tab="${tab.id}">${tab.label}</div>
     `).join('');
     this.itemMenuTabs.querySelectorAll('[data-tab]').forEach(el => {
       el.onclick = () => {
@@ -315,10 +332,10 @@ export class UI {
     this.itemMenuRows.innerHTML = items.length
       ? items.map(({ def, count }) => `
         <div class="item-menu-row ${def.id === this._itemMenuSelectedId ? 'selected' : ''}" data-item="${def.id}">
-          <span class="item-menu-row-name"><span class="item-menu-row-icon">${def.icon}</span>${def.name}</span>
+          <span class="item-menu-row-name"><span class="ms item-menu-row-icon">${def.glyph || def.icon}</span>${def.name}</span>
           <span class="item-menu-row-num">${count}</span>
           <span class="item-menu-row-num">${def.weight.toFixed(1)}</span>
-          <span class="item-menu-row-num">R$${def.value}</span>
+          <span class="item-menu-row-num item-menu-col-value">R$${def.value}</span>
         </div>
       `).join('')
       : '<p class="item-menu-empty">Nenhum item guardado ainda.</p>';
@@ -329,20 +346,33 @@ export class UI {
     const selected = items.find(({ def }) => def.id === this._itemMenuSelectedId);
     this.itemMenuDetailDock.classList.toggle('hidden', !selected);
     if (selected) {
+      const def = selected.def;
+      const category = ITEM_CATEGORIES[def.category]?.label || 'Item';
+      const effect = def.effect?.type === 'restoreEnergy' ? `Energia +${def.effect.amount}`
+        : def.effect?.type === 'restoreHunger' ? `Fome +${def.effect.amount}`
+        : null;
       this.itemMenuDetailDock.innerHTML = `
         <div class="item-menu-detail-top">
-          <span class="item-menu-detail-icon">${selected.def.icon}</span>
-          <h3 class="item-menu-detail-name">${selected.def.name}</h3>
+          <span class="ms item-menu-detail-icon">${def.glyph || def.icon}</span>
+          <div>
+            <h3 class="item-menu-detail-name">${def.name}</h3>
+            <div class="item-menu-detail-kicker">${category} · ${selected.count} no bolso</div>
+          </div>
         </div>
+        <p class="item-menu-detail-desc">${def.description}</p>
         <div class="item-menu-detail-stats">
-          <span>Peso: ${selected.def.weight.toFixed(1)}</span>
-          <span>Valor: R$${selected.def.value}</span>
+          ${effect ? `<div class="item-menu-detail-stat"><span>Efeito</span><span class="effect">${effect}</span></div>` : ''}
+          <div class="item-menu-detail-stat"><span>Peso</span><span class="num">${def.weight.toFixed(1)}</span></div>
+          <div class="item-menu-detail-stat"><span>Valor</span><span class="num">R$${def.value}</span></div>
         </div>
-        <p class="item-menu-detail-desc">${selected.def.description}</p>
+        <div class="item-menu-actions">
+          <span class="item-menu-action"><span class="key">E</span>Usar</span>
+          <span class="item-menu-action secondary"><span class="key">R</span>Descartar</span>
+        </div>
       `;
     }
 
-    this.itemMenuMoney.textContent = `Dinheiro: R$${Math.floor(needsSystem.money)}`;
+    this.itemMenuMoney.textContent = `R$${Math.floor(needsSystem.money)}`;
     this._itemMenuOnUse = onUseItem;
     this._itemMenuOnDiscard = onDiscardItem;
   }

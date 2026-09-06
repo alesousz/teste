@@ -169,43 +169,60 @@
 
     <!-- Diário -->
     <div id="journal" class="overlay hidden">
-      <div class="journal-panel">
-        <h2>Diário</h2>
+      <div class="full-menu">
+        <header class="full-menu-head">
+          <div class="full-menu-titles">
+            <h2>Diário</h2>
+            <span id="journal-stamp" class="full-menu-stamp"></span>
+          </div>
+          <span id="journal-fragcount" class="full-menu-stamp"></span>
+        </header>
         <div class="journal-columns">
           <div class="journal-col">
-            <h3>Missões</h3>
+            <div class="col-kicker accent">Missões</div>
             <div id="journal-quests"></div>
           </div>
-          <div class="journal-col">
-            <h3>Fragmentos Fotografados</h3>
+          <div class="journal-col journal-col-right">
+            <div class="col-kicker">Fragmentos fotografados</div>
             <div id="journal-gallery" class="journal-gallery"></div>
           </div>
         </div>
-        <p class="journal-hint">Pressione Tab para fechar</p>
+        <footer class="full-menu-foot">
+          <span>F fotografar fragmentos pela cidade</span>
+          <span>Tab fechar</span>
+        </footer>
       </div>
     </div>
 
     <!-- Menu de itens -->
     <div id="item-menu" class="overlay hidden">
-      <div class="item-menu-panel">
-        <div class="item-menu-header">
-          <h2 id="item-menu-title">Itens</h2>
-          <div id="item-menu-tabs" class="item-menu-tabs"></div>
-        </div>
-        <div class="item-menu-table">
-          <div class="item-menu-col-headers">
-            <span class="item-menu-col item-menu-col-name" data-sort="name">Nome</span>
-            <span class="item-menu-col item-menu-col-qty" data-sort="qty">Qtd</span>
-            <span class="item-menu-col item-menu-col-weight" data-sort="weight">Peso</span>
-            <span class="item-menu-col item-menu-col-value" data-sort="value">Valor</span>
+      <div class="full-menu">
+        <header class="full-menu-head">
+          <div class="full-menu-titles">
+            <h2 id="item-menu-title">Itens</h2>
+            <div id="item-menu-tabs" class="item-menu-tabs"></div>
           </div>
-          <div id="item-menu-rows" class="item-menu-rows"></div>
+          <div class="item-menu-money-box">
+            <span class="ms">payments</span>
+            <span id="item-menu-money"></span>
+          </div>
+        </header>
+        <div class="item-menu-body">
+          <div class="item-menu-table">
+            <div class="item-menu-col-headers">
+              <span class="item-menu-col item-menu-col-name" data-sort="name">Nome</span>
+              <span class="item-menu-col" data-sort="qty">Qtd</span>
+              <span class="item-menu-col" data-sort="weight">Peso</span>
+              <span class="item-menu-col item-menu-col-value" data-sort="value">Valor</span>
+            </div>
+            <div id="item-menu-rows" class="item-menu-rows"></div>
+          </div>
+          <aside id="item-menu-detail-dock" class="item-menu-detail-dock hidden"></aside>
         </div>
-        <div id="item-menu-detail-dock" class="item-menu-detail-dock hidden"></div>
-        <div class="item-menu-bottom-bar">
-          <span class="item-menu-hint">E Usar · R Descartar · ↑↓ Navegar · ←→ Categoria · I Fechar</span>
-          <span id="item-menu-money" class="item-menu-money"></span>
-        </div>
+        <footer class="full-menu-foot">
+          <span>↑↓ navegar &nbsp;·&nbsp; ←→ categoria &nbsp;·&nbsp; E usar &nbsp;·&nbsp; R descartar</span>
+          <span>I fechar</span>
+        </footer>
       </div>
     </div>
 
