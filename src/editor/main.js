@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PALETTE, paletteById } from './palette.js';
+import { SCENE as GAME_SCENE } from '../data/scene.js';
 
 const GRID_SIZE = 60;
 const CELL = 1;
@@ -273,6 +274,7 @@ class EditorApp {
   _bindSceneUI() {
     document.getElementById('btn-save-scene').onclick = () => this._saveScene();
     document.getElementById('btn-new-scene').onclick = () => this._newScene();
+    document.getElementById('btn-load-game-scene').onclick = () => this._loadGameScene();
     document.getElementById('btn-export-scene').onclick = () => this._exportScene();
     this._renderSceneList();
   }
@@ -317,14 +319,26 @@ class EditorApp {
     const map = this._loadScenesMap();
     const data = map[name];
     if (!data) return;
+    this._loadSceneData(data);
+    document.getElementById('scene-name').value = name;
+    localStorage.setItem('editor-last-scene', name);
+  }
+
+  _loadSceneData(data) {
     this._newScene();
     for (const it of data.items) {
       const placed = this._place(it.typeId, it.position[0], it.position[2], it.props);
       placed.rotY = it.rotY || 0;
       placed.mesh.rotation.y = placed.rotY;
     }
-    document.getElementById('scene-name').value = name;
-    localStorage.setItem('editor-last-scene', name);
+  }
+
+  // Carrega o layout que está de verdade no jogo agora (src/data/scene.js)
+  // — ponto de partida pra editar em vez de começar de uma tela vazia.
+  _loadGameScene() {
+    if (!confirm('Isso substitui a cena que você está editando pela cena atual do jogo. Continuar?')) return;
+    this._loadSceneData(GAME_SCENE);
+    document.getElementById('scene-name').value = '';
   }
 
   _deleteScene(name) {
@@ -338,6 +352,7 @@ class EditorApp {
     const last = localStorage.getItem('editor-last-scene');
     const map = this._loadScenesMap();
     if (last && map[last]) this._loadScene(last);
+    else this._loadSceneData(GAME_SCENE);
   }
 
   _renderSceneList() {
