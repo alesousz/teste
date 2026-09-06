@@ -29,6 +29,13 @@ export class InventorySystem {
     return true;
   }
 
+  discardItem(itemId) {
+    const count = this.counts[itemId] || 0;
+    if (count <= 0) return false;
+    this.counts[itemId] = count - 1;
+    return true;
+  }
+
   serialize() { return this.counts; }
   deserialize(data) { if (data) this.counts = data; }
 }

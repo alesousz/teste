@@ -41,7 +41,7 @@
         </div>
         <div class="controls-hint">
           <strong>Controles:</strong> WASD mover · Shift correr · Mouse (clique para travar o cursor) olhar ·
-          E interagir · F fotografar · Tab diário · Esc pausar
+          E interagir · F fotografar · Tab diário · I itens · Esc pausar
         </div>
       </div>
     </div>
@@ -150,12 +150,21 @@
             <h3>Fragmentos Fotografados</h3>
             <div id="journal-gallery" class="journal-gallery"></div>
           </div>
-          <div class="journal-col">
-            <h3>Itens</h3>
-            <div id="journal-items"></div>
-          </div>
         </div>
         <p class="journal-hint">Pressione Tab para fechar</p>
+      </div>
+    </div>
+
+    <!-- Menu de itens -->
+    <div id="item-menu" class="overlay hidden">
+      <div class="item-menu-panel">
+        <h2>Itens</h2>
+        <div class="item-menu-body">
+          <div id="item-menu-categories" class="item-menu-categories"></div>
+          <div id="item-menu-list" class="item-menu-list"></div>
+          <div id="item-menu-detail" class="item-menu-detail"></div>
+        </div>
+        <p class="journal-hint">Pressione I para fechar</p>
       </div>
     </div>
 

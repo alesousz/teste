@@ -407,10 +407,14 @@ export const FRAGMENT_SPOTS = sceneFragments.length > 0 ? sceneFragments : [
 // item largado pelo mundo (WORLD_ITEM_SPOTS) vira ao ser pego. `effect` é
 // aplicado só quando o jogador usa o item de verdade, pelo diário.
 // ---------------------------------------------------------------------------
+export const ITEM_CATEGORIES = {
+  consumivel: { id: 'consumivel', label: 'Consumíveis' },
+};
+
 export const ITEM_DEFS = {
-  coffee: { id: 'coffee', name: 'Café', icon: '☕', description: 'Recupera um pouco de energia.', effect: { type: 'restoreEnergy', amount: 25 } },
-  snack: { id: 'snack', name: 'Lanche', icon: '🥪', description: 'Mata a fome rapidamente.', effect: { type: 'restoreHunger', amount: 60 } },
-  homeMeal: { id: 'homeMeal', name: 'Comida Caseira', icon: '🍲', description: 'Uma refeição completa.', effect: { type: 'restoreHunger', amount: 100 } },
+  coffee: { id: 'coffee', name: 'Café', icon: '☕', category: 'consumivel', description: 'Recupera um pouco de energia.', effect: { type: 'restoreEnergy', amount: 25 } },
+  snack: { id: 'snack', name: 'Lanche', icon: '🥪', category: 'consumivel', description: 'Mata a fome rapidamente.', effect: { type: 'restoreHunger', amount: 60 } },
+  homeMeal: { id: 'homeMeal', name: 'Comida Caseira', icon: '🍲', category: 'consumivel', description: 'Uma refeição completa.', effect: { type: 'restoreHunger', amount: 100 } },
 };
 
 export const WORLD_ITEM_SPOTS = [

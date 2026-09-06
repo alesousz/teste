@@ -91,6 +91,7 @@ class Game {
     this.inventory = new InventorySystem();
     this.collectibles = new CollectibleSystem(this.scene, this.quests, this.inventory);
     this._boundUseItem = itemId => this._useItem(itemId);
+    this._boundDiscardItem = itemId => this._discardItem(itemId);
 
     this.paused = true;
     this.running = false;
@@ -166,7 +167,7 @@ class Game {
       if (e.detail) {
         this.paused = false;
         this.ui.hidePause();
-      } else if (!this.ui.isJournalOpen()) {
+      } else if (!this.ui.isJournalOpen() && !this.ui.isItemMenuOpen()) {
         this.paused = true;
         this.ui.showPause();
       }
@@ -269,14 +270,22 @@ class Game {
 
   _onQuestChange() {
     this.ui.showToast('Diário atualizado');
-    if (this.ui.isJournalOpen()) this.ui.renderJournal(this.quests, this.collectibles, this.inventory, this._boundUseItem);
+    if (this.ui.isJournalOpen()) this.ui.renderJournal(this.quests, this.collectibles);
   }
 
   _useItem(itemId) {
     const def = ITEM_DEFS[itemId];
     if (this.inventory.useItem(itemId, this.needs)) {
       this.ui.showToast(`Usou: ${def.name}`);
-      this.ui.renderJournal(this.quests, this.collectibles, this.inventory, this._boundUseItem);
+      if (this.ui.isItemMenuOpen()) this.ui.renderItemMenu(this.inventory, this._boundUseItem, this._boundDiscardItem);
+    }
+  }
+
+  _discardItem(itemId) {
+    const def = ITEM_DEFS[itemId];
+    if (this.inventory.discardItem(itemId)) {
+      this.ui.showToast(`Descartou: ${def.name}`);
+      if (this.ui.isItemMenuOpen()) this.ui.renderItemMenu(this.inventory, this._boundUseItem, this._boundDiscardItem);
     }
   }
 
@@ -359,13 +368,20 @@ class Game {
     const dt = Math.min(this.clock.getDelta(), 0.1);
 
     if (this.input.wasPressed('Tab')) {
-      const opened = this.ui.toggleJournal(this.quests, this.collectibles, this.inventory, this._boundUseItem);
+      const opened = this.ui.toggleJournal(this.quests, this.collectibles);
       if (opened) {
         if (document.pointerLockElement) document.exitPointerLock();
       }
     }
-    if (this.input.wasPressed('Escape') && this.ui.isJournalOpen()) {
-      this.ui.hideJournal();
+    if (this.input.wasPressed('KeyI')) {
+      const opened = this.ui.toggleItemMenu(this.inventory, this._boundUseItem, this._boundDiscardItem);
+      if (opened) {
+        if (document.pointerLockElement) document.exitPointerLock();
+      }
+    }
+    if (this.input.wasPressed('Escape')) {
+      if (this.ui.isJournalOpen()) this.ui.hideJournal();
+      if (this.ui.isItemMenuOpen()) this.ui.hideItemMenu();
     }
 
     if (this.dialogue.active) {
@@ -374,7 +390,7 @@ class Game {
       }
     }
 
-    const uiBlocking = this.paused || this.ui.isJournalOpen() || this.dialogue.active;
+    const uiBlocking = this.paused || this.ui.isJournalOpen() || this.ui.isItemMenuOpen() || this.dialogue.active;
 
     if (!uiBlocking) {
       this.player.exhausted = this.needs.isExhausted();

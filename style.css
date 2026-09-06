@@ -140,7 +140,7 @@ html, body {
   border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
 }
 .journal-panel h2 { margin-top: 0; color: #ffd98a; }
-.journal-columns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
+.journal-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .journal-col h3 { color: #9fb3c8; font-size: 0.95em; text-transform: uppercase; letter-spacing: 0.06em; }
 .journal-quest { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); }
 .journal-quest h3 { color: #eee; font-size: 1em; margin-bottom: 4px; }
@@ -154,17 +154,48 @@ html, body {
 .photo-card { background: rgba(255,255,255,0.04); border-radius: 8px; overflow: hidden; padding-bottom: 6px; }
 .photo-card img { width: 100%; display: block; }
 .photo-card p { font-size: 0.75em; color: #cfd3da; margin: 6px 8px; }
-.journal-item { background: rgba(255,255,255,0.04); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
-.journal-item-icon { font-size: 1.2em; margin-right: 6px; }
-.journal-item-name { color: #eee; }
-.journal-item-count { color: #9fb3c8; font-size: 0.85em; }
-.journal-item-desc { color: #cfd3da; font-size: 0.78em; margin: 4px 0 8px; }
-.journal-item-use {
-  background: rgba(255,217,138,0.14); border: 1px solid rgba(255,217,138,0.35); color: #ffd98a;
-  border-radius: 6px; padding: 4px 10px; font-size: 0.8em; cursor: pointer;
-}
-.journal-item-use:hover { background: rgba(255,217,138,0.24); }
 .journal-hint { text-align: center; color: #7a8090; font-size: 0.8em; margin-top: 16px; margin-bottom: 0; }
+
+/* Menu de itens — full-screen, três painéis, no estilo de um menu de mod
+   config (lista de categorias / lista de itens / detalhe do selecionado). */
+.item-menu-panel {
+  width: min(1100px, 94vw); height: min(680px, 88vh); padding: 28px 32px;
+  background: linear-gradient(180deg, rgba(16,18,23,0.98), rgba(10,11,15,0.98));
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
+  display: flex; flex-direction: column;
+}
+.item-menu-panel h2 { margin: 0 0 16px; color: #ffd98a; }
+.item-menu-body { flex: 1; display: grid; grid-template-columns: 1fr 1.4fr 1.8fr; gap: 0; min-height: 0; }
+.item-menu-categories, .item-menu-list {
+  border-right: 1px solid rgba(255,255,255,0.08); overflow-y: auto; padding-right: 14px;
+}
+.item-menu-list { padding-left: 14px; }
+.item-menu-detail { padding-left: 24px; display: flex; flex-direction: column; }
+
+.item-menu-category, .item-menu-row {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px;
+  cursor: pointer; color: #cfd3da; font-size: 0.9em;
+}
+.item-menu-category:hover, .item-menu-row:hover { background: rgba(255,255,255,0.05); }
+.item-menu-category.selected, .item-menu-row.selected {
+  background: rgba(255,217,138,0.14); color: #ffd98a; border: 1px solid rgba(255,217,138,0.35);
+}
+.item-menu-row-icon { font-size: 1.3em; }
+.item-menu-row-count { margin-left: auto; color: #9fb3c8; font-size: 0.85em; }
+.item-menu-empty { color: #7a8090; font-size: 0.85em; padding: 10px 12px; }
+
+.item-menu-detail-icon { font-size: 3.5em; text-align: center; margin-bottom: 12px; }
+.item-menu-detail-name { color: #fff; font-size: 1.3em; text-align: center; margin: 0 0 4px; }
+.item-menu-detail-count { color: #9fb3c8; text-align: center; font-size: 0.85em; margin-bottom: 18px; }
+.item-menu-detail-desc { color: #d6d9df; font-size: 0.95em; line-height: 1.5; text-align: center; margin-bottom: 24px; }
+.item-menu-detail-actions { display: flex; gap: 10px; justify-content: center; margin-top: auto; }
+.item-menu-btn {
+  border-radius: 8px; padding: 10px 22px; font-size: 0.9em; cursor: pointer; border: 1px solid transparent;
+}
+.item-menu-btn-use { background: rgba(255,217,138,0.16); border-color: rgba(255,217,138,0.4); color: #ffd98a; }
+.item-menu-btn-use:hover { background: rgba(255,217,138,0.28); }
+.item-menu-btn-discard { background: rgba(224,82,82,0.12); border-color: rgba(224,82,82,0.35); color: #f0a3a3; }
+.item-menu-btn-discard:hover { background: rgba(224,82,82,0.22); }
 
 #photo-flash {
   position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 30;
@@ -175,4 +206,8 @@ html, body {
 @media (max-width: 640px) {
   .journal-columns { grid-template-columns: 1fr; }
   .menu-panel { padding: 24px 20px; }
+  .item-menu-body { grid-template-columns: 1fr; overflow-y: auto; }
+  .item-menu-categories, .item-menu-list { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.08); padding: 0 0 10px; }
+  .item-menu-list { padding-left: 0; padding-top: 10px; }
+  .item-menu-detail { padding-left: 0; padding-top: 14px; }
 }
