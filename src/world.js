@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CONFIG, CITY, BUILDING_COLOR_PALETTE } from './data.js';
+import { CONFIG, CITY, BUILDING_COLOR_PALETTE, LANDMARK_SPECS } from './data.js';
 
 function makeWindowTexture(seed, w, h, lit) {
   const canvas = document.createElement('canvas');
@@ -90,7 +90,7 @@ export class World {
     grassTex.repeat.set(6, 6);
 
     for (const block of CITY.blocks) {
-      const isGrass = block.type === 'park';
+      const isGrass = block.type === 'park' || block.type.startsWith('home_');
       const lotMat = new THREE.MeshStandardMaterial(
         isGrass
           ? { map: grassTex, roughness: 1 }
@@ -104,12 +104,53 @@ export class World {
       this.scene.add(lot);
 
       for (const b of block.lots) {
-        this._addBuilding(b);
+        if (b.kind) this._addLandmark(b);
+        else this._addBuilding(b);
       }
 
       if (block.type === 'plaza') this._addPlazaProps(block);
       if (block.type === 'park') this._addParkProps(block);
     }
+  }
+
+  _addLandmark(b) {
+    const spec = LANDMARK_SPECS[b.kind];
+    const bodyMat = new THREE.MeshStandardMaterial({ color: spec.color, roughness: 0.85 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), bodyMat);
+    body.position.set(b.cx, b.h / 2, b.cz);
+    body.castShadow = true;
+    body.receiveShadow = true;
+    this.scene.add(body);
+
+    const roofMat = new THREE.MeshStandardMaterial({ color: spec.roofColor, roughness: 0.9 });
+    const roofRadius = Math.max(b.w, b.d) / 1.7;
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(roofRadius, b.h * 0.5, 4), roofMat);
+    roof.position.set(b.cx, b.h + b.h * 0.25, b.cz);
+    roof.rotation.y = Math.PI / 4;
+    roof.castShadow = true;
+    this.scene.add(roof);
+
+    const label = this._makeLabelSprite(spec.label);
+    label.position.set(b.cx, b.h + b.h * 0.6 + 1.2, b.cz);
+    this.scene.add(label);
+  }
+
+  _makeLabelSprite(text) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(15,17,22,0.75)';
+    ctx.fillRect(0, 0, 256, 64);
+    ctx.fillStyle = '#ffd98a';
+    ctx.font = 'bold 32px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 128, 34);
+    const tex = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: tex });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(6, 1.5, 1);
+    return sprite;
   }
 
   _addBuilding(b) {
@@ -268,6 +309,11 @@ export class World {
 
   setTimeOfDay(t) {
     this.timeOfDay = ((t % 1) + 1) % 1;
+  }
+
+  advanceToNextMorning() {
+    this.timeOfDay = 0.3;
+    this.dayCount += 1;
   }
 
   update(dt) {

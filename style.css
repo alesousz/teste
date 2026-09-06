@@ -33,10 +33,34 @@ html, body {
 .menu-buttons button:disabled { background: #3a3a3f; color: #888; cursor: not-allowed; }
 .controls-hint { font-size: 0.82em; color: #8992a0; line-height: 1.6; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 14px; }
 
+.creation-panel { max-width: 620px; text-align: left; }
+.creation-panel h2 { text-align: center; }
+.creation-panel .menu-desc { text-align: center; }
+.cc-label { display: block; margin: 16px 0 6px; font-size: 0.85em; color: #9fb3c8; text-transform: uppercase; letter-spacing: 0.05em; }
+.cc-input {
+  width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.06); color: #eee; font-size: 1em;
+}
+.cc-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.cc-chip {
+  padding: 9px 16px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.05); color: #eee; cursor: pointer; font-size: 0.9em;
+}
+.cc-chip.selected { background: #ffd98a; color: #1a1206; border-color: #ffd98a; font-weight: 600; }
+.cc-origin-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cc-origin-card {
+  text-align: left; padding: 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04); color: #eee; cursor: pointer; display: flex; flex-direction: column; gap: 6px;
+}
+.cc-origin-card strong { color: #ffd98a; font-size: 0.95em; }
+.cc-origin-card span { font-size: 0.82em; color: #c3c8d2; line-height: 1.4; }
+.cc-origin-card.selected { border-color: #ffd98a; background: rgba(255,217,138,0.1); }
+
 #hud { position: fixed; inset: 0; pointer-events: none; }
 
+#hud-left { position: absolute; top: 18px; left: 18px; display: flex; flex-direction: column; gap: 10px; max-width: 320px; }
+
 #objective-box {
-  position: absolute; top: 18px; left: 18px; max-width: 320px;
   background: rgba(10,12,16,0.55); border-left: 3px solid #ffd98a;
   padding: 10px 14px; border-radius: 6px; backdrop-filter: blur(3px);
 }
@@ -44,9 +68,26 @@ html, body {
 .objective-title:first-child { margin-top: 0; }
 .objective-text { font-size: 0.82em; color: #dfe3ea; }
 
+#needs-bar {
+  background: rgba(10,12,16,0.55); border-radius: 6px; padding: 8px 14px;
+  display: flex; flex-direction: column; gap: 6px; backdrop-filter: blur(3px);
+}
+.needs-row { display: flex; align-items: center; gap: 8px; font-size: 0.85em; }
+.needs-icon { width: 18px; text-align: center; }
+.needs-track { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.12); overflow: hidden; }
+.needs-fill { height: 100%; background: #ffd98a; transition: width .3s; }
+.needs-fill.low { background: #e05252; }
+#money-value { color: #9fe08a; font-weight: 600; }
+
 #top-right { position: absolute; top: 18px; right: 18px; text-align: right; background: rgba(10,12,16,0.55); padding: 8px 14px; border-radius: 6px; }
 #clock { font-size: 1.4em; font-weight: 700; letter-spacing: 0.05em; }
 #day-counter { font-size: 0.78em; color: #aab2c0; }
+#schedule-box { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.12); }
+.schedule-label { font-size: 0.78em; color: #9fb3c8; }
+.schedule-status { font-size: 0.85em; font-weight: 600; }
+.schedule-status.active { color: #ffd98a; }
+.schedule-status.done { color: #9fe08a; }
+.schedule-status.missed { color: #e08a8a; }
 
 #minimap {
   position: absolute; bottom: 18px; right: 18px; border-radius: 50%;

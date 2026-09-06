@@ -30,9 +30,30 @@ const PARKS = [
   { ix: 3, iz: 1 },
 ];
 
+// Blocos fixos que viram marcos jogáveis (casa/trabalho/escola) em vez de
+// prédios aleatórios — a posição de cada um é usada por várias origens.
+const LANDMARK_BLOCKS = {
+  home_operario: { ix: 0, iz: 2 },
+  job_mercado: { ix: 1, iz: 1 },
+  home_nobre: { ix: 4, iz: 2 },
+  school: { ix: 3, iz: 3 },
+};
+
+const LANDMARK_SPECS = {
+  home_operario: { w: 10, d: 9, h: 4.5, color: 0xc9a876, roofColor: 0x7a4a34, label: 'CASA' },
+  home_nobre: { w: 16, d: 13, h: 6.5, color: 0xf3ead9, roofColor: 0x5a4636, label: 'CASA' },
+  job_mercado: { w: 18, d: 12, h: 5, color: 0xd97b4a, roofColor: 0xb03a3a, label: 'MERCADO' },
+  school: { w: 26, d: 18, h: 9, color: 0xdfe6ee, roofColor: 0x3a5a7a, label: 'ESCOLA' },
+};
+export { LANDMARK_SPECS };
+
 function isSpecial(ix, iz) {
   if (ix === PLAZA.ix && iz === PLAZA.iz) return 'plaza';
   for (const p of PARKS) if (p.ix === ix && p.iz === iz) return 'park';
+  for (const key of Object.keys(LANDMARK_BLOCKS)) {
+    const b = LANDMARK_BLOCKS[key];
+    if (b.ix === ix && b.iz === iz) return key;
+  }
   return null;
 }
 
@@ -52,7 +73,16 @@ function generateCity() {
       const special = isSpecial(ix, iz);
       const block = { ix, iz, cx, cz, type: special || 'urban', lots: [] };
 
-      if (!special) {
+      if (special && LANDMARK_SPECS[special]) {
+        const spec = LANDMARK_SPECS[special];
+        const b = {
+          minX: cx - spec.w / 2, maxX: cx + spec.w / 2,
+          minZ: cz - spec.d / 2, maxZ: cz + spec.d / 2,
+          h: spec.h, cx, cz, w: spec.w, d: spec.d, kind: special,
+        };
+        buildings.push(b);
+        block.lots.push(b);
+      } else if (!special) {
         const half = CONFIG.BLOCK_SIZE / 2;
         const margin = 3;
         const usable = half - margin;
@@ -99,11 +129,32 @@ function generateCity() {
 export const CITY = generateCity();
 export const BUILDING_COLOR_PALETTE = BUILDING_COLORS;
 
+export function landmarkCenter(kind) {
+  const b = CITY.buildings.find(b => b.kind === kind);
+  return b ? { x: b.cx, z: b.cz } : { x: 0, z: 0 };
+}
+
 // ---------------------------------------------------------------------------
 // NPCs — posicionados em áreas garantidamente livres (praça / parques)
 // ---------------------------------------------------------------------------
 const plaza = CITY.plazaCenter;
 const [parkA, parkB] = CITY.parkCenters;
+// Ponto na frente do prédio (fora da caixa de colisão) e um ponto ao lado,
+// pra garantir que marcadores/NPCs de um mesmo marco não fiquem dentro da
+// construção nem colados um no outro.
+function frontOf(center, kind, margin = 3) {
+  const spec = LANDMARK_SPECS[kind];
+  return { x: center.x, z: center.z + spec.d / 2 + margin };
+}
+function sideOf(center, kind, margin = 3) {
+  const spec = LANDMARK_SPECS[kind];
+  return { x: center.x + spec.w / 2 + margin, z: center.z };
+}
+
+const homeOperario = landmarkCenter('home_operario');
+const homeNobre = landmarkCenter('home_nobre');
+const jobMercado = landmarkCenter('job_mercado');
+const schoolCenter = landmarkCenter('school');
 
 export const NPC_DEFS = [
   {
@@ -151,7 +202,110 @@ export const NPC_DEFS = [
     speed: 2.6,
     prop: null,
   },
+  {
+    id: 'mae_operaria',
+    name: 'Dona Rosa',
+    color: 0x8a5a3a,
+    home: frontOf(homeOperario, 'home_operario', 3),
+    wanderRadius: 2,
+    speed: 0,
+    prop: null,
+  },
+  {
+    id: 'seu_ivo',
+    name: 'Seu Ivo',
+    color: 0x4a6b3a,
+    home: frontOf(jobMercado, 'job_mercado', 3),
+    wanderRadius: 1.5,
+    speed: 0.4,
+    prop: 'cart',
+  },
+  {
+    id: 'mae_nobre',
+    name: 'Dona Beatriz',
+    color: 0x6b3a5a,
+    home: frontOf(homeNobre, 'home_nobre', 3),
+    wanderRadius: 2,
+    speed: 0,
+    prop: null,
+  },
+  {
+    id: 'professora',
+    name: 'Professora Elaine',
+    color: 0x3a5a6b,
+    home: frontOf(schoolCenter, 'school', 3),
+    wanderRadius: 1.5,
+    speed: 0.3,
+    prop: null,
+  },
 ];
+
+// ---------------------------------------------------------------------------
+// Casa / Origem / Rotina — o núcleo do "life sim". Cada origem determina
+// onde o personagem mora, quanto dinheiro tem no início e qual compromisso
+// fixo (emprego ou escola) precisa cumprir todo dia.
+// ---------------------------------------------------------------------------
+export const HOMES = {
+  home_operario: { kind: 'home_operario', sleepSpot: sideOf(homeOperario, 'home_operario', 3) },
+  home_nobre: { kind: 'home_nobre', sleepSpot: sideOf(homeNobre, 'home_nobre', 3) },
+};
+
+export const OBLIGATIONS = {
+  job_mercado: {
+    id: 'job_mercado',
+    type: 'job',
+    label: 'Turno no Mercado',
+    location: frontOf(jobMercado, 'job_mercado', 3),
+    npc: 'seu_ivo',
+    startHour: 8,
+    endHour: 14,
+    payPerDay: 40,
+    missPenaltyMoney: 10,
+    maxMisses: 3,
+    warningMessage: 'Seu Ivo cruzou os braços. "Já é a segunda falta. Mais uma e eu vou ter que te dispensar."',
+    endMessage: 'Seu Ivo balançou a cabeça. "Sinto muito, mas não posso mais contar com você. Vamos ter que nos despedir."',
+  },
+  school: {
+    id: 'school',
+    type: 'school',
+    label: 'Aula na Escola',
+    location: frontOf(schoolCenter, 'school', 3),
+    npc: 'professora',
+    startHour: 8,
+    endHour: 14,
+    payPerDay: 0,
+    missPenaltyMoney: 0,
+    maxMisses: 3,
+    warningMessage: 'A Professora Elaine suspirou. "Mais uma falta e eu vou ter que chamar seus pais."',
+    endMessage: 'A Professora Elaine anotou algo com pesar. "Seu desempenho caiu demais. Precisamos conversar sério sobre isso."',
+  },
+};
+
+export const ORIGINS = {
+  operario: {
+    id: 'operario',
+    label: 'Bairro Operário',
+    shortDesc: 'Você cresceu apertado, mas cercado de gente que se ajuda. Hoje começa seu primeiro turno no mercado do bairro.',
+    startMoney: 60,
+    home: 'home_operario',
+    obligation: 'job_mercado',
+    familyNpc: 'mae_operaria',
+  },
+  nobre: {
+    id: 'nobre',
+    label: 'Bairro Nobre',
+    shortDesc: 'Você nunca precisou se preocupar com dinheiro, mas a cobrança em casa é constante. Hoje é seu primeiro dia numa nova escola.',
+    startMoney: 250,
+    home: 'home_nobre',
+    obligation: 'school',
+    familyNpc: 'mae_nobre',
+  },
+};
+
+export function pronoun(sex, forms) {
+  const key = sex === 'f' ? 'f' : sex === 'x' ? 'x' : 'm';
+  return forms[key] ?? forms.m;
+}
 
 // ---------------------------------------------------------------------------
 // Item de missão: o livro perdido de Marina
@@ -221,7 +375,7 @@ export const QUESTS = {
 // ---------------------------------------------------------------------------
 export const DIALOGUES = {
   almeida: {
-    start: 'a1',
+    start: 'dynamic',
     nodes: {
       a1: {
         text: 'Sr. Almeida: "Ah, um rosto novo por aqui. Bem-vindo(a) à cidade, viajante. Nem tudo aqui é pressa e concreto, sabe?"',
@@ -239,6 +393,13 @@ export const DIALOGUES = {
       },
       idle: {
         text: 'Sr. Almeida: "O dia está bonito, não está? Ou a noite. Tanto faz — eu gosto dos dois."',
+        options: [
+          { label: 'Comprar um café (R$5) — recupera energia', next: 'a_coffee', effect: { type: 'buyCoffee' }, minMoney: 5 },
+          { label: '(Encerrar conversa)', next: null },
+        ],
+      },
+      a_coffee: {
+        text: 'Sr. Almeida serve um café bem quente. "Toma. Nada como um cafezinho pra encarar o resto do dia."',
         options: [{ label: '(Encerrar conversa)', next: null }],
       },
     },
@@ -319,6 +480,106 @@ export const DIALOGUES = {
       },
       c2: {
         text: 'Caio: "Tenta correr também, um dia desses. Ou só andar. A cidade fica diferente quando você se move nela por vontade própria."',
+        options: [{ label: '(Encerrar conversa)', next: null }],
+      },
+    },
+  },
+  mae_operaria: {
+    start: 'dynamic',
+    nodes: {
+      ro_greet: {
+        text: (sex) => `Dona Rosa te abraça apertado. "Bom dia, ${pronoun(sex, { m: 'meu filho', f: 'minha filha', x: 'meu bem' })}. Primeiro dia no mercado, hein? Não se atrasa, o Seu Ivo é bonzinho mas não gosta de esperar."`,
+        options: [{ label: 'Pode deixar, mãe.', next: null }],
+      },
+      ro_ok: {
+        text: 'Dona Rosa: "Tá indo bem no trabalho, viu? Fico orgulhosa."',
+        options: [{ label: '(Encerrar conversa)', next: null }],
+      },
+      ro_worried: {
+        text: 'Dona Rosa franze a testa. "Ouvi dizer que você faltou o serviço. Tá tudo bem? Sabe que a gente precisa desse dinheiro..."',
+        options: [{ label: 'Vou dar um jeito, mãe.', next: null }],
+      },
+      ro_fired: {
+        text: 'Dona Rosa te olha preocupada, mas segura sua mão. "A gente dá um jeito. Sempre deu."',
+        options: [{ label: '(Encerrar conversa)', next: null }],
+      },
+      ro_stranger: {
+        text: 'Dona Rosa acena gentilmente, ocupada varrendo a calçada. "Oi, querido(a). Precisando de alguma coisa?"',
+        options: [{ label: '(Encerrar conversa)', next: null }],
+      },
+    },
+  },
+  seu_ivo: {
+    start: 'dynamic',
+    nodes: {
+      iv_intro: {
+        text: 'Seu Ivo: "Então é você que a Rosa me falou. Bem-vindo(a) ao mercado. É simples: chega até às 14h, ajuda no que precisar. Combinado?"',
+        options: [{ label: 'Combinado.', next: null }],
+      },
+      iv_ok: {
+        text: 'Seu Ivo acena com a cabeça. "Bom te ver por aqui hoje."',
+        options: [{ label: '(Encerrar conversa)', next: null }],
+      },
+      iv_warning: {
+        text: 'Seu Ivo cruzou os braços. "Já é a segunda falta. Mais uma e eu vou ter que te dispensar."',
+        options: [{ label: 'Não vai se repetir.', next: null }],
+      },
+      iv_fired: {
+        text: 'Seu Ivo balançou a cabeça, sem graça. "Sinto muito, mas não posso mais contar com você. Vamos ter que nos despedir."',
+        options: [{ label: '(Encerrar conversa)', next: null }],
+      },
+      iv_stranger: {
+        text: 'Seu Ivo organiza as caixas da barraca. "Bom dia! Precisando de alguma coisa do mercado?"',
+        options: [{ label: '(Encerrar conversa)', next: null }],
+      },
+    },
+  },
+  mae_nobre: {
+    start: 'dynamic',
+    nodes: {
+      bt_greet: {
+        text: (sex) => `Dona Beatriz ajusta sua roupa antes que você saia. "Bom dia, ${pronoun(sex, { m: 'querido', f: 'querida', x: 'meu bem' })}. Primeiro dia na escola nova — nada de chegar atrasado(a), a diretoria liga pra essas coisas."`,
+        options: [{ label: 'Pode deixar.', next: null }],
+      },
+      bt_ok: {
+        text: 'Dona Beatriz: "Suas notas continuam boas, presumo. Continue assim."',
+        options: [{ label: '(Encerrar conversa)', next: null }],
+      },
+      bt_worried: {
+        text: 'Dona Beatriz: "Recebi uma ligação da escola sobre uma falta. Isso não pode virar hábito, ouviu?"',
+        options: [{ label: 'Não vai se repetir.', next: null }],
+      },
+      bt_fired: {
+        text: 'Dona Beatriz suspira, contrariada, mas por baixo da cobrança há genuína preocupação. "Vamos conversar com calma sobre isso."',
+        options: [{ label: '(Encerrar conversa)', next: null }],
+      },
+      bt_stranger: {
+        text: 'Dona Beatriz cumprimenta com um aceno educado, mas distante. "Boa tarde."',
+        options: [{ label: '(Encerrar conversa)', next: null }],
+      },
+    },
+  },
+  professora: {
+    start: 'dynamic',
+    nodes: {
+      el_intro: {
+        text: 'Professora Elaine: "Seja bem-vindo(a) à turma. As aulas vão das 8h às 14h, sem exceções. Vamos começar bem?"',
+        options: [{ label: 'Vamos.', next: null }],
+      },
+      el_ok: {
+        text: 'Professora Elaine: "Bom te ver na aula de hoje."',
+        options: [{ label: '(Encerrar conversa)', next: null }],
+      },
+      el_warning: {
+        text: 'A Professora Elaine suspirou. "Mais uma falta e eu vou ter que chamar seus pais."',
+        options: [{ label: 'Entendido.', next: null }],
+      },
+      el_fired: {
+        text: 'Professora Elaine anotou algo com pesar. "Seu desempenho caiu demais. Precisamos conversar sério sobre isso."',
+        options: [{ label: '(Encerrar conversa)', next: null }],
+      },
+      el_stranger: {
+        text: 'Professora Elaine organiza seus materiais. "Olá. Aula em instantes."',
         options: [{ label: '(Encerrar conversa)', next: null }],
       },
     },

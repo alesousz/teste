@@ -1,9 +1,11 @@
 import * as THREE from 'three';
-import { CONFIG } from './data.js';
+import { CONFIG, ORIGINS, HOMES, OBLIGATIONS } from './data.js';
 import { World } from './world.js';
 import { Player } from './player.js';
 import { createNpcs } from './npc.js';
 import { QuestSystem, DialogueSystem, CollectibleSystem } from './interactions.js';
+import { NeedsSystem } from './needs.js';
+import { ObligationSystem } from './schedule.js';
 import { UI } from './ui.js';
 import { hasSave, loadSave, writeSave, clearSave } from './save.js';
 
@@ -70,16 +72,13 @@ class Game {
 
     this.quests = new QuestSystem(() => this._onQuestChange());
     this.collectibles = new CollectibleSystem(this.scene, this.quests);
-    this.dialogue = new DialogueSystem(this.quests, {
-      show: (text, options) => this.ui.showDialogue(text, options, i => this.dialogue.choose(i)),
-      hide: () => this.ui.hideDialogue(),
-    }, this.collectibles);
 
     this.paused = true;
     this.running = false;
     this.clock = new THREE.Clock();
 
     this._bindMenu();
+    this._bindCharacterCreation();
     this._bindPointerLock();
     this._bindResize();
 
@@ -97,12 +96,12 @@ class Game {
 
   _bindMenu() {
     document.getElementById('btn-newgame').onclick = () => {
-      clearSave();
-      this._startGame(null);
+      this.ui.hideMenu();
+      this.ui.showCreation();
     };
     document.getElementById('btn-continue').onclick = () => {
       const data = loadSave();
-      this._startGame(data);
+      this._startGame(data, data?.profile);
     };
     document.getElementById('btn-resume').onclick = () => {
       this.ui.hidePause();
@@ -114,6 +113,20 @@ class Game {
       this.running = false;
       this.ui.showMenu(true);
       if (document.pointerLockElement) document.exitPointerLock();
+    };
+  }
+
+  _bindCharacterCreation() {
+    document.getElementById('cc-back').onclick = () => {
+      this.ui.hideCreation();
+      this.ui.showMenu(hasSave());
+    };
+    document.getElementById('cc-confirm').onclick = () => {
+      const profile = this.ui.getCreationProfile();
+      if (!profile) return;
+      clearSave();
+      this.ui.hideCreation();
+      this._startGame(null, profile);
     };
   }
 
@@ -130,7 +143,18 @@ class Game {
     });
   }
 
-  _startGame(saveData) {
+  _startGame(saveData, profile) {
+    this.profile = profile || { name: 'Alex', sex: 'x', originId: 'operario' };
+    const origin = ORIGINS[this.profile.originId];
+    this.homeSleepSpot = HOMES[origin.home].sleepSpot;
+
+    this.needs = new NeedsSystem(origin.startMoney);
+    this.obligation = new ObligationSystem(OBLIGATIONS[origin.obligation]);
+    this.dialogue = new DialogueSystem(this.quests, {
+      show: (text, options) => this.ui.showDialogue(text, options, i => this.dialogue.choose(i)),
+      hide: () => this.ui.hideDialogue(),
+    }, this.collectibles, this.needs, this.obligation, this.profile.originId, this.profile.sex);
+
     this.ui.hideMenu();
     this.ui.hud.classList.remove('hidden');
     this.running = true;
@@ -145,8 +169,13 @@ class Game {
       this.quests.deserialize(saveData.quests);
       this.collectibles.restoreCollected(saveData.collectedFragments);
       this.collectibles.restoreItem(saveData.bookCollected);
-      this.player.snapCamera();
+      this.needs.deserialize(saveData.needs);
+      this.obligation.deserialize(saveData.obligation);
+    } else {
+      this.player.position.set(this.homeSleepSpot.x, 0, this.homeSleepSpot.z);
     }
+    this.player.snapCamera();
+    this._lastDayCount = this.world.dayCount;
 
     this.clock.getDelta();
     this._loop();
@@ -160,7 +189,27 @@ class Game {
       quests: this.quests.serialize(),
       collectedFragments: Array.from(this.collectibles.collectedIds),
       bookCollected: this.collectibles.item?.collected || false,
+      profile: this.profile,
+      needs: this.needs.serialize(),
+      obligation: this.obligation.serialize(),
     });
+  }
+
+  _sleep() {
+    const endedDay = this.world.dayCount;
+    const result = this.obligation.processDayEnd(endedDay, this.needs);
+    this.needs.restoreEnergy(100);
+    this.world.advanceToNextMorning();
+    this._lastDayCount = this.world.dayCount;
+    if (result) this.ui.showToast(result.message);
+    this._saveGame();
+  }
+
+  _nearSleepSpot() {
+    return Math.hypot(
+      this.player.position.x - this.homeSleepSpot.x,
+      this.player.position.z - this.homeSleepSpot.z
+    ) < CONFIG.INTERACT_RADIUS;
   }
 
   _onQuestChange() {
@@ -185,7 +234,7 @@ class Game {
       this.ui.showPrompt(`E — Falar com ${nearestNpc.def.name}`);
       promptShown = true;
       if (this.input.wasPressed('KeyE')) {
-        this.dialogue.start(nearestNpc.def.id, this.world.isNight);
+        this.dialogue.start(nearestNpc.def.id, this.world.isNight, nearestNpc);
       }
     } else if (nearbyItem) {
       this.ui.showPrompt('E — Pegar o livro');
@@ -194,6 +243,10 @@ class Game {
         this.collectibles.collectItem(nearbyItem);
         this.ui.showToast('Você pegou o livro de Marina.');
       }
+    } else if (this._nearSleepSpot()) {
+      this.ui.showPrompt('E — Dormir (recuperar energia e avançar o dia)');
+      promptShown = true;
+      if (this.input.wasPressed('KeyE')) this._sleep();
     }
 
     if (nearbyFragment) {
@@ -242,10 +295,13 @@ class Game {
     const uiBlocking = this.paused || this.ui.isJournalOpen() || this.dialogue.active;
 
     if (!uiBlocking) {
+      this.player.exhausted = this.needs.isExhausted();
       const { x, y } = this.input.consumeMouseDelta();
       this.player.applyCameraInput(x, y);
       this.player.update(dt, this.input);
       this._handleInteractionPrompt();
+      this.needs.update(dt);
+      this.obligation.update(this.world.timeOfDay * 24, this.player.position);
     } else {
       this.input.consumeMouseDelta();
     }
@@ -253,7 +309,14 @@ class Game {
     for (const npc of this.npcs) npc.update(uiBlocking ? 0 : dt);
     this.collectibles.update(uiBlocking ? 0 : dt);
     this.world.update(uiBlocking ? 0 : dt);
-    this.ui.updateHUD(this.world, this.quests);
+
+    if (this.world.dayCount !== this._lastDayCount) {
+      const result = this.obligation.processDayEnd(this._lastDayCount, this.needs);
+      this._lastDayCount = this.world.dayCount;
+      if (result) this.ui.showToast(result.message);
+    }
+
+    this.ui.updateHUD(this.world, this.quests, this.needs, this.obligation);
     this.ui.drawMinimap(this.player, this.npcs, this.collectibles);
 
     this.camera.position.copy(this.player.cameraPosition);

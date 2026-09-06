@@ -90,19 +90,30 @@ export class QuestSystem {
 // ---------------------------------------------------------------------------
 // Sistema de diálogo
 // ---------------------------------------------------------------------------
+const FAMILY_NPCS = { mae_operaria: 'operario', mae_nobre: 'nobre' };
+const BOSS_NPCS = { seu_ivo: 'operario', professora: 'nobre' };
+const DYNAMIC_PREFIX = { mae_operaria: 'ro', seu_ivo: 'iv', mae_nobre: 'bt', professora: 'el' };
+
 export class DialogueSystem {
-  constructor(questSystem, uiCallbacks, collectibleSystem) {
+  constructor(questSystem, uiCallbacks, collectibleSystem, needsSystem, obligationSystem, originId, sex) {
     this.quests = questSystem;
     this.ui = uiCallbacks; // { show(text, options), hide() }
     this.collectibles = collectibleSystem;
+    this.needs = needsSystem;
+    this.obligation = obligationSystem;
+    this.originId = originId;
+    this.sex = sex;
     this.active = false;
     this.currentNpcId = null;
   }
 
-  _resolveStartNode(npcId) {
+  _resolveStartNode(npcId, npc) {
     const tree = DIALOGUES[npcId];
     if (tree.start !== 'dynamic') return tree.start;
 
+    if (npcId === 'almeida') {
+      return this.quests.isDone('boas_vindas') ? 'idle' : 'a1';
+    }
     if (npcId === 'marina') {
       if (this.quests.isDone('livro_esquecido')) return 'm_done';
       const bookFound = this.quests.state.livro_esquecido.objectives.find_book.done;
@@ -116,27 +127,39 @@ export class DialogueSystem {
       if (this._isNight) return 'd_night';
       return 'd_day';
     }
+
+    const prefix = DYNAMIC_PREFIX[npcId];
+    if (prefix) {
+      const belongsToPlayer = FAMILY_NPCS[npcId] === this.originId || BOSS_NPCS[npcId] === this.originId;
+      if (!belongsToPlayer) return `${prefix}_stranger`;
+      if (!npc.hasMetPlayer) return `${prefix}_${npcId in FAMILY_NPCS ? 'greet' : 'intro'}`;
+      if (!this.obligation.active) return `${prefix}_fired`;
+      if (this.obligation.misses > 0) return `${prefix}_warning` in tree.nodes ? `${prefix}_warning` : `${prefix}_worried`;
+      return `${prefix}_ok`;
+    }
     return tree.start;
   }
 
-  start(npcId, isNight) {
+  start(npcId, isNight, npc) {
     this._isNight = isNight;
     this.active = true;
     this.currentNpcId = npcId;
-    this.nodeId = this._resolveStartNode(npcId);
+    this.currentNpc = npc;
+    this.nodeId = this._resolveStartNode(npcId, npc);
+    if (npc) npc.hasMetPlayer = true;
     this._render();
   }
 
   _render() {
     const tree = DIALOGUES[this.currentNpcId];
     const node = tree.nodes[this.nodeId];
-    this.ui.show(node.text, node.options.map(o => o.label));
+    const text = typeof node.text === 'function' ? node.text(this.sex) : node.text;
+    this._visibleOptions = node.options.filter(o => !o.minMoney || this.needs.money >= o.minMoney);
+    this.ui.show(text, this._visibleOptions.map(o => o.label));
   }
 
   choose(index) {
-    const tree = DIALOGUES[this.currentNpcId];
-    const node = tree.nodes[this.nodeId];
-    const opt = node.options[index];
+    const opt = this._visibleOptions?.[index];
     if (!opt) return;
     if (opt.effect) this._applyEffect(opt.effect);
     if (opt.next === null) {
@@ -148,6 +171,9 @@ export class DialogueSystem {
   }
 
   _applyEffect(effect) {
+    if (effect.type === 'buyCoffee') {
+      if (this.needs.spendMoney(5)) this.needs.restoreEnergy(25);
+    }
     if (effect.type === 'startQuest') {
       this.quests.startQuest(effect.quest);
       if (effect.quest === 'livro_esquecido' && this.collectibles?.item?.collected) {
