@@ -1,6 +1,7 @@
 // Configuração e conteúdo do mundo. Layout da cidade é gerado uma única vez
 // (no load do módulo) e compartilhado por todos os sistemas — por isso não
 // precisa de seed determinística: é um singleton de módulo ES.
+import { SCENE } from './data/scene.js';
 
 export const CONFIG = {
   GRID_SIZE: 5,
@@ -48,15 +49,6 @@ const PARKS = [
   { ix: 3, iz: 1 },
 ];
 
-// Blocos fixos que viram marcos jogáveis (casa/trabalho/escola) em vez de
-// prédios aleatórios — a posição de cada um é usada por várias origens.
-const LANDMARK_BLOCKS = {
-  home_operario: { ix: 0, iz: 2 },
-  job_mercado: { ix: 1, iz: 1 },
-  home_nobre: { ix: 4, iz: 2 },
-  school: { ix: 3, iz: 3 },
-};
-
 const LANDMARK_SPECS = {
   home_operario: { w: 10, d: 9, h: 4.5, color: 0xc9a876, roofColor: 0x7a4a34, label: 'CASA' },
   home_nobre: { w: 16, d: 13, h: 6.5, color: 0xf3ead9, roofColor: 0x5a4636, label: 'CASA' },
@@ -65,13 +57,46 @@ const LANDMARK_SPECS = {
 };
 export { LANDMARK_SPECS };
 
+const LANDMARK_TYPE_TO_KIND = {
+  landmark_home_operario: 'home_operario',
+  landmark_home_nobre: 'home_nobre',
+  landmark_job_mercado: 'job_mercado',
+  landmark_school: 'school',
+};
+
+// Cada marco/prédio customizado da cena "reserva" o quarteirão mais perto da
+// posição escolhida, pra geração procedural não colocar um prédio aleatório
+// em cima — sem isso, mover um marco no editor deixaria dois prédios
+// sobrepostos no mesmo lugar.
+function blockIndexFromPos(x, z) {
+  const half = (CONFIG.GRID_SIZE - 1) / 2;
+  const clamp = v => Math.min(CONFIG.GRID_SIZE - 1, Math.max(0, Math.round(v)));
+  return { ix: clamp(x / CONFIG.CELL + half), iz: clamp(z / CONFIG.CELL + half) };
+}
+
+const sceneLandmarks = {}; // kind -> {cx,cz,ix,iz}
+const sceneBuildings = []; // prédios customizados: {cx,cz,w,d,h,color,ix,iz}
+for (const item of SCENE.items) {
+  const kind = LANDMARK_TYPE_TO_KIND[item.typeId];
+  const [x, , z] = item.position;
+  if (kind) {
+    sceneLandmarks[kind] = { cx: x, cz: z, ...blockIndexFromPos(x, z) };
+  } else if (item.typeId === 'building') {
+    sceneBuildings.push({
+      cx: x, cz: z, ...blockIndexFromPos(x, z),
+      w: item.props?.w ?? 6, d: item.props?.d ?? 6, h: item.props?.h ?? 8,
+      color: item.props?.color ?? '#b9c4cc',
+    });
+  }
+}
+
 function isSpecial(ix, iz) {
   if (ix === PLAZA.ix && iz === PLAZA.iz) return 'plaza';
   for (const p of PARKS) if (p.ix === ix && p.iz === iz) return 'park';
-  for (const key of Object.keys(LANDMARK_BLOCKS)) {
-    const b = LANDMARK_BLOCKS[key];
-    if (b.ix === ix && b.iz === iz) return key;
+  for (const kind of Object.keys(sceneLandmarks)) {
+    if (sceneLandmarks[kind].ix === ix && sceneLandmarks[kind].iz === iz) return kind;
   }
+  if (sceneBuildings.some(b => b.ix === ix && b.iz === iz)) return 'custom';
   return null;
 }
 
@@ -93,10 +118,20 @@ function generateCity() {
 
       if (special && LANDMARK_SPECS[special]) {
         const spec = LANDMARK_SPECS[special];
+        const pos = sceneLandmarks[special];
         const b = {
-          minX: cx - spec.w / 2, maxX: cx + spec.w / 2,
-          minZ: cz - spec.d / 2, maxZ: cz + spec.d / 2,
-          h: spec.h, cx, cz, w: spec.w, d: spec.d, kind: special,
+          minX: pos.cx - spec.w / 2, maxX: pos.cx + spec.w / 2,
+          minZ: pos.cz - spec.d / 2, maxZ: pos.cz + spec.d / 2,
+          h: spec.h, cx: pos.cx, cz: pos.cz, w: spec.w, d: spec.d, kind: special,
+        };
+        buildings.push(b);
+        block.lots.push(b);
+      } else if (special === 'custom') {
+        const cb = sceneBuildings.find(b => b.ix === ix && b.iz === iz);
+        const b = {
+          minX: cb.cx - cb.w / 2, maxX: cb.cx + cb.w / 2,
+          minZ: cb.cz - cb.d / 2, maxZ: cb.cz + cb.d / 2,
+          h: cb.h, cx: cb.cx, cz: cb.cz, w: cb.w, d: cb.d, custom: true, color: cb.color,
         };
         buildings.push(b);
         block.lots.push(b);
@@ -173,6 +208,19 @@ function sideOf(center, kind, margin = 3) {
   return { x: center.x + spec.w / 2 + margin, z: center.z };
 }
 
+const sceneNpcHomes = {};
+for (const item of SCENE.items) {
+  if (item.typeId === 'npc' && item.props?.npcId) {
+    const [x, , z] = item.position;
+    sceneNpcHomes[item.props.npcId] = { x, z };
+  }
+}
+// Posição vem da cena do editor quando existir; o valor calculado é só um
+// fallback de segurança caso um NPC fique de fora da cena por engano.
+function npcHome(id, fallback) {
+  return sceneNpcHomes[id] ?? fallback;
+}
+
 const homeOperario = landmarkCenter('home_operario');
 const homeNobre = landmarkCenter('home_nobre');
 const jobMercado = landmarkCenter('job_mercado');
@@ -183,7 +231,7 @@ export const NPC_DEFS = [
     id: 'almeida',
     name: 'Sr. Almeida',
     color: 0x6b4f3a,
-    home: { x: plaza.x - 6, z: plaza.z + 5 },
+    home: npcHome('almeida', { x: plaza.x - 6, z: plaza.z + 5 }),
     wanderRadius: 4,
     speed: 0,
     prop: 'cart',
@@ -192,7 +240,7 @@ export const NPC_DEFS = [
     id: 'marina',
     name: 'Marina',
     color: 0x8a4b6b,
-    home: { x: parkA.x + 3, z: parkA.z - 4 },
+    home: npcHome('marina', { x: parkA.x + 3, z: parkA.z - 4 }),
     wanderRadius: 8,
     speed: 1.1,
     prop: null,
@@ -201,7 +249,7 @@ export const NPC_DEFS = [
     id: 'diego',
     name: 'Diego',
     color: 0x3a4a6b,
-    home: { x: plaza.x + 8, z: plaza.z - 7 },
+    home: npcHome('diego', { x: plaza.x + 8, z: plaza.z - 7 }),
     wanderRadius: 0,
     speed: 0,
     prop: 'phone',
@@ -210,7 +258,7 @@ export const NPC_DEFS = [
     id: 'busker',
     name: 'Yara, a Musicista',
     color: 0x2f6b4f,
-    home: { x: plaza.x, z: plaza.z + 10 },
+    home: npcHome('busker', { x: plaza.x, z: plaza.z + 10 }),
     wanderRadius: 0,
     speed: 0,
     prop: 'guitar',
@@ -219,7 +267,7 @@ export const NPC_DEFS = [
     id: 'runner',
     name: 'Caio',
     color: 0x6b2f3a,
-    home: { x: parkB.x - 5, z: parkB.z + 6 },
+    home: npcHome('runner', { x: parkB.x - 5, z: parkB.z + 6 }),
     wanderRadius: 10,
     speed: 2.6,
     prop: null,
@@ -228,7 +276,7 @@ export const NPC_DEFS = [
     id: 'mae_operaria',
     name: 'Dona Rosa',
     color: 0x8a5a3a,
-    home: frontOf(homeOperario, 'home_operario', 3),
+    home: npcHome('mae_operaria', frontOf(homeOperario, 'home_operario', 3)),
     wanderRadius: 2,
     speed: 0,
     prop: null,
@@ -237,7 +285,7 @@ export const NPC_DEFS = [
     id: 'seu_ivo',
     name: 'Seu Ivo',
     color: 0x4a6b3a,
-    home: frontOf(jobMercado, 'job_mercado', 3),
+    home: npcHome('seu_ivo', frontOf(jobMercado, 'job_mercado', 3)),
     wanderRadius: 1.5,
     speed: 0.4,
     prop: 'cart',
@@ -246,7 +294,7 @@ export const NPC_DEFS = [
     id: 'mae_nobre',
     name: 'Dona Beatriz',
     color: 0x6b3a5a,
-    home: frontOf(homeNobre, 'home_nobre', 3),
+    home: npcHome('mae_nobre', frontOf(homeNobre, 'home_nobre', 3)),
     wanderRadius: 2,
     speed: 0,
     prop: null,
@@ -255,7 +303,7 @@ export const NPC_DEFS = [
     id: 'professora',
     name: 'Professora Elaine',
     color: 0x3a5a6b,
-    home: frontOf(schoolCenter, 'school', 3),
+    home: npcHome('professora', frontOf(schoolCenter, 'school', 3)),
     wanderRadius: 1.5,
     speed: 0.3,
     prop: null,
@@ -339,7 +387,14 @@ export const ITEM_PROPS = [
 // ---------------------------------------------------------------------------
 // Fragmentos de memória (colecionáveis fotografáveis)
 // ---------------------------------------------------------------------------
-export const FRAGMENT_SPOTS = [
+const sceneFragments = SCENE.items
+  .filter(item => item.typeId === 'fragment')
+  .map((item, i) => {
+    const [x, , z] = item.position;
+    return { id: `frag_${i + 1}`, position: { x, z }, note: item.props?.note || '' };
+  });
+// Fallback de segurança — só usado se a cena não tiver nenhum fragmento.
+export const FRAGMENT_SPOTS = sceneFragments.length > 0 ? sceneFragments : [
   { id: 'frag_1', position: { x: plaza.x + 3, z: plaza.z + 3 }, note: 'A luz da fonte da praça ao entardecer.' },
   { id: 'frag_2', position: { x: parkA.x, z: parkA.z - 8 }, note: 'Uma árvore solitária no meio do concreto.' },
   { id: 'frag_3', position: { x: parkB.x + 4, z: parkB.z - 3 }, note: 'Risos distantes num banco de parque.' },

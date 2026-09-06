@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG, CITY, BUILDING_COLOR_PALETTE, LANDMARK_SPECS } from './data.js';
+import { SCENE } from './data/scene.js';
 
 function makeWindowTexture(seed, w, h, lit) {
   const canvas = document.createElement('canvas');
@@ -54,12 +55,12 @@ export class World {
     this.buildingAABBs = CITY.buildings;
     this.windowTexturesLit = [];
     this.windowTexturesDark = [];
+    this.streetLamps = [];
     this._buildGround();
     this._buildBlocks();
     this._buildProps();
     this._buildSky();
     this._buildLights();
-    this.streetLamps = [];
     this._buildStreetLamps();
     this.timeOfDay = 0.3; // 0..1, 0 = meia-noite, 0.5 = meio-dia
     this.dayCount = 1;
@@ -105,6 +106,7 @@ export class World {
 
       for (const b of block.lots) {
         if (b.kind) this._addLandmark(b);
+        else if (b.custom) this._addCustomBuilding(b);
         else this._addBuilding(b);
       }
 
@@ -175,6 +177,17 @@ export class World {
 
     this._addRooftopDetails(b, color);
     this._addAwning(b, color);
+  }
+
+  // Prédio customizado colocado no editor de mapa — cor lisa, sem
+  // janelas/detalhe de teto (o editor mostra a mesma coisa na prévia dele).
+  _addCustomBuilding(b) {
+    const mat = new THREE.MeshStandardMaterial({ color: b.color, roughness: 0.85 });
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), mat);
+    mesh.position.set(b.cx, b.h / 2, b.cz);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    this.scene.add(mesh);
   }
 
   _addRooftopDetails(b, color) {
@@ -342,8 +355,36 @@ export class World {
     }
   }
 
+  // Decoração colocada à mão no editor de mapa (árvore/banco/poste) — os
+  // marcos, NPCs e fragmentos da cena já são consumidos em data.js; aqui só
+  // sobra o que é puramente visual, sem afetar colisão nem jogabilidade.
   _buildProps() {
-    // vendedor: pequena barraca perto da praça (posição alinhada a NPC_DEFS.almeida)
+    for (const item of SCENE.items) {
+      const [x, , z] = item.position;
+      if (item.typeId === 'tree') this._addTree(x, z);
+      else if (item.typeId === 'bench') this._addBench(x, z, item.rotY || 0);
+      else if (item.typeId === 'lamp') this._addLamp(x, z);
+    }
+  }
+
+  _addLamp(x, z) {
+    const group = new THREE.Group();
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.6, metalness: 0.4 });
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 5, 8), poleMat);
+    pole.position.y = 2.5;
+    group.add(pole);
+    const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff2c9, emissive: 0xfff2c9, emissiveIntensity: 0 });
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.25, 10, 10), bulbMat);
+    bulb.position.y = 5;
+    group.add(bulb);
+    const light = new THREE.PointLight(0xffdca0, 0, 10, 2);
+    light.position.y = 4.9;
+    light.castShadow = false;
+    group.add(light);
+    group.position.set(x, 0, z);
+    this.scene.add(group);
+    // Participa do mesmo ciclo dia/noite dos postes de rua procedurais.
+    this.streetLamps.push({ bulb, light });
   }
 
   _buildSky() {
