@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ecos da Cidade</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <script type="importmap">
     {
@@ -95,37 +99,63 @@
 
     <!-- HUD -->
     <div id="hud" class="hidden">
+      <!-- Bússola (substitui o minimapa) -->
+      <div id="compass">
+        <div id="compass-markers"></div>
+        <canvas id="compass-strip" width="1000" height="44"></canvas>
+      </div>
+
+      <!-- Barra do alvo -->
+      <div id="target-bar" class="hidden">
+        <div class="target-top">
+          <span id="target-name">Boneco de Treino</span>
+          <span id="target-hp-text"></span>
+        </div>
+        <div class="target-track"><div id="target-fill"></div></div>
+      </div>
+
+      <!-- Missões -->
       <div id="hud-left">
         <div id="objective-box"></div>
-        <div id="needs-bar">
-          <div class="needs-row">
-            <span class="needs-icon">❤</span>
-            <div class="needs-track"><div id="hp-fill" class="needs-fill"></div></div>
-          </div>
-          <div class="needs-row">
-            <span class="needs-icon">💪</span>
-            <div class="needs-track"><div id="stamina-fill" class="needs-fill"></div></div>
-          </div>
-          <div class="needs-row">
-            <span class="needs-icon">⚡</span>
-            <div class="needs-track"><div id="energy-fill" class="needs-fill"></div></div>
-          </div>
-          <div class="needs-row">
-            <span class="needs-icon">🍽</span>
-            <div class="needs-track"><div id="hunger-fill" class="needs-fill"></div></div>
-          </div>
-          <div class="needs-row">
-            <span class="needs-icon">💰</span>
-            <span id="money-value">R$0</span>
-          </div>
-        </div>
       </div>
+
+      <!-- Relógio / compromisso -->
       <div id="top-right">
         <div id="clock">00:00</div>
         <div id="day-counter">Dia 1</div>
         <div id="schedule-box"></div>
       </div>
-      <canvas id="minimap" width="150" height="150"></canvas>
+
+      <!-- Vitais -->
+      <div id="needs-bar">
+        <div class="needs-row">
+          <span class="needs-icon ms">favorite</span>
+          <div class="needs-track"><div id="hp-fill" class="needs-fill"></div></div>
+          <span id="hp-value" class="needs-value">100</span>
+        </div>
+        <div class="needs-row">
+          <span class="needs-icon ms">directions_run</span>
+          <div class="needs-track"><div id="stamina-fill" class="needs-fill"></div></div>
+          <span id="stamina-value" class="needs-value">100</span>
+        </div>
+        <div class="needs-row">
+          <span class="needs-icon ms">bolt</span>
+          <div class="needs-track"><div id="energy-fill" class="needs-fill"></div></div>
+          <span id="energy-value" class="needs-value">100</span>
+        </div>
+        <div class="needs-row">
+          <span class="needs-icon ms">restaurant</span>
+          <div class="needs-track"><div id="hunger-fill" class="needs-fill"></div></div>
+          <span id="hunger-value" class="needs-value">100</span>
+        </div>
+      </div>
+
+      <!-- Dinheiro -->
+      <div id="money-box">
+        <span class="ms">payments</span>
+        <span id="money-value">R$0</span>
+      </div>
+
       <div id="interact-prompt" class="hidden"></div>
       <div id="crosshair-hint"></div>
       <div id="toast"></div>

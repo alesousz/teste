@@ -9,6 +9,14 @@ html, body {
 #ui-root { position: fixed; inset: 0; pointer-events: none; }
 .hidden { display: none !important; }
 
+.ms {
+  font-family: 'Material Symbols Rounded';
+  font-weight: normal; font-style: normal; line-height: 1;
+  letter-spacing: normal; text-transform: none; white-space: nowrap;
+  display: inline-block; direction: ltr;
+  -webkit-font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased;
+}
+
 .overlay {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
   background: rgba(6, 8, 12, 0.72); pointer-events: all; z-index: 20;
@@ -56,68 +64,128 @@ html, body {
 .cc-origin-card span { font-size: 0.82em; color: #c3c8d2; line-height: 1.4; }
 .cc-origin-card.selected { border-color: #ffd98a; background: rgba(255,217,138,0.1); }
 
-#hud { position: fixed; inset: 0; pointer-events: none; }
+/* ==========================================================================
+   HUD "Sem caixa" — sem painéis: tipografia, traços finos e sombra.
+   Cores: vida oklch(0.72 0.15 25) · vigor oklch(0.78 0.11 225)
+          energia oklch(0.82 0.13 88) · fome oklch(0.72 0.15 45)
+   ========================================================================== */
 
-#hud-left { position: absolute; top: 18px; left: 18px; display: flex; flex-direction: column; gap: 10px; max-width: 320px; }
-
-#objective-box {
-  background: rgba(10,12,16,0.55); border-left: 3px solid #ffd98a;
-  padding: 10px 14px; border-radius: 6px; backdrop-filter: blur(3px);
+#hud {
+  position: fixed; inset: 0; pointer-events: none;
+  font-family: Archivo, 'Segoe UI', system-ui, sans-serif; color: #f2f4f7;
 }
-.objective-title { font-weight: 700; color: #ffd98a; font-size: 0.85em; margin-top: 6px; }
-.objective-title:first-child { margin-top: 0; }
-.objective-text { font-size: 0.82em; color: #dfe3ea; }
+#hud > * { filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.9)); }
 
+/* ---------- Bússola ---------- */
+#compass {
+  position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+  width: 500px; display: flex; flex-direction: column; gap: 4px;
+}
+#compass-strip { display: block; width: 500px; height: 22px; }
+#compass-markers { position: relative; height: 18px; }
+.compass-marker {
+  position: absolute; top: 0; transform: translateX(-50%);
+  font-size: 15px; line-height: 1;
+}
+.compass-marker.home { color: #9fd6f2; }
+.compass-marker.duty { color: oklch(0.82 0.13 88); }
+.compass-marker.fragment { color: #ffe58a; }
+.compass-marker.quest { color: #ff9a8a; }
+
+/* ---------- Barra do alvo ---------- */
+#target-bar {
+  position: absolute; top: 104px; left: 50%; transform: translateX(-50%);
+  width: 300px; display: flex; flex-direction: column; gap: 5px;
+}
+#target-bar .target-top { display: flex; justify-content: space-between; align-items: baseline; }
+#target-name { font-size: 14px; font-weight: 600; letter-spacing: 0.02em; }
+#target-hp-text { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #c8cfd8; }
+.target-track { height: 3px; background: rgba(255, 255, 255, 0.16); }
+#target-fill { height: 100%; background: oklch(0.72 0.15 25); transition: width 0.15s; }
+
+/* ---------- Missões ---------- */
+#hud-left {
+  position: absolute; top: 96px; left: 22px; width: 300px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+#objective-box { display: flex; flex-direction: column; gap: 12px; }
+.objective-quest { display: flex; flex-direction: column; gap: 2px; }
+.objective-kicker {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+  letter-spacing: 0.2em; color: oklch(0.78 0.11 225);
+}
+.objective-title { font-size: 16px; font-weight: 600; color: #f2f4f7; }
+.objective-quest + .objective-quest .objective-title { font-size: 15px; color: #e3e7ec; }
+.objective-text { font-size: 14px; color: #d5dbe3; }
+
+/* ---------- Relógio / compromisso ---------- */
+#top-right { position: absolute; top: 20px; right: 22px; text-align: right; }
+#clock { font-size: 40px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
+#day-counter {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  letter-spacing: 0.16em; color: #aeb6c0; margin-top: 4px; text-transform: uppercase;
+}
+#schedule-box { margin-top: 8px; }
+.schedule-label { font-size: 14px; color: #aeb6c0; }
+.schedule-status { font-size: 14px; font-weight: 600; color: #d5dbe3; }
+.schedule-status.active { color: oklch(0.82 0.13 88); }
+.schedule-status.done { color: oklch(0.8 0.13 150); }
+.schedule-status.missed { color: oklch(0.7 0.15 25); }
+.schedule-hours { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #98a1ac; }
+
+/* ---------- Vitais ---------- */
 #needs-bar {
-  background: rgba(10,12,16,0.55); border-radius: 6px; padding: 8px 14px;
-  display: flex; flex-direction: column; gap: 6px; backdrop-filter: blur(3px);
+  position: absolute; bottom: 24px; left: 22px; width: 300px;
+  display: flex; flex-direction: column; gap: 10px;
 }
-.needs-row { display: flex; align-items: center; gap: 8px; font-size: 0.85em; }
-.needs-icon { width: 18px; text-align: center; }
-.needs-track { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.12); overflow: hidden; }
-.needs-fill { height: 100%; background: #ffd98a; transition: width .3s; }
-.needs-fill.low { background: #e05252; }
-#hp-fill { background: #6bbf59; }
-#hp-fill.low { background: #e05252; }
-#stamina-fill { background: #5ab0d9; }
+.needs-row { display: flex; align-items: center; gap: 10px; }
+.needs-icon { font-size: 16px; color: #aeb6c0; }
+.needs-track { flex: 1; height: 3px; background: rgba(255, 255, 255, 0.16); }
+.needs-fill { height: 100%; width: 100%; transition: width 0.3s; }
+.needs-value {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  color: #c8cfd8; width: 22px; text-align: right;
+}
+
+.needs-row:nth-child(1) .needs-icon, #hp-fill { color: oklch(0.72 0.15 25); background: oklch(0.72 0.15 25); }
+.needs-row:nth-child(2) .needs-icon, #stamina-fill { color: oklch(0.78 0.11 225); background: oklch(0.78 0.11 225); }
+.needs-row:nth-child(3) .needs-icon, #energy-fill { color: oklch(0.82 0.13 88); background: oklch(0.82 0.13 88); }
+.needs-row:nth-child(4) .needs-icon, #hunger-fill { color: oklch(0.72 0.15 45); background: oklch(0.72 0.15 45); }
+
+.needs-fill.low { background: oklch(0.66 0.18 30); }
+.needs-value.low { color: oklch(0.72 0.16 35); }
 #stamina-fill.low { background: #6b7280; }
-#money-value { color: #9fe08a; font-weight: 600; }
 
-#top-right { position: absolute; top: 18px; right: 18px; text-align: right; background: rgba(10,12,16,0.55); padding: 8px 14px; border-radius: 6px; }
-#clock { font-size: 1.4em; font-weight: 700; letter-spacing: 0.05em; }
-#day-counter { font-size: 0.78em; color: #aab2c0; }
-#schedule-box { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.12); }
-.schedule-label { font-size: 0.78em; color: #9fb3c8; }
-.schedule-status { font-size: 0.85em; font-weight: 600; }
-.schedule-status.active { color: #ffd98a; }
-.schedule-status.done { color: #9fe08a; }
-.schedule-status.missed { color: #e08a8a; }
-
-#minimap {
-  position: absolute; bottom: 18px; right: 18px; border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.25); background: rgba(10,12,16,0.4);
+/* ---------- Dinheiro ---------- */
+#money-box {
+  position: absolute; bottom: 26px; right: 22px;
+  display: flex; align-items: center; gap: 8px;
 }
+#money-box .ms { font-size: 16px; color: #aeb6c0; }
+#money-value { font-size: 20px; font-weight: 600; }
 
+/* ---------- Prompt / mira / toast ---------- */
 #interact-prompt {
-  position: absolute; bottom: 30%; left: 50%; transform: translateX(-50%);
-  background: rgba(10,12,16,0.7); padding: 8px 16px; border-radius: 20px; font-size: 0.9em;
-  border: 1px solid rgba(255,255,255,0.15);
+  position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; font-size: 16px;
 }
-#interact-prompt.warning {
-  background: rgba(120,35,15,0.9); border-color: #ff9a5c; color: #ffe2cf; font-weight: 700;
-  animation: prompt-pulse 0.4s infinite alternate;
+#interact-prompt[data-key]:not([data-key=""])::before {
+  content: attr(data-key);
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600;
+  padding: 3px 8px; border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 3px;
 }
+#interact-prompt.warning { color: oklch(0.78 0.16 45); font-weight: 600; animation: prompt-pulse 0.4s infinite alternate; }
+#interact-prompt.warning::before { border-color: oklch(0.78 0.16 45); }
 @keyframes prompt-pulse { from { opacity: 0.7; } to { opacity: 1; } }
 
 #crosshair-hint {
   position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px;
-  background: rgba(255,255,255,0.6); border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55); border-radius: 50%;
 }
 
 #toast {
-  position: absolute; top: 90px; left: 50%; transform: translateX(-50%) translateY(-10px);
-  background: rgba(20,22,28,0.85); border: 1px solid rgba(255,217,138,0.4); color: #ffd98a;
-  padding: 8px 18px; border-radius: 8px; font-size: 0.88em; opacity: 0; transition: opacity .3s, transform .3s;
+  position: absolute; top: 150px; left: 50%; transform: translateX(-50%) translateY(-10px);
+  font-size: 15px; color: #f2f4f7; opacity: 0; transition: opacity 0.3s, transform 0.3s;
 }
 #toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 
@@ -222,6 +290,12 @@ html, body {
   transition: opacity 0.1s ease-out;
 }
 #photo-flash.active { opacity: 0.85; transition: opacity 0.05s ease-in; }
+
+@media (max-width: 720px) {
+  #compass, #compass-strip { width: 320px; }
+  #hud-left, #needs-bar { width: 220px; }
+  #clock { font-size: 30px; }
+}
 
 @media (max-width: 640px) {
   .journal-columns { grid-template-columns: 1fr; }
