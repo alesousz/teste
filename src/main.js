@@ -8,6 +8,7 @@ import { NeedsSystem } from './needs.js';
 import { ObligationSystem } from './schedule.js';
 import { UI } from './ui.js';
 import { hasSave, loadSave, writeSave, clearSave } from './save.js';
+import { preloadCharacterAssets } from './assets.js';
 
 class InputManager {
   constructor(canvas) {
@@ -68,8 +69,8 @@ class Game {
     this.camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 500);
 
     this.world = new World(this.scene);
-    this.player = new Player(this.scene, this.world);
-    this.npcs = createNpcs(this.scene, this.world);
+    this.player = null;
+    this.npcs = [];
 
     this.quests = new QuestSystem(() => this._onQuestChange());
     this.collectibles = new CollectibleSystem(this.scene, this.quests);
@@ -83,6 +84,13 @@ class Game {
     this._bindPointerLock();
     this._bindResize();
 
+    this._boot();
+  }
+
+  async _boot() {
+    await preloadCharacterAssets();
+    this.npcs = createNpcs(this.scene, this.world);
+    this.ui.hideLoading();
     this.ui.showMenu(hasSave());
   }
 
@@ -148,6 +156,9 @@ class Game {
     this.profile = profile || { name: 'Alex', sex: 'x', originId: 'operario' };
     const origin = ORIGINS[this.profile.originId];
     this.homeSleepSpot = HOMES[origin.home].sleepSpot;
+
+    if (this.player) this.scene.remove(this.player.mesh);
+    this.player = new Player(this.scene, this.world, this.profile.sex === 'f' ? 'female' : 'male');
 
     this.needs = new NeedsSystem(origin.startMoney);
     this.obligation = new ObligationSystem(OBLIGATIONS[origin.obligation]);

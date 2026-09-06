@@ -17,8 +17,16 @@
   <canvas id="game-canvas"></canvas>
 
   <div id="ui-root">
+    <!-- Carregando assets -->
+    <div id="loading-screen" class="overlay">
+      <div class="menu-panel">
+        <h2>Carregando...</h2>
+        <p class="menu-desc">Preparando os personagens da cidade.</p>
+      </div>
+    </div>
+
     <!-- Tela inicial -->
-    <div id="menu-screen" class="overlay">
+    <div id="menu-screen" class="overlay hidden">
       <div class="menu-panel">
         <h1>ECOS DA CIDADE</h1>
         <p class="tagline">Um RPG de exploração no mundo moderno.</p>

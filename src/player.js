@@ -3,20 +3,17 @@ import { CONFIG } from './data.js';
 import { buildHumanoid } from './characterModel.js';
 
 export class Player {
-  constructor(scene, world) {
+  constructor(scene, world, variant = 'male') {
     this.world = world;
-    const built = buildHumanoid({ clothColor: 0x3f6fb0, hairColor: 0x2b2118 });
+    const built = buildHumanoid({ variant });
     this.mesh = built.group;
+    this.rig = built;
     scene.add(this.mesh);
     this.position = new THREE.Vector3(0, 0, -16);
     this.velocity = new THREE.Vector3();
     this.facingAngle = Math.PI;
     this.isRunning = false;
     this.walkT = 0;
-    this.legL = built.legL;
-    this.legR = built.legR;
-    this.armL = built.armL;
-    this.armR = built.armR;
 
     // Câmera terceira-pessoa em coordenadas esféricas relativas ao jogador
     this.camYaw = Math.PI;
@@ -70,10 +67,7 @@ export class Player {
     this.mesh.rotation.y = this.facingAngle;
 
     const swing = Math.sin(this.walkT) * (hasInput ? 0.6 : 0);
-    this.legL.rotation.x = swing;
-    this.legR.rotation.x = -swing;
-    this.armL.rotation.x = -swing;
-    this.armR.rotation.x = swing;
+    this.rig.applyWalkSwing(swing);
 
     this._updateCamera();
   }

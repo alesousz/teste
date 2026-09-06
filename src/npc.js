@@ -2,31 +2,26 @@ import * as THREE from 'three';
 import { NPC_DEFS } from './data.js';
 import { buildHumanoid } from './characterModel.js';
 
-const HAIR_PALETTE = [0x2b2118, 0x4a3223, 0x1a1a1a, 0x6b4a2f, 0x3a2a1a, 0x7a5a3a];
-function hairColorFor(id) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
-  return HAIR_PALETTE[Math.abs(hash) % HAIR_PALETTE.length];
-}
+const FEMALE_NPCS = new Set(['mae_operaria', 'mae_nobre', 'marina', 'busker', 'professora']);
 
 function buildNpcMesh(def) {
-  const built = buildHumanoid({ clothColor: def.color, hairColor: hairColorFor(def.id) });
-  const { group, armR } = built;
+  const variant = FEMALE_NPCS.has(def.id) ? 'female' : 'male';
+  const built = buildHumanoid({ variant });
+  const { group } = built;
 
   if (def.prop === 'phone') {
     const phone = new THREE.Mesh(
       new THREE.BoxGeometry(0.08, 0.15, 0.02),
       new THREE.MeshStandardMaterial({ color: 0x111318, emissive: 0x224466, emissiveIntensity: 0.6 })
     );
-    phone.position.set(0.4, 1.1, 0.15);
+    phone.position.set(0.3, 1.05, 0.15);
     phone.rotation.x = -0.6;
     group.add(phone);
-    armR.rotation.x = -1.1;
   }
   if (def.prop === 'guitar') {
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 0.08, 16), new THREE.MeshStandardMaterial({ color: 0x8a5a2b }));
     body.rotation.z = Math.PI / 2;
-    body.position.set(0, 1.0, 0.2);
+    body.position.set(0, 0.95, 0.2);
     group.add(body);
     const neck = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.05, 0.05), new THREE.MeshStandardMaterial({ color: 0x5b3d26 }));
     neck.position.set(0.4, 1.1, 0.2);
@@ -42,7 +37,6 @@ function buildNpcMesh(def) {
     group.add(canopy);
   }
 
-  group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return built;
 }
 
@@ -52,7 +46,7 @@ export class NPC {
     this.world = world;
     const built = buildNpcMesh(def);
     this.mesh = built.group;
-    this.legL = built.legL; this.legR = built.legR;
+    this.rig = built;
     this.position = new THREE.Vector3(def.home.x, 0, def.home.z);
     this.mesh.position.copy(this.position);
     scene.add(this.mesh);
@@ -102,8 +96,7 @@ export class NPC {
     this.mesh.position.copy(this.position);
     this.mesh.rotation.y = this.facing;
     const swing = Math.sin(this.walkT) * 0.5;
-    if (this.legL) this.legL.rotation.x = swing;
-    if (this.legR) this.legR.rotation.x = -swing;
+    this.rig.applyWalkSwing(swing);
   }
 }
 
