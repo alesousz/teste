@@ -493,11 +493,21 @@ export const DIALOGUES = {
       },
       ro_ok: {
         text: 'Dona Rosa: "Tá indo bem no trabalho, viu? Fico orgulhosa."',
-        options: [{ label: '(Encerrar conversa)', next: null }],
+        options: [
+          { label: 'Comer algo em casa (grátis)', next: 'ro_eat', effect: { type: 'eatHome' }, maxHunger: 90 },
+          { label: '(Encerrar conversa)', next: null },
+        ],
       },
       ro_worried: {
         text: 'Dona Rosa franze a testa. "Ouvi dizer que você faltou o serviço. Tá tudo bem? Sabe que a gente precisa desse dinheiro..."',
-        options: [{ label: 'Vou dar um jeito, mãe.', next: null }],
+        options: [
+          { label: 'Comer algo em casa (grátis)', next: 'ro_eat', effect: { type: 'eatHome' }, maxHunger: 90 },
+          { label: 'Vou dar um jeito, mãe.', next: null },
+        ],
+      },
+      ro_eat: {
+        text: 'Dona Rosa serve um prato caseiro fumegante. "Come direito, viu?"',
+        options: [{ label: '(Encerrar conversa)', next: null }],
       },
       ro_fired: {
         text: 'Dona Rosa te olha preocupada, mas segura sua mão. "A gente dá um jeito. Sempre deu."',
@@ -518,7 +528,10 @@ export const DIALOGUES = {
       },
       iv_ok: {
         text: 'Seu Ivo acena com a cabeça. "Bom te ver por aqui hoje."',
-        options: [{ label: '(Encerrar conversa)', next: null }],
+        options: [
+          { label: 'Comprar comida (R$8)', next: 'iv_food', effect: { type: 'buyFood' }, minMoney: 8, maxHunger: 90 },
+          { label: '(Encerrar conversa)', next: null },
+        ],
       },
       iv_warning: {
         text: 'Seu Ivo cruzou os braços. "Já é a segunda falta. Mais uma e eu vou ter que te dispensar."',
@@ -530,6 +543,13 @@ export const DIALOGUES = {
       },
       iv_stranger: {
         text: 'Seu Ivo organiza as caixas da barraca. "Bom dia! Precisando de alguma coisa do mercado?"',
+        options: [
+          { label: 'Comprar comida (R$8)', next: 'iv_food', effect: { type: 'buyFood' }, minMoney: 8, maxHunger: 90 },
+          { label: '(Encerrar conversa)', next: null },
+        ],
+      },
+      iv_food: {
+        text: 'Seu Ivo embrulha um lanche fresco. "Bom proveito!"',
         options: [{ label: '(Encerrar conversa)', next: null }],
       },
     },
@@ -543,11 +563,21 @@ export const DIALOGUES = {
       },
       bt_ok: {
         text: 'Dona Beatriz: "Suas notas continuam boas, presumo. Continue assim."',
-        options: [{ label: '(Encerrar conversa)', next: null }],
+        options: [
+          { label: 'Comer algo em casa (grátis)', next: 'bt_eat', effect: { type: 'eatHome' }, maxHunger: 90 },
+          { label: '(Encerrar conversa)', next: null },
+        ],
       },
       bt_worried: {
         text: 'Dona Beatriz: "Recebi uma ligação da escola sobre uma falta. Isso não pode virar hábito, ouviu?"',
-        options: [{ label: 'Não vai se repetir.', next: null }],
+        options: [
+          { label: 'Comer algo em casa (grátis)', next: 'bt_eat', effect: { type: 'eatHome' }, maxHunger: 90 },
+          { label: 'Não vai se repetir.', next: null },
+        ],
+      },
+      bt_eat: {
+        text: 'Uma empregada serve um prato elegante à mesa. Dona Beatriz observa de longe, aprovando em silêncio.',
+        options: [{ label: '(Encerrar conversa)', next: null }],
       },
       bt_fired: {
         text: 'Dona Beatriz suspira, contrariada, mas por baixo da cobrança há genuína preocupação. "Vamos conversar com calma sobre isso."',
