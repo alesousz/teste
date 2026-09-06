@@ -11,6 +11,8 @@ const STATE_CLIPS = {
   run: 'Sprint_Loop',
   talk: 'Idle_Talking_Loop',
   jump: 'Jump_Loop',
+  crouchIdle: 'Crouch_Idle_Loop',
+  crouchWalk: 'Crouch_Fwd_Loop',
 };
 // Clipes de um disparo só (não fazem loop): tocam uma vez e devolvem o
 // controle pro estado de locomoção corrente via callback.

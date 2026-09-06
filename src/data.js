@@ -9,6 +9,7 @@ export const CONFIG = {
   DAY_LENGTH_SECONDS: 480, // duração de um ciclo dia/noite completo
   PLAYER_SPEED_WALK: 3.2,
   PLAYER_SPEED_RUN: 6.5,
+  PLAYER_SPEED_CROUCH: 1.8,
   PLAYER_RADIUS: 0.45,
   INTERACT_RADIUS: 3.2,
   PHOTO_RADIUS: 3.5,
