@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ecos da Cidade</title>
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="game-canvas"></canvas>
+
+  <div id="ui-root">
+    <!-- Tela inicial -->
+    <div id="menu-screen" class="overlay">
+      <div class="menu-panel">
+        <h1>ECOS DA CIDADE</h1>
+        <p class="tagline">Um RPG de exploração no mundo moderno.</p>
+        <p class="menu-desc">
+          Chegue a uma cidade qualquer, sem missão de dominá-la ou destruí-la.
+          Converse, observe, fotografe instantes esquecidos. A cidade continua
+          girando — o que você faz com o tempo dentro dela é só seu.
+        </p>
+        <div class="menu-buttons">
+          <button id="btn-newgame">Iniciar Jornada</button>
+          <button id="btn-continue" disabled>Continuar</button>
+        </div>
+        <div class="controls-hint">
+          <strong>Controles:</strong> WASD mover · Shift correr · Mouse (clique para travar o cursor) olhar ·
+          E interagir · F fotografar · Tab diário · Esc pausar
+        </div>
+      </div>
+    </div>
+
+    <!-- Menu de pausa -->
+    <div id="pause-menu" class="overlay hidden">
+      <div class="menu-panel">
+        <h2>Pausado</h2>
+        <p class="menu-desc">Clique na tela para voltar a olhar ao redor.</p>
+        <div class="menu-buttons">
+          <button id="btn-resume">Continuar Jogando</button>
+          <button id="btn-save-quit">Salvar e Sair ao Menu</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <div id="objective-box"></div>
+      <div id="top-right">
+        <div id="clock">00:00</div>
+        <div id="day-counter">Dia 1</div>
+      </div>
+      <canvas id="minimap" width="150" height="150"></canvas>
+      <div id="interact-prompt" class="hidden"></div>
+      <div id="crosshair-hint"></div>
+      <div id="toast"></div>
+    </div>
+
+    <!-- Diálogo -->
+    <div id="dialogue-box" class="hidden">
+      <div id="dialogue-text"></div>
+      <div id="dialogue-options"></div>
+    </div>
+
+    <!-- Diário -->
+    <div id="journal" class="overlay hidden">
+      <div class="journal-panel">
+        <h2>Diário</h2>
+        <div class="journal-columns">
+          <div class="journal-col">
+            <h3>Missões</h3>
+            <div id="journal-quests"></div>
+          </div>
+          <div class="journal-col">
+            <h3>Fragmentos Fotografados</h3>
+            <div id="journal-gallery" class="journal-gallery"></div>
+          </div>
+        </div>
+        <p class="journal-hint">Pressione Tab para fechar</p>
+      </div>
+    </div>
+
+    <div id="photo-flash"></div>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "ecos-da-cidade",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ecos da Cidade — RPG 3D de exploração ambientado numa cidade moderna.",
+  "scripts": {
+    "dev": "http-server -c-1 -p 8080 .",
+    "start": "http-server -c-1 -p 8080 ."
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
