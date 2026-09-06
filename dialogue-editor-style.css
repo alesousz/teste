@@ -1,0 +1,88 @@
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; width: 100%; height: 100%;
+  background: #0a0a0c; font-family: 'Segoe UI', system-ui, sans-serif; color: #eee;
+}
+.hidden { display: none !important; }
+h1, h2, h3 { margin: 0 0 8px; }
+h1 { font-size: 1.1em; color: #ffd98a; }
+h2 { font-size: 0.95em; color: #ffd98a; margin-top: 18px; }
+h2:first-child { margin-top: 0; }
+h3 { font-size: 0.88em; color: #cfd3da; margin-top: 16px; }
+.hint { font-size: 0.78em; color: #8992a0; margin: 4px 0 10px; line-height: 1.4; }
+code { background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px; }
+
+#topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px; background: rgba(255,255,255,0.04); border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+#topbar-actions { display: flex; align-items: center; gap: 10px; }
+#save-status { font-size: 0.78em; color: #8992a0; }
+
+button {
+  padding: 8px 14px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15);
+  background: #ffd98a; color: #1a1206; font-weight: 600; font-size: 0.82em; cursor: pointer;
+}
+button:hover { filter: brightness(1.08); }
+.btn-secondary { background: rgba(255,255,255,0.08); color: #eee; font-weight: 500; }
+.btn-danger { background: #6b2a2a; color: #ffdcdc; margin-top: 16px; }
+.btn-icon {
+  background: rgba(255,255,255,0.08); color: #eee; font-weight: 400;
+  padding: 4px 9px; font-size: 0.9em; border-radius: 5px;
+}
+
+#layout {
+  display: grid; grid-template-columns: 340px 260px 1fr; gap: 1px;
+  background: rgba(255,255,255,0.08);
+  height: calc(100vh - 53px);
+}
+#npc-panel, #node-list-panel, #node-editor-panel {
+  background: #0d0e12; padding: 16px; overflow-y: auto;
+}
+
+select, input[type="text"], input[type="number"], textarea {
+  width: 100%; padding: 7px 9px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.06); color: #eee; font-size: 0.85em; font-family: inherit;
+}
+textarea { resize: vertical; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 0.8em; color: #cfd3da; margin-bottom: 10px; }
+
+#node-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.node-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  padding: 8px 10px; border-radius: 6px; background: rgba(255,255,255,0.05);
+  font-size: 0.82em; cursor: pointer; border: 1px solid transparent;
+}
+.node-item:hover { background: rgba(255,255,255,0.09); }
+.node-item.selected { border-color: #ffd98a; background: rgba(255,217,138,0.12); }
+.node-item .node-id { font-family: monospace; color: #ffd98a; }
+.node-item .node-preview { color: #9aa0ab; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; margin-left: 8px; }
+
+.rule-row, .option-row {
+  background: rgba(255,255,255,0.04); border-radius: 8px; padding: 10px; margin-bottom: 8px;
+}
+.rule-row-head, .option-row-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.rule-conditions { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+.condition-row {
+  display: grid; grid-template-columns: 1fr; gap: 4px; align-items: center;
+  background: rgba(255,255,255,0.03); border-radius: 6px; padding: 6px; margin-bottom: 2px;
+}
+.condition-row .negate-row { display: flex; justify-content: space-between; align-items: center; }
+.condition-row label.negate { display: flex; align-items: center; gap: 4px; font-size: 0.78em; color: #cfd3da; white-space: nowrap; }
+
+.option-row-fields { display: flex; flex-direction: column; gap: 6px; }
+.option-inline { display: flex; gap: 6px; }
+.option-inline > * { flex: 1; }
+
+#export-modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center; z-index: 50;
+}
+#export-modal-inner {
+  background: #14161c; border-radius: 10px; padding: 20px; width: min(700px, 90vw);
+  max-height: 80vh; display: flex; flex-direction: column;
+}
+#export-output {
+  flex: 1; min-height: 300px; font-family: monospace; font-size: 0.75em;
+  background: #05060a; color: #9fe08a; margin: 10px 0;
+}

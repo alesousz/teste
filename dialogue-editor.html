@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Editor de Diálogos — Ecos da Cidade</title>
+  <link rel="stylesheet" href="dialogue-editor-style.css" />
+</head>
+<body>
+  <header id="topbar">
+    <h1>Editor de Diálogos</h1>
+    <div id="topbar-actions">
+      <span id="save-status"></span>
+      <button id="btn-reload-game-data">Recarregar dados do jogo</button>
+      <button id="btn-export">Exportar JSON</button>
+    </div>
+  </header>
+
+  <div id="layout">
+    <aside id="npc-panel">
+      <h2>NPC</h2>
+      <select id="npc-select"></select>
+
+      <h2>Regras de início</h2>
+      <p class="hint">A primeira regra cuja condição bater decide em qual fala a conversa começa. Se nenhuma bater, usa o nó padrão.</p>
+      <div id="start-rules-list"></div>
+      <button class="btn-secondary" id="btn-add-rule">+ Regra</button>
+
+      <label class="field">
+        Nó padrão (sem regra)
+        <select id="start-default-select"></select>
+      </label>
+    </aside>
+
+    <section id="node-list-panel">
+      <h2>Nós da conversa</h2>
+      <div id="node-list"></div>
+      <button class="btn-secondary" id="btn-add-node">+ Novo nó</button>
+    </section>
+
+    <section id="node-editor-panel">
+      <h2>Editando: <span id="editing-node-id">—</span></h2>
+      <div id="node-editor-empty" class="hint">Selecione ou crie um nó pra editar.</div>
+      <div id="node-editor-body" class="hidden">
+        <label class="field">
+          Texto da fala
+          <textarea id="node-text" rows="4"></textarea>
+        </label>
+        <p class="hint">Use <code>{{m:X|f:Y|x:Z}}</code> pra variar uma palavra conforme o sexo do jogador (X=homem, Y=mulher, Z=não-binário).</p>
+
+        <h3>Opções de resposta</h3>
+        <div id="options-list"></div>
+        <button class="btn-secondary" id="btn-add-option">+ Opção</button>
+
+        <button class="btn-danger" id="btn-delete-node">Excluir este nó</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="export-modal" class="hidden">
+    <div id="export-modal-inner">
+      <h2>JSON completo (todos os NPCs)</h2>
+      <p class="hint">Copie este conteúdo pra atualizar <code>src/data/dialogues.json</code> no jogo.</p>
+      <textarea id="export-output" readonly></textarea>
+      <button id="btn-close-export">Fechar</button>
+    </div>
+  </div>
+
+  <script type="module" src="src/dialogue-editor/main.js"></script>
+</body>
+</html>
