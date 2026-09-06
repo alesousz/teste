@@ -172,6 +172,70 @@ export class World {
     mesh.userData.isBuildingSide = true;
     this.scene.add(mesh);
     this.windowTexturesLit.push(mesh);
+
+    this._addRooftopDetails(b, color);
+    this._addAwning(b, color);
+  }
+
+  _addRooftopDetails(b, color) {
+    const roofMat = new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.9 });
+    const parapet = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.15, 0.3, b.d + 0.15), roofMat);
+    parapet.position.set(b.cx, b.h + 0.15, b.cz);
+    parapet.castShadow = true;
+    this.scene.add(parapet);
+
+    let seed = b.winSeed;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return (seed % 1000) / 1000; };
+
+    const propCount = 1 + Math.floor(rnd() * 2);
+    for (let i = 0; i < propCount; i++) {
+      const px = b.cx + (rnd() - 0.5) * (b.w * 0.5);
+      const pz = b.cz + (rnd() - 0.5) * (b.d * 0.5);
+      if (rnd() > 0.5) {
+        const ac = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.8), new THREE.MeshStandardMaterial({ color: 0x8a9199, roughness: 0.7 }));
+        ac.position.set(px, b.h + 0.55, pz);
+        ac.castShadow = true;
+        this.scene.add(ac);
+      } else {
+        const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.9, 10), new THREE.MeshStandardMaterial({ color: 0x6b5a4a, roughness: 0.8 }));
+        tank.position.set(px, b.h + 0.75, pz);
+        tank.castShadow = true;
+        this.scene.add(tank);
+      }
+    }
+
+    if (b.h > 24) {
+      const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 3, 6), roofMat);
+      antenna.position.set(b.cx, b.h + 1.8, b.cz);
+      this.scene.add(antenna);
+      const light = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 8, 8),
+        new THREE.MeshStandardMaterial({ color: 0xff3b30, emissive: 0xff3b30, emissiveIntensity: 0.8 })
+      );
+      light.position.set(b.cx, b.h + 3.3, b.cz);
+      this.scene.add(light);
+    }
+  }
+
+  _addAwning(b, color) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 32; canvas.height = 8;
+    const ctx = canvas.getContext('2d');
+    const stripeColor = `#${new THREE.Color(color).offsetHSL(0, 0.1, -0.1).getHexString()}`;
+    for (let i = 0; i < 8; i++) {
+      ctx.fillStyle = i % 2 === 0 ? stripeColor : '#e8e4da';
+      ctx.fillRect(i * 4, 0, 4, 8);
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.repeat.set(Math.max(1, Math.round(b.w / 2)), 1);
+    const awning = new THREE.Mesh(
+      new THREE.BoxGeometry(b.w + 0.4, 0.12, 0.6),
+      new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 })
+    );
+    awning.position.set(b.cx, 2.6, b.cz + b.d / 2 + 0.25);
+    awning.castShadow = true;
+    this.scene.add(awning);
   }
 
   _addPlazaProps(block) {
@@ -303,7 +367,7 @@ export class World {
     this.sun.shadow.bias = -0.0015;
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
-    this.moonAmbient = new THREE.AmbientLight(0x445577, 0.15);
+    this.moonAmbient = new THREE.AmbientLight(0x445577, 0.32);
     this.scene.add(this.moonAmbient);
   }
 
@@ -332,8 +396,8 @@ export class World {
     this.sun.target.position.set(0, 0, 0);
 
     const dayFactor = THREE.MathUtils.clamp(sunHeight * 1.6 + 0.25, 0, 1);
-    this.sun.intensity = 0.15 + dayFactor * 1.3;
-    this.hemi.intensity = 0.15 + dayFactor * 0.55;
+    this.sun.intensity = 0.2 + dayFactor * 1.3;
+    this.hemi.intensity = 0.35 + dayFactor * 0.55;
 
     const nightColor = new THREE.Color(0x0a1224);
     const duskColor = new THREE.Color(0xd98a5a);
