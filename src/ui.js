@@ -32,6 +32,7 @@ export class UI {
 
     this.needsBar = document.getElementById('needs-bar');
     this.energyFill = document.getElementById('energy-fill');
+    this.hungerFill = document.getElementById('hunger-fill');
     this.moneyValue = document.getElementById('money-value');
     this.scheduleBox = document.getElementById('schedule-box');
   }
@@ -88,6 +89,8 @@ export class UI {
     if (needs) {
       this.energyFill.style.width = `${Math.max(0, needs.energy)}%`;
       this.energyFill.classList.toggle('low', needs.energy <= 15);
+      this.hungerFill.style.width = `${Math.max(0, needs.hunger)}%`;
+      this.hungerFill.classList.toggle('low', needs.hunger <= 15);
       this.moneyValue.textContent = `R$${Math.floor(needs.money)}`;
     }
     if (obligation) {

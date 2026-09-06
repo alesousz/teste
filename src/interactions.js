@@ -154,7 +154,10 @@ export class DialogueSystem {
     const tree = DIALOGUES[this.currentNpcId];
     const node = tree.nodes[this.nodeId];
     const text = typeof node.text === 'function' ? node.text(this.sex) : node.text;
-    this._visibleOptions = node.options.filter(o => !o.minMoney || this.needs.money >= o.minMoney);
+    this._visibleOptions = node.options.filter(o =>
+      (!o.minMoney || this.needs.money >= o.minMoney) &&
+      (!o.maxHunger || this.needs.hunger <= o.maxHunger)
+    );
     this.ui.show(text, this._visibleOptions.map(o => o.label));
   }
 
@@ -173,6 +176,12 @@ export class DialogueSystem {
   _applyEffect(effect) {
     if (effect.type === 'buyCoffee') {
       if (this.needs.spendMoney(5)) this.needs.restoreEnergy(25);
+    }
+    if (effect.type === 'eatHome') {
+      this.needs.restoreHunger(100);
+    }
+    if (effect.type === 'buyFood') {
+      if (this.needs.spendMoney(8)) this.needs.restoreHunger(60);
     }
     if (effect.type === 'startQuest') {
       this.quests.startQuest(effect.quest);
