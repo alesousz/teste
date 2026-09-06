@@ -33,6 +33,7 @@ export class UI {
 
     this.needsBar = document.getElementById('needs-bar');
     this.hpFill = document.getElementById('hp-fill');
+    this.staminaFill = document.getElementById('stamina-fill');
     this.energyFill = document.getElementById('energy-fill');
     this.hungerFill = document.getElementById('hunger-fill');
     this.moneyValue = document.getElementById('money-value');
@@ -93,6 +94,8 @@ export class UI {
     if (player) {
       this.hpFill.style.width = `${Math.max(0, player.hp)}%`;
       this.hpFill.classList.toggle('low', player.hp <= 30);
+      this.staminaFill.style.width = `${Math.max(0, player.stamina)}%`;
+      this.staminaFill.classList.toggle('low', player.stamina < CONFIG.PUNCH_STAMINA_COST);
     }
     if (needs) {
       this.energyFill.style.width = `${Math.max(0, needs.energy)}%`;
