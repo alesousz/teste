@@ -343,6 +343,11 @@ class Game {
       const { x, y } = this.input.consumeMouseDelta();
       this.player.applyCameraInput(x, y);
       this.player.update(dt, this.input);
+      // Contra-ataque do boneco só resolve quando o jogador não está mais
+      // travado no próprio soco, pra não cortar a animação de ataque dele.
+      if (this.dummy.pendingCounter && !this.player.isAttacking) {
+        if (this.dummy.consumePendingCounter()) this.player.takeDamage(CONFIG.DUMMY_COUNTER_DAMAGE);
+      }
       this._handleInteractionPrompt();
       this.needs.update(dt);
       this.obligation.update(this.world.timeOfDay * 24, this.player.position);
@@ -361,7 +366,7 @@ class Game {
       if (result) this.ui.showToast(result.message);
     }
 
-    this.ui.updateHUD(this.world, this.quests, this.needs, this.obligation);
+    this.ui.updateHUD(this.world, this.quests, this.needs, this.obligation, this.player);
     this.ui.drawMinimap(this.player, this.npcs, this.collectibles);
 
     this.camera.position.copy(this.player.cameraPosition);

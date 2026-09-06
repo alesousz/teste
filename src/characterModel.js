@@ -16,6 +16,7 @@ const STATE_CLIPS = {
 // controle pro estado de locomoção corrente via callback.
 const ONE_SHOT_CLIPS = {
   attack: 'Punch_Jab',
+  hit: 'Hit_Chest',
 };
 const FADE_SECONDS = 0.25;
 const ONE_SHOT_FADE_SECONDS = 0.08;

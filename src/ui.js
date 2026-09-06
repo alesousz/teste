@@ -32,6 +32,7 @@ export class UI {
     this._bindCreationChips();
 
     this.needsBar = document.getElementById('needs-bar');
+    this.hpFill = document.getElementById('hp-fill');
     this.energyFill = document.getElementById('energy-fill');
     this.hungerFill = document.getElementById('hunger-fill');
     this.moneyValue = document.getElementById('money-value');
@@ -85,10 +86,14 @@ export class UI {
   showPause() { this.pauseMenu.classList.remove('hidden'); }
   hidePause() { this.pauseMenu.classList.add('hidden'); }
 
-  updateHUD(world, questSystem, needs, obligation) {
+  updateHUD(world, questSystem, needs, obligation, player) {
     this.clockEl.textContent = world.getFormattedTime();
     this.dayEl.textContent = `Dia ${world.dayCount}`;
 
+    if (player) {
+      this.hpFill.style.width = `${Math.max(0, player.hp)}%`;
+      this.hpFill.classList.toggle('low', player.hp <= 30);
+    }
     if (needs) {
       this.energyFill.style.width = `${Math.max(0, needs.energy)}%`;
       this.energyFill.classList.toggle('low', needs.energy <= 15);
