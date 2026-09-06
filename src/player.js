@@ -111,7 +111,7 @@ export class Player {
       const forward = new THREE.Vector3(Math.sin(this.camYaw), 0, Math.cos(this.camYaw));
       const right = new THREE.Vector3(Math.sin(this.camYaw + Math.PI / 2), 0, Math.cos(this.camYaw + Math.PI / 2));
       const move = new THREE.Vector3();
-      move.addScaledVector(forward, -moveZ);
+      move.addScaledVector(forward, moveZ);
       move.addScaledVector(right, moveX);
       move.normalize().multiplyScalar(speed * dt);
       this.position.x += move.x;
