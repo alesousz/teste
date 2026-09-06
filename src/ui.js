@@ -2,6 +2,7 @@ import { CONFIG, CITY, QUESTS } from './data.js';
 
 export class UI {
   constructor() {
+    this.loadingScreen = document.getElementById('loading-screen');
     this.menuScreen = document.getElementById('menu-screen');
     this.continueBtn = document.getElementById('btn-continue');
     this.newGameBtn = document.getElementById('btn-newgame');
@@ -72,6 +73,8 @@ export class UI {
     if (this.ccConfirmBtn.disabled) return null;
     return { name: this.ccNameInput.value.trim(), sex: this._cc.sex, originId: this._cc.originId };
   }
+
+  hideLoading() { this.loadingScreen.classList.add('hidden'); }
 
   showMenu(canContinue) {
     this.menuScreen.classList.remove('hidden');
