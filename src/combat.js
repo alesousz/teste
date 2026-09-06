@@ -23,6 +23,11 @@ export class TrainingDummy {
     this.hp = this.maxHp;
     this.respawnTimer = 0;
     this.hitFlash = 0;
+    // Chance de "revidar" a cada soco recebido — dá um motivo real pra ter
+    // HP e reação de dano no jogador, sem introduzir NPC hostil nem
+    // inimigo pela cidade. O contra-ataque fica pendente até o jogador
+    // sair do meio do próprio soco (ver consumePendingCounter).
+    this.pendingCounter = false;
 
     this.group = new THREE.Group();
     this.group.position.copy(this.position);
@@ -79,7 +84,20 @@ export class TrainingDummy {
     this.hp = Math.max(0, this.hp - amount);
     this.hitFlash = 0.18;
     this._redrawBar();
-    if (this.isDown) this.respawnTimer = CONFIG.DUMMY_RESPAWN_DELAY;
+    if (this.isDown) {
+      this.respawnTimer = CONFIG.DUMMY_RESPAWN_DELAY;
+    } else if (!this.pendingCounter && Math.random() < CONFIG.DUMMY_COUNTER_CHANCE) {
+      this.pendingCounter = true;
+    }
+    return true;
+  }
+
+  // Consumida pelo Game assim que o jogador não estiver mais travado no
+  // próprio soco — evita que o contra-ataque interrompa a animação de
+  // ataque em andamento.
+  consumePendingCounter() {
+    if (!this.pendingCounter) return false;
+    this.pendingCounter = false;
     return true;
   }
 

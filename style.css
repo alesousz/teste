@@ -77,6 +77,8 @@ html, body {
 .needs-track { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.12); overflow: hidden; }
 .needs-fill { height: 100%; background: #ffd98a; transition: width .3s; }
 .needs-fill.low { background: #e05252; }
+#hp-fill { background: #6bbf59; }
+#hp-fill.low { background: #e05252; }
 #money-value { color: #9fe08a; font-weight: 600; }
 
 #top-right { position: absolute; top: 18px; right: 18px; text-align: right; background: rgba(10,12,16,0.55); padding: 8px 14px; border-radius: 6px; }
