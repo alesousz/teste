@@ -92,7 +92,7 @@ class EditorApp {
       this.keys.add(e.code);
       const item = PALETTE.find(p => p.key === e.key);
       if (item) this._arm(item.id);
-      if (e.key === '0' || e.code === 'Escape') this._arm(null);
+      if (e.code === 'Escape') this._arm(null);
       if (e.code === 'KeyR') this._rotateSelectedOrGhost();
       if (e.code === 'Delete' || e.code === 'Backspace') this._deleteSelected();
       if (e.code === 'Tab') { e.preventDefault(); this._toggleScenePanel(); }
@@ -122,17 +122,21 @@ class EditorApp {
 
   _arm(typeId) {
     this.armedType = typeId;
+    this._armedProps = null;
     Object.entries(this.paletteEls).forEach(([id, el]) => el.classList.toggle('active', id === typeId));
     if (this.ghost) { this.scene.remove(this.ghost); this.ghost = null; }
     if (typeId) {
-      this.ghost = paletteById(typeId).build();
+      const def = paletteById(typeId);
+      this.ghost = def.build(def.defaultProps ? def.defaultProps() : undefined);
       this.ghost.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.55; } });
       this.scene.add(this.ghost);
       this.selected = null;
       this._updateSelectionHighlight();
+      this._renderPropsPanel();
     }
     const label = document.getElementById('mode-label');
     if (label) label.textContent = typeId ? `Colocando: ${paletteById(typeId).name}` : 'Selecionar (clique para colocar/selecionar)';
+    this._renderPropsPanel();
   }
 
   _snap(v) {
@@ -162,22 +166,81 @@ class EditorApp {
     if (this.armedType) {
       const hit = this._raycastGround();
       if (!hit) return;
-      this._place(this.armedType, this._snap(hit.x), this._snap(hit.z));
+      this._place(this.armedType, this._snap(hit.x), this._snap(hit.z), this._armedProps);
     } else {
       const hitItem = this._raycastItems();
       this.selected = hitItem;
       this._updateSelectionHighlight();
+      this._renderPropsPanel();
     }
   }
 
-  _place(typeId, x, z) {
+  _place(typeId, x, z, props) {
     const def = paletteById(typeId);
-    const mesh = def.build();
+    const itemProps = props ? { ...props } : (def.defaultProps ? def.defaultProps() : undefined);
+    const mesh = def.build(itemProps);
     mesh.position.set(x, 0, z);
     mesh.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     this.scene.add(mesh);
-    const item = { uuid: crypto.randomUUID(), typeId, position: [x, 0, z], rotY: 0, mesh };
+    const item = { uuid: crypto.randomUUID(), typeId, position: [x, 0, z], rotY: 0, props: itemProps, mesh };
     this.items.push(item);
+    return item;
+  }
+
+  _rebuildItemMesh(item) {
+    const def = paletteById(item.typeId);
+    const oldMesh = item.mesh;
+    const newMesh = def.build(item.props);
+    newMesh.position.fromArray(item.position);
+    newMesh.rotation.y = item.rotY;
+    newMesh.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    this.scene.remove(oldMesh);
+    this.scene.add(newMesh);
+    item.mesh = newMesh;
+    this._updateSelectionHighlight();
+  }
+
+  _renderPropsPanel() {
+    const panel = document.getElementById('props-panel');
+    const target = this.selected || (this.armedType ? { typeId: this.armedType, props: paletteById(this.armedType).defaultProps?.() } : null);
+    const def = target && paletteById(target.typeId);
+    if (!def || !def.propFields) {
+      panel.classList.add('hidden');
+      panel.innerHTML = '';
+      return;
+    }
+    panel.classList.remove('hidden');
+    panel.innerHTML = `<h3>${def.name}${this.selected ? '' : ' (a colocar)'}</h3>` + def.propFields.map(f => {
+      const value = target.props?.[f.key] ?? '';
+      if (f.type === 'select') {
+        return `<label>${f.label}<select data-key="${f.key}">${f.options.map(o => `<option value="${o.value}" ${o.value === value ? 'selected' : ''}>${o.label}</option>`).join('')}</select></label>`;
+      }
+      if (f.type === 'color') {
+        return `<label>${f.label}<input type="color" data-key="${f.key}" value="${value || '#b9c4cc'}" /></label>`;
+      }
+      if (f.type === 'number') {
+        return `<label>${f.label}<input type="number" data-key="${f.key}" value="${value}" min="${f.min ?? ''}" max="${f.max ?? ''}" step="${f.step ?? 1}" /></label>`;
+      }
+      return `<label>${f.label}<input type="text" data-key="${f.key}" value="${value}" /></label>`;
+    }).join('');
+
+    panel.querySelectorAll('[data-key]').forEach(input => {
+      input.addEventListener('input', () => {
+        const key = input.dataset.key;
+        const val = input.type === 'number' ? Number(input.value) : input.value;
+        if (this.selected) {
+          this.selected.props = { ...this.selected.props, [key]: val };
+          this._rebuildItemMesh(this.selected);
+        } else if (this.armedType) {
+          if (!this._armedProps) this._armedProps = paletteById(this.armedType).defaultProps?.() ?? {};
+          this._armedProps[key] = val;
+          if (this.ghost) { this.scene.remove(this.ghost); }
+          this.ghost = paletteById(this.armedType).build(this._armedProps);
+          this.ghost.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.55; } });
+          this.scene.add(this.ghost);
+        }
+      });
+    });
   }
 
   _deleteSelected() {
@@ -186,6 +249,7 @@ class EditorApp {
     this.items = this.items.filter(it => it !== this.selected);
     this.selected = null;
     this._updateSelectionHighlight();
+    this._renderPropsPanel();
   }
 
   _rotateSelectedOrGhost() {
@@ -221,7 +285,7 @@ class EditorApp {
 
   _serializeScene() {
     return {
-      items: this.items.map(it => ({ typeId: it.typeId, position: it.position, rotY: it.rotY })),
+      items: this.items.map(it => ({ typeId: it.typeId, position: it.position, rotY: it.rotY, props: it.props })),
     };
   }
 
@@ -255,8 +319,7 @@ class EditorApp {
     if (!data) return;
     this._newScene();
     for (const it of data.items) {
-      this._place(it.typeId, it.position[0], it.position[2]);
-      const placed = this.items[this.items.length - 1];
+      const placed = this._place(it.typeId, it.position[0], it.position[2], it.props);
       placed.rotY = it.rotY || 0;
       placed.mesh.rotation.y = placed.rotY;
     }
