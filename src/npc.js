@@ -1,33 +1,24 @@
 import * as THREE from 'three';
 import { NPC_DEFS } from './data.js';
+import { buildHumanoid } from './characterModel.js';
+
+const HAIR_PALETTE = [0x2b2118, 0x4a3223, 0x1a1a1a, 0x6b4a2f, 0x3a2a1a, 0x7a5a3a];
+function hairColorFor(id) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  return HAIR_PALETTE[Math.abs(hash) % HAIR_PALETTE.length];
+}
 
 function buildNpcMesh(def) {
-  const group = new THREE.Group();
-  const skin = new THREE.MeshStandardMaterial({ color: 0xd9a879, roughness: 0.9 });
-  const cloth = new THREE.MeshStandardMaterial({ color: def.color, roughness: 0.8 });
-  const pants = new THREE.MeshStandardMaterial({ color: 0x33363f, roughness: 0.8 });
-
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.62, 0.26), cloth);
-  torso.position.y = 1.12;
-  group.add(torso);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 12, 12), skin);
-  head.position.y = 1.58;
-  group.add(head);
-  const legGeo = new THREE.BoxGeometry(0.17, 0.68, 0.19);
-  const legL = new THREE.Mesh(legGeo, pants); legL.position.set(-0.13, 0.44, 0); legL.name = 'legL';
-  const legR = new THREE.Mesh(legGeo, pants); legR.position.set(0.13, 0.44, 0); legR.name = 'legR';
-  group.add(legL, legR);
-  const armGeo = new THREE.BoxGeometry(0.14, 0.58, 0.17);
-  const armL = new THREE.Mesh(armGeo, cloth); armL.position.set(-0.33, 1.12, 0); armL.name = 'armL';
-  const armR = new THREE.Mesh(armGeo, cloth); armR.position.set(0.33, 1.12, 0); armR.name = 'armR';
-  group.add(armL, armR);
+  const built = buildHumanoid({ clothColor: def.color, hairColor: hairColorFor(def.id) });
+  const { group, armR } = built;
 
   if (def.prop === 'phone') {
     const phone = new THREE.Mesh(
       new THREE.BoxGeometry(0.08, 0.15, 0.02),
       new THREE.MeshStandardMaterial({ color: 0x111318, emissive: 0x224466, emissiveIntensity: 0.6 })
     );
-    phone.position.set(0.4, 1.05, 0.15);
+    phone.position.set(0.4, 1.1, 0.15);
     phone.rotation.x = -0.6;
     group.add(phone);
     armR.rotation.x = -1.1;
@@ -35,10 +26,10 @@ function buildNpcMesh(def) {
   if (def.prop === 'guitar') {
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 0.08, 16), new THREE.MeshStandardMaterial({ color: 0x8a5a2b }));
     body.rotation.z = Math.PI / 2;
-    body.position.set(0, 0.95, 0.2);
+    body.position.set(0, 1.0, 0.2);
     group.add(body);
     const neck = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.05, 0.05), new THREE.MeshStandardMaterial({ color: 0x5b3d26 }));
-    neck.position.set(0.4, 1.05, 0.2);
+    neck.position.set(0.4, 1.1, 0.2);
     group.add(neck);
   }
   if (def.prop === 'cart') {
@@ -52,7 +43,7 @@ function buildNpcMesh(def) {
   }
 
   group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  return { group, legL, legR, armL, armR };
+  return built;
 }
 
 export class NPC {

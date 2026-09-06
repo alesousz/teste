@@ -1,56 +1,22 @@
 import * as THREE from 'three';
 import { CONFIG } from './data.js';
-
-function buildHumanoid(color) {
-  const group = new THREE.Group();
-  const skin = new THREE.MeshStandardMaterial({ color: 0xe0b295, roughness: 0.9 });
-  const cloth = new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
-  const pants = new THREE.MeshStandardMaterial({ color: 0x2f3542, roughness: 0.8 });
-
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.65, 0.28), cloth);
-  torso.position.y = 1.15;
-  group.add(torso);
-
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), skin);
-  head.position.y = 1.62;
-  group.add(head);
-
-  const legGeo = new THREE.BoxGeometry(0.18, 0.7, 0.2);
-  const legL = new THREE.Mesh(legGeo, pants);
-  legL.position.set(-0.14, 0.45, 0);
-  legL.name = 'legL';
-  const legR = new THREE.Mesh(legGeo, pants);
-  legR.position.set(0.14, 0.45, 0);
-  legR.name = 'legR';
-  group.add(legL, legR);
-
-  const armGeo = new THREE.BoxGeometry(0.15, 0.6, 0.18);
-  const armL = new THREE.Mesh(armGeo, cloth);
-  armL.position.set(-0.35, 1.15, 0);
-  armL.name = 'armL';
-  const armR = new THREE.Mesh(armGeo, cloth);
-  armR.position.set(0.35, 1.15, 0);
-  armR.name = 'armR';
-  group.add(armL, armR);
-
-  group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  return group;
-}
+import { buildHumanoid } from './characterModel.js';
 
 export class Player {
   constructor(scene, world) {
     this.world = world;
-    this.mesh = buildHumanoid(0x3f6fb0);
+    const built = buildHumanoid({ clothColor: 0x3f6fb0, hairColor: 0x2b2118 });
+    this.mesh = built.group;
     scene.add(this.mesh);
     this.position = new THREE.Vector3(0, 0, -16);
     this.velocity = new THREE.Vector3();
     this.facingAngle = Math.PI;
     this.isRunning = false;
     this.walkT = 0;
-    this.legL = this.mesh.getObjectByName('legL');
-    this.legR = this.mesh.getObjectByName('legR');
-    this.armL = this.mesh.getObjectByName('armL');
-    this.armR = this.mesh.getObjectByName('armR');
+    this.legL = built.legL;
+    this.legR = built.legR;
+    this.armL = built.armL;
+    this.armR = built.armR;
 
     // Câmera terceira-pessoa em coordenadas esféricas relativas ao jogador
     this.camYaw = Math.PI;
