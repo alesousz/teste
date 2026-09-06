@@ -17,6 +17,7 @@ export class UI {
     this.journal = document.getElementById('journal');
     this.journalQuests = document.getElementById('journal-quests');
     this.journalGallery = document.getElementById('journal-gallery');
+    this.journalItems = document.getElementById('journal-items');
     this.pauseMenu = document.getElementById('pause-menu');
     this.flashEl = document.getElementById('photo-flash');
     this.crosshairHint = document.getElementById('crosshair-hint');
@@ -148,16 +149,16 @@ export class UI {
   }
   hideDialogue() { this.dialogueBox.classList.add('hidden'); }
 
-  toggleJournal(questSystem, collectibleSystem) {
+  toggleJournal(questSystem, collectibleSystem, inventorySystem, onUseItem) {
     const isHidden = this.journal.classList.contains('hidden');
-    if (isHidden) this.renderJournal(questSystem, collectibleSystem);
+    if (isHidden) this.renderJournal(questSystem, collectibleSystem, inventorySystem, onUseItem);
     this.journal.classList.toggle('hidden');
     return isHidden;
   }
   hideJournal() { this.journal.classList.add('hidden'); }
   isJournalOpen() { return !this.journal.classList.contains('hidden'); }
 
-  renderJournal(questSystem, collectibleSystem) {
+  renderJournal(questSystem, collectibleSystem, inventorySystem, onUseItem) {
     const parts = [];
     for (const q of Object.values(QUESTS)) {
       const s = questSystem.state[q.id];
@@ -182,6 +183,23 @@ export class UI {
     this.journalGallery.innerHTML = photos.length
       ? photos.map(p => `<div class="photo-card"><img src="${p.thumb}" alt="fragmento"/><p>${p.note}</p></div>`).join('')
       : '<p>Nenhum fragmento fotografado ainda. Procure por brilhos dourados pela cidade.</p>';
+
+    if (this.journalItems) {
+      const owned = inventorySystem?.getOwnedItems() || [];
+      this.journalItems.innerHTML = owned.length
+        ? owned.map(({ def, count }) => `
+          <div class="journal-item">
+            <span class="journal-item-icon">${def.icon}</span>
+            <span class="journal-item-name">${def.name} <span class="journal-item-count">x${count}</span></span>
+            <p class="journal-item-desc">${def.description}</p>
+            <button class="journal-item-use" data-use="${def.id}">Usar</button>
+          </div>
+        `).join('')
+        : '<p>Nenhum item guardado ainda.</p>';
+      this.journalItems.querySelectorAll('[data-use]').forEach(btn => {
+        btn.onclick = () => onUseItem?.(btn.dataset.use);
+      });
+    }
   }
 
   flashPhoto() {

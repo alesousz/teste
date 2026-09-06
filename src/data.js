@@ -403,6 +403,22 @@ export const FRAGMENT_SPOTS = sceneFragments.length > 0 ? sceneFragments : [
 ];
 
 // ---------------------------------------------------------------------------
+// Itens de inventário — o que um "giveItem" de diálogo entrega, e o que um
+// item largado pelo mundo (WORLD_ITEM_SPOTS) vira ao ser pego. `effect` é
+// aplicado só quando o jogador usa o item de verdade, pelo diário.
+// ---------------------------------------------------------------------------
+export const ITEM_DEFS = {
+  coffee: { id: 'coffee', name: 'Café', icon: '☕', description: 'Recupera um pouco de energia.', effect: { type: 'restoreEnergy', amount: 25 } },
+  snack: { id: 'snack', name: 'Lanche', icon: '🥪', description: 'Mata a fome rapidamente.', effect: { type: 'restoreHunger', amount: 60 } },
+  homeMeal: { id: 'homeMeal', name: 'Comida Caseira', icon: '🍲', description: 'Uma refeição completa.', effect: { type: 'restoreHunger', amount: 100 } },
+};
+
+export const WORLD_ITEM_SPOTS = [
+  { id: 'worlditem_1', itemId: 'snack', position: { x: parkA.x - 10, z: parkA.z + 10 } },
+  { id: 'worlditem_2', itemId: 'coffee', position: { x: parkB.x + 10, z: parkB.z - 10 } },
+];
+
+// ---------------------------------------------------------------------------
 // Missões
 // ---------------------------------------------------------------------------
 export const QUESTS = {

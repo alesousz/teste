@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { CONFIG, ORIGINS, HOMES, OBLIGATIONS } from './data.js';
+import { CONFIG, ORIGINS, HOMES, OBLIGATIONS, ITEM_DEFS } from './data.js';
 import { World } from './world.js';
 import { Player } from './player.js';
 import { createNpcs } from './npc.js';
 import { QuestSystem, DialogueSystem, CollectibleSystem } from './interactions.js';
 import { NeedsSystem } from './needs.js';
+import { InventorySystem } from './inventory.js';
 import { ObligationSystem } from './schedule.js';
 import { UI } from './ui.js';
 import { hasSave, loadSave, writeSave, clearSave } from './save.js';
@@ -87,7 +88,9 @@ class Game {
     this.dummy = createTrainingDummy(this.scene);
 
     this.quests = new QuestSystem(() => this._onQuestChange());
-    this.collectibles = new CollectibleSystem(this.scene, this.quests);
+    this.inventory = new InventorySystem();
+    this.collectibles = new CollectibleSystem(this.scene, this.quests, this.inventory);
+    this._boundUseItem = itemId => this._useItem(itemId);
 
     this.paused = true;
     this.running = false;
@@ -187,7 +190,7 @@ class Game {
     this.dialogue = new DialogueSystem(this.dialogueTrees, this.quests, {
       show: (text, options) => this.ui.showDialogue(text, options, i => this.dialogue.choose(i)),
       hide: () => this.ui.hideDialogue(),
-    }, this.collectibles, this.needs, this.obligation, this.profile.originId, this.profile.sex);
+    }, this.collectibles, this.inventory, this.needs, this.obligation, this.profile.originId, this.profile.sex);
 
     this.ui.hideMenu();
     this.ui.hud.classList.remove('hidden');
@@ -203,6 +206,8 @@ class Game {
       this.quests.deserialize(saveData.quests);
       this.collectibles.restoreCollected(saveData.collectedFragments);
       this.collectibles.restoreItem(saveData.bookCollected);
+      this.collectibles.restoreCollectedWorldItems(saveData.collectedWorldItems);
+      this.inventory.deserialize(saveData.inventory);
       this.needs.deserialize(saveData.needs);
       this.obligation.deserialize(saveData.obligation);
     } else {
@@ -223,6 +228,8 @@ class Game {
       quests: this.quests.serialize(),
       collectedFragments: Array.from(this.collectibles.collectedIds),
       bookCollected: this.collectibles.item?.collected || false,
+      collectedWorldItems: Array.from(this.collectibles.collectedWorldItemIds),
+      inventory: this.inventory.serialize(),
       profile: this.profile,
       needs: this.needs.serialize(),
       obligation: this.obligation.serialize(),
@@ -262,7 +269,15 @@ class Game {
 
   _onQuestChange() {
     this.ui.showToast('Diário atualizado');
-    if (this.ui.isJournalOpen()) this.ui.renderJournal(this.quests, this.collectibles);
+    if (this.ui.isJournalOpen()) this.ui.renderJournal(this.quests, this.collectibles, this.inventory, this._boundUseItem);
+  }
+
+  _useItem(itemId) {
+    const def = ITEM_DEFS[itemId];
+    if (this.inventory.useItem(itemId, this.needs)) {
+      this.ui.showToast(`Usou: ${def.name}`);
+      this.ui.renderJournal(this.quests, this.collectibles, this.inventory, this._boundUseItem);
+    }
   }
 
   _handleInteractionPrompt() {
@@ -282,6 +297,7 @@ class Game {
       if (d < nearestDist) { nearestDist = d; nearestNpc = npc; }
     }
     const nearbyItem = this.collectibles.findNearbyItem(this.player.position);
+    const nearbyWorldItem = this.collectibles.findNearbyWorldItem(this.player.position);
     const nearbyFragment = this.collectibles.findNearbyFragment(this.player.position);
 
     let promptShown = false;
@@ -297,6 +313,14 @@ class Game {
       if (this.input.wasPressed('KeyE')) {
         this.collectibles.collectItem(nearbyItem);
         this.ui.showToast('Você pegou o livro de Marina.');
+      }
+    } else if (nearbyWorldItem) {
+      const def = ITEM_DEFS[nearbyWorldItem.itemId];
+      this.ui.showPrompt(`E — Pegar ${def.name}`);
+      promptShown = true;
+      if (this.input.wasPressed('KeyE')) {
+        this.collectibles.collectWorldItem(nearbyWorldItem);
+        this.ui.showToast(`Você pegou: ${def.name}`);
       }
     } else if (this._nearSleepSpot()) {
       this.ui.showPrompt('E — Dormir (recuperar energia e avançar o dia)');
@@ -335,7 +359,7 @@ class Game {
     const dt = Math.min(this.clock.getDelta(), 0.1);
 
     if (this.input.wasPressed('Tab')) {
-      const opened = this.ui.toggleJournal(this.quests, this.collectibles);
+      const opened = this.ui.toggleJournal(this.quests, this.collectibles, this.inventory, this._boundUseItem);
       if (opened) {
         if (document.pointerLockElement) document.exitPointerLock();
       }
