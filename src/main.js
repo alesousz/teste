@@ -250,7 +250,7 @@ class Game {
     let diff = toTarget - this.player.facingAngle;
     diff = Math.atan2(Math.sin(diff), Math.cos(diff));
     if (Math.abs(diff) > Math.PI / 2.5) return;
-    this.dummy.takeDamage(CONFIG.PUNCH_DAMAGE);
+    this.dummy.takeDamage(this.player.attackDamage);
   }
 
   _nearSleepSpot() {
