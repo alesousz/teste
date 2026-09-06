@@ -26,6 +26,7 @@ export class Player {
     this.comboStage = 0;
     this.comboTimer = 0;
     this.attackDamage = CONFIG.PUNCH_DAMAGE;
+    this.stamina = CONFIG.PLAYER_MAX_STAMINA;
     // Definido externamente (pelo Game) pra resolver o "quem foi atingido"
     // no momento em que o soco começa.
     this.onAttackImpact = null;
@@ -73,14 +74,19 @@ export class Player {
       if (this.comboTimer <= 0) { this.comboTimer = 0; this.comboStage = 0; }
     }
 
+    // Estamina recarrega sempre, mesmo no meio de outras ações — só o
+    // gasto (ao socar/esquivar) é instantâneo e pontual.
+    this.stamina = Math.min(CONFIG.PLAYER_MAX_STAMINA, this.stamina + CONFIG.STAMINA_REGEN_RATE * dt);
+
     // Soco trava o personagem no lugar por um instante (mesma lógica de
     // "root" de jogos de ação simples) e resolve o acerto já no começo do
     // movimento, sem esperar o quadro exato do impacto na animação. Socar
     // de novo dentro da janela de combo encadeia o segundo golpe.
-    if (input.consumeAttack() && this.isGrounded && !this.isAttacking && !this.isHitStunned && !this.isDodging) {
+    if (input.consumeAttack() && this.isGrounded && !this.isAttacking && !this.isHitStunned && !this.isDodging && this.stamina >= CONFIG.PUNCH_STAMINA_COST) {
       const isCombo = this.comboStage === 1 && this.comboTimer > 0;
       this.isAttacking = true;
       this.comboTimer = 0;
+      this.stamina -= CONFIG.PUNCH_STAMINA_COST;
       this.attackDamage = isCombo ? CONFIG.PUNCH_COMBO_DAMAGE : CONFIG.PUNCH_DAMAGE;
       this.onAttackImpact?.();
       this.comboStage = isCombo ? 0 : 1;
@@ -93,8 +99,9 @@ export class Player {
     // Esquiva: enquanto isDodging for true, takeDamage() não faz nada — é
     // a janela de invulnerabilidade que dá sentido a esquivar do
     // contra-ataque telegrafado do boneco de treino.
-    if (input.wasPressed('KeyQ') && this.isGrounded && !this.isAttacking && !this.isHitStunned && !this.isDodging) {
+    if (input.wasPressed('KeyQ') && this.isGrounded && !this.isAttacking && !this.isHitStunned && !this.isDodging && this.stamina >= CONFIG.DODGE_STAMINA_COST) {
       this.isDodging = true;
+      this.stamina -= CONFIG.DODGE_STAMINA_COST;
       this.rig.playOnce('dodge', () => { this.isDodging = false; });
     }
 

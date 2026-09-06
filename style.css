@@ -79,6 +79,8 @@ html, body {
 .needs-fill.low { background: #e05252; }
 #hp-fill { background: #6bbf59; }
 #hp-fill.low { background: #e05252; }
+#stamina-fill { background: #5ab0d9; }
+#stamina-fill.low { background: #6b7280; }
 #money-value { color: #9fe08a; font-weight: 600; }
 
 #top-right { position: absolute; top: 18px; right: 18px; text-align: right; background: rgba(10,12,16,0.55); padding: 8px 14px; border-radius: 6px; }
