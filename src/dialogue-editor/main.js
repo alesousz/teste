@@ -1,4 +1,4 @@
-import { NPC_DEFS, QUESTS } from '../data.js';
+import { NPC_DEFS, QUESTS, ITEM_DEFS } from '../data.js';
 
 const DRAFT_KEY = 'dialogue-editor-draft';
 
@@ -16,9 +16,7 @@ const CONDITION_TYPES = [
 
 const EFFECT_TYPES = [
   { type: '', label: '(Nenhum)', fields: [] },
-  { type: 'buyCoffee', label: 'Dar café (R$5, +25 energia)', fields: [] },
-  { type: 'eatHome', label: 'Comer em casa (+100 fome)', fields: [] },
-  { type: 'buyFood', label: 'Comprar comida (R$8, +60 fome)', fields: [] },
+  { type: 'giveItem', label: 'Dar item (pro inventário)', fields: ['item', 'cost'] },
   { type: 'startQuest', label: 'Iniciar missão', fields: ['quest'] },
   { type: 'completeObjective', label: 'Completar objetivo de missão', fields: ['quest', 'objective'] },
 ];
@@ -342,6 +340,17 @@ export class DialogueEditorApp {
     list.querySelectorAll('[data-act="opt-effect-objective"]').forEach(sel => {
       sel.onchange = () => { node.options[sel.dataset.oi].effect.objective = sel.value; this._persistDraft(); };
     });
+    list.querySelectorAll('[data-act="opt-effect-item"]').forEach(sel => {
+      sel.onchange = () => { node.options[sel.dataset.oi].effect.item = sel.value; this._persistDraft(); };
+    });
+    list.querySelectorAll('[data-act="opt-effect-cost"]').forEach(inp => {
+      inp.oninput = () => {
+        const opt = node.options[inp.dataset.oi];
+        const v = inp.value === '' ? undefined : Number(inp.value);
+        if (v === undefined) delete opt.effect.cost; else opt.effect.cost = v;
+        this._persistDraft();
+      };
+    });
     list.querySelectorAll('[data-act="opt-minmoney"]').forEach(inp => {
       inp.oninput = () => {
         const v = inp.value === '' ? undefined : Number(inp.value);
@@ -391,6 +400,8 @@ export class DialogueEditorApp {
           </label>
           ${meta.fields.includes('quest') ? `<label class="field">Missão<select data-act="opt-effect-quest" data-oi="${oi}"><option value="">(escolha)</option>${questOptions}</select></label>` : ''}
           ${meta.fields.includes('objective') ? `<label class="field">Objetivo<select data-act="opt-effect-objective" data-oi="${oi}"><option value="">(escolha)</option>${objectiveOptions}</select></label>` : ''}
+          ${meta.fields.includes('item') ? `<label class="field">Item<select data-act="opt-effect-item" data-oi="${oi}"><option value="">(escolha)</option>${Object.values(ITEM_DEFS).map(it => `<option value="${it.id}" ${it.id === opt.effect?.item ? 'selected' : ''}>${it.icon} ${escapeHtml(it.name)}</option>`).join('')}</select></label>` : ''}
+          ${meta.fields.includes('cost') ? `<label class="field">Custo (R$)<input type="number" data-act="opt-effect-cost" data-oi="${oi}" value="${opt.effect?.cost ?? ''}" placeholder="grátis" /></label>` : ''}
           <div class="option-inline">
             <label class="field">Dinheiro mínimo p/ aparecer
               <input type="number" data-act="opt-minmoney" data-oi="${oi}" value="${opt.minMoney ?? ''}" placeholder="sem mínimo" />

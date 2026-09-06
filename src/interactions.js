@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { QUESTS, FRAGMENT_SPOTS, ITEM_PROPS, CONFIG } from './data.js';
+import { QUESTS, FRAGMENT_SPOTS, ITEM_PROPS, WORLD_ITEM_SPOTS, CONFIG } from './data.js';
 
 // ---------------------------------------------------------------------------
 // Sistema de missões
@@ -102,11 +102,12 @@ const BOSS_NPCS = { seu_ivo: 'operario', professora: 'nobre' };
 const PRONOUN_PATTERN = /\{\{m:([^|}]*)\|f:([^|}]*)\|x:([^|}]*)\}\}/g;
 
 export class DialogueSystem {
-  constructor(dialogueTrees, questSystem, uiCallbacks, collectibleSystem, needsSystem, obligationSystem, originId, sex) {
+  constructor(dialogueTrees, questSystem, uiCallbacks, collectibleSystem, inventorySystem, needsSystem, obligationSystem, originId, sex) {
     this.trees = dialogueTrees;
     this.quests = questSystem;
     this.ui = uiCallbacks; // { show(text, options), hide() }
     this.collectibles = collectibleSystem;
+    this.inventory = inventorySystem;
     this.needs = needsSystem;
     this.obligation = obligationSystem;
     this.originId = originId;
@@ -178,14 +179,9 @@ export class DialogueSystem {
   }
 
   _applyEffect(effect) {
-    if (effect.type === 'buyCoffee') {
-      if (this.needs.spendMoney(5)) this.needs.restoreEnergy(25);
-    }
-    if (effect.type === 'eatHome') {
-      this.needs.restoreHunger(100);
-    }
-    if (effect.type === 'buyFood') {
-      if (this.needs.spendMoney(8)) this.needs.restoreHunger(60);
+    if (effect.type === 'giveItem') {
+      if (effect.cost && !this.needs.spendMoney(effect.cost)) return;
+      this.inventory.addItem(effect.item);
     }
     if (effect.type === 'startQuest') {
       this.quests.startQuest(effect.quest);
@@ -207,9 +203,10 @@ export class DialogueSystem {
 // Colecionáveis (fragmentos de memória) + item de missão (livro)
 // ---------------------------------------------------------------------------
 export class CollectibleSystem {
-  constructor(scene, questSystem) {
+  constructor(scene, questSystem, inventorySystem) {
     this.scene = scene;
     this.quests = questSystem;
+    this.inventory = inventorySystem;
     this.fragments = [];
     this.collectedIds = new Set();
     this.photos = [];
@@ -234,6 +231,18 @@ export class CollectibleSystem {
     bookMesh.rotation.y = 0.4;
     scene.add(bookMesh);
     this.item = { def: itemDef, mesh: bookMesh, collected: false };
+
+    // Itens de inventário largados pelo mundo (achar, em vez de comprar).
+    this.worldItems = [];
+    this.collectedWorldItemIds = new Set();
+    const worldItemGeo = new THREE.BoxGeometry(0.32, 0.32, 0.32);
+    for (const spot of WORLD_ITEM_SPOTS) {
+      const mat = new THREE.MeshStandardMaterial({ color: 0xd9a441, emissive: 0x5a3a10, emissiveIntensity: 0.4, roughness: 0.6 });
+      const mesh = new THREE.Mesh(worldItemGeo, mat);
+      mesh.position.set(spot.position.x, 0.6, spot.position.z);
+      scene.add(mesh);
+      this.worldItems.push({ def: spot, itemId: spot.itemId, mesh, collected: false });
+    }
   }
 
   restoreCollected(ids) {
@@ -254,6 +263,17 @@ export class CollectibleSystem {
     }
   }
 
+  restoreCollectedWorldItems(ids) {
+    for (const id of ids || []) {
+      const w = this.worldItems.find(w => w.def.id === id);
+      if (w && !w.collected) {
+        w.collected = true;
+        this.scene.remove(w.mesh);
+        this.collectedWorldItemIds.add(id);
+      }
+    }
+  }
+
   update(dt) {
     for (const f of this.fragments) {
       if (f.collected) continue;
@@ -264,6 +284,27 @@ export class CollectibleSystem {
     if (this.item && !this.item.collected) {
       this.item.mesh.rotation.y += dt * 0.4;
     }
+    for (const w of this.worldItems) {
+      if (w.collected) continue;
+      w.mesh.rotation.y += dt * 0.8;
+      w.mesh.position.y = 0.6 + Math.sin(performance.now() * 0.0025 + w.mesh.position.x) * 0.1;
+    }
+  }
+
+  findNearbyWorldItem(pos) {
+    for (const w of this.worldItems) {
+      if (w.collected) continue;
+      const d = Math.hypot(pos.x - w.mesh.position.x, pos.z - w.mesh.position.z);
+      if (d < CONFIG.INTERACT_RADIUS) return w;
+    }
+    return null;
+  }
+
+  collectWorldItem(worldItem) {
+    worldItem.collected = true;
+    this.scene.remove(worldItem.mesh);
+    this.collectedWorldItemIds.add(worldItem.def.id);
+    this.inventory.addItem(worldItem.itemId);
   }
 
   findNearbyFragment(pos) {

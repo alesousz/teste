@@ -22,7 +22,7 @@
       "idle": {
         "text": "Sr. Almeida: \"O dia está bonito, não está? Ou a noite. Tanto faz — eu gosto dos dois.\"",
         "options": [
-          { "label": "Comprar um café (R$5) — recupera energia", "next": "a_coffee", "effect": { "type": "buyCoffee" }, "minMoney": 5 },
+          { "label": "Comprar um café (R$5) — recupera energia", "next": "a_coffee", "effect": { "type": "giveItem", "item": "coffee", "cost": 5 }, "minMoney": 5 },
           { "label": "(Encerrar conversa)", "next": null }
         ]
       },
@@ -139,14 +139,14 @@
       "ro_ok": {
         "text": "Dona Rosa: \"Tá indo bem no trabalho, viu? Fico orgulhosa.\"",
         "options": [
-          { "label": "Comer algo em casa (grátis)", "next": "ro_eat", "effect": { "type": "eatHome" }, "maxHunger": 90 },
+          { "label": "Comer algo em casa (grátis)", "next": "ro_eat", "effect": { "type": "giveItem", "item": "homeMeal" }, "maxHunger": 90 },
           { "label": "(Encerrar conversa)", "next": null }
         ]
       },
       "ro_worried": {
         "text": "Dona Rosa franze a testa. \"Ouvi dizer que você faltou o serviço. Tá tudo bem? Sabe que a gente precisa desse dinheiro...\"",
         "options": [
-          { "label": "Comer algo em casa (grátis)", "next": "ro_eat", "effect": { "type": "eatHome" }, "maxHunger": 90 },
+          { "label": "Comer algo em casa (grátis)", "next": "ro_eat", "effect": { "type": "giveItem", "item": "homeMeal" }, "maxHunger": 90 },
           { "label": "Vou dar um jeito, mãe.", "next": null }
         ]
       },
@@ -180,7 +180,7 @@
       "iv_ok": {
         "text": "Seu Ivo acena com a cabeça. \"Bom te ver por aqui hoje.\"",
         "options": [
-          { "label": "Comprar comida (R$8)", "next": "iv_food", "effect": { "type": "buyFood" }, "minMoney": 8, "maxHunger": 90 },
+          { "label": "Comprar comida (R$8)", "next": "iv_food", "effect": { "type": "giveItem", "item": "snack", "cost": 8 }, "minMoney": 8, "maxHunger": 90 },
           { "label": "(Encerrar conversa)", "next": null }
         ]
       },
@@ -195,7 +195,7 @@
       "iv_stranger": {
         "text": "Seu Ivo organiza as caixas da barraca. \"Bom dia! Precisando de alguma coisa do mercado?\"",
         "options": [
-          { "label": "Comprar comida (R$8)", "next": "iv_food", "effect": { "type": "buyFood" }, "minMoney": 8, "maxHunger": 90 },
+          { "label": "Comprar comida (R$8)", "next": "iv_food", "effect": { "type": "giveItem", "item": "snack", "cost": 8 }, "minMoney": 8, "maxHunger": 90 },
           { "label": "(Encerrar conversa)", "next": null }
         ]
       },
@@ -221,14 +221,14 @@
       "bt_ok": {
         "text": "Dona Beatriz: \"Suas notas continuam boas, presumo. Continue assim.\"",
         "options": [
-          { "label": "Comer algo em casa (grátis)", "next": "bt_eat", "effect": { "type": "eatHome" }, "maxHunger": 90 },
+          { "label": "Comer algo em casa (grátis)", "next": "bt_eat", "effect": { "type": "giveItem", "item": "homeMeal" }, "maxHunger": 90 },
           { "label": "(Encerrar conversa)", "next": null }
         ]
       },
       "bt_worried": {
         "text": "Dona Beatriz: \"Recebi uma ligação da escola sobre uma falta. Isso não pode virar hábito, ouviu?\"",
         "options": [
-          { "label": "Comer algo em casa (grátis)", "next": "bt_eat", "effect": { "type": "eatHome" }, "maxHunger": 90 },
+          { "label": "Comer algo em casa (grátis)", "next": "bt_eat", "effect": { "type": "giveItem", "item": "homeMeal" }, "maxHunger": 90 },
           { "label": "Não vai se repetir.", "next": null }
         ]
       },
