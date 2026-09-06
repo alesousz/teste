@@ -19,11 +19,14 @@ export class UI {
     this.journalGallery = document.getElementById('journal-gallery');
     this.pauseMenu = document.getElementById('pause-menu');
     this.itemMenu = document.getElementById('item-menu');
-    this.itemMenuCategories = document.getElementById('item-menu-categories');
-    this.itemMenuList = document.getElementById('item-menu-list');
-    this.itemMenuDetail = document.getElementById('item-menu-detail');
-    this._selectedCategory = null;
-    this._selectedItemId = null;
+    this.itemMenuTitle = document.getElementById('item-menu-title');
+    this.itemMenuTabs = document.getElementById('item-menu-tabs');
+    this.itemMenuRows = document.getElementById('item-menu-rows');
+    this.itemMenuDetailDock = document.getElementById('item-menu-detail-dock');
+    this.itemMenuMoney = document.getElementById('item-menu-money');
+    this._itemMenuCategory = 'all';
+    this._itemMenuSort = { column: 'name', dir: 1 };
+    this._itemMenuSelectedId = null;
     this.flashEl = document.getElementById('photo-flash');
     this.crosshairHint = document.getElementById('crosshair-hint');
     this.minimapCanvas = document.getElementById('minimap');
@@ -191,79 +194,129 @@ export class UI {
   }
 
   // -------------------------------------------------------------------
-  // Menu de itens (tela cheia, com categorias) — separado do diário.
+  // Menu de itens — no estilo SkyUI: abas de categoria em ícones, uma
+  // tabela ordenável, ficha do item ancorada, navegação por teclado.
   // -------------------------------------------------------------------
-  toggleItemMenu(inventorySystem, onUseItem, onDiscardItem) {
+  toggleItemMenu(inventorySystem, needsSystem, onUseItem, onDiscardItem) {
     const isHidden = this.itemMenu.classList.contains('hidden');
-    if (isHidden) this.renderItemMenu(inventorySystem, onUseItem, onDiscardItem);
+    if (isHidden) this.renderItemMenu(inventorySystem, needsSystem, onUseItem, onDiscardItem);
     this.itemMenu.classList.toggle('hidden');
     return isHidden;
   }
   hideItemMenu() { this.itemMenu.classList.add('hidden'); }
   isItemMenuOpen() { return !this.itemMenu.classList.contains('hidden'); }
 
-  renderItemMenu(inventorySystem, onUseItem, onDiscardItem) {
+  renderItemMenu(inventorySystem, needsSystem, onUseItem, onDiscardItem) {
+    this._itemMenuCtx = { inventorySystem, needsSystem, onUseItem, onDiscardItem };
     const owned = inventorySystem.getOwnedItems();
-    const categoriesWithItems = Object.values(ITEM_CATEGORIES).filter(cat =>
+    const categoriesPresent = Object.values(ITEM_CATEGORIES).filter(cat =>
       owned.some(({ def }) => def.category === cat.id)
     );
-
-    if (!this._selectedCategory || !categoriesWithItems.some(c => c.id === this._selectedCategory)) {
-      this._selectedCategory = categoriesWithItems[0]?.id || null;
+    if (this._itemMenuCategory !== 'all' && !categoriesPresent.some(c => c.id === this._itemMenuCategory)) {
+      this._itemMenuCategory = 'all';
     }
 
-    this.itemMenuCategories.innerHTML = categoriesWithItems.length
-      ? categoriesWithItems.map(cat => `
-        <div class="item-menu-category ${cat.id === this._selectedCategory ? 'selected' : ''}" data-cat="${cat.id}">${cat.label}</div>
-      `).join('')
-      : '<p class="item-menu-empty">Nenhum item guardado ainda.</p>';
-    this.itemMenuCategories.querySelectorAll('[data-cat]').forEach(el => {
+    const tabs = [{ id: 'all', icon: '★', label: 'Tudo' }, ...categoriesPresent];
+    this.itemMenuTabs.innerHTML = tabs.map(tab => `
+      <div class="item-menu-tab ${tab.id === this._itemMenuCategory ? 'selected' : ''}" data-tab="${tab.id}" title="${tab.label}">${tab.icon}</div>
+    `).join('');
+    this.itemMenuTabs.querySelectorAll('[data-tab]').forEach(el => {
       el.onclick = () => {
-        this._selectedCategory = el.dataset.cat;
-        this._selectedItemId = null;
-        this.renderItemMenu(inventorySystem, onUseItem, onDiscardItem);
+        this._itemMenuCategory = el.dataset.tab;
+        this.renderItemMenu(inventorySystem, needsSystem, onUseItem, onDiscardItem);
+      };
+    });
+    const activeTab = tabs.find(t => t.id === this._itemMenuCategory);
+    this.itemMenuTitle.textContent = activeTab?.label || 'Itens';
+
+    document.querySelectorAll('.item-menu-col[data-sort]').forEach(el => {
+      el.classList.toggle('sorted', el.dataset.sort === this._itemMenuSort.column);
+      el.onclick = () => {
+        if (this._itemMenuSort.column === el.dataset.sort) this._itemMenuSort.dir *= -1;
+        else this._itemMenuSort = { column: el.dataset.sort, dir: 1 };
+        this._renderItemMenuBody();
       };
     });
 
-    const itemsInCategory = owned.filter(({ def }) => def.category === this._selectedCategory);
-    if (!this._selectedItemId || !itemsInCategory.some(({ def }) => def.id === this._selectedItemId)) {
-      this._selectedItemId = itemsInCategory[0]?.def.id || null;
+    this._renderItemMenuBody();
+  }
+
+  _renderItemMenuBody() {
+    const { inventorySystem, needsSystem, onUseItem, onDiscardItem } = this._itemMenuCtx;
+    const owned = inventorySystem.getOwnedItems();
+    let items = this._itemMenuCategory === 'all' ? owned : owned.filter(({ def }) => def.category === this._itemMenuCategory);
+
+    const { column, dir } = this._itemMenuSort;
+    const keyOf = ({ def, count }) => column === 'name' ? def.name : column === 'qty' ? count : def[column];
+    items = [...items].sort((a, b) => {
+      const ka = keyOf(a), kb = keyOf(b);
+      const cmp = typeof ka === 'string' ? ka.localeCompare(kb) : ka - kb;
+      return cmp * dir;
+    });
+    this._itemMenuVisible = items;
+
+    document.querySelectorAll('.item-menu-col[data-sort]').forEach(el => {
+      el.classList.toggle('sorted', el.dataset.sort === column);
+    });
+
+    if (!items.some(({ def }) => def.id === this._itemMenuSelectedId)) {
+      this._itemMenuSelectedId = items[0]?.def.id || null;
     }
 
-    this.itemMenuList.innerHTML = itemsInCategory.length
-      ? itemsInCategory.map(({ def, count }) => `
-        <div class="item-menu-row ${def.id === this._selectedItemId ? 'selected' : ''}" data-item="${def.id}">
-          <span class="item-menu-row-icon">${def.icon}</span>
-          <span>${def.name}</span>
-          <span class="item-menu-row-count">x${count}</span>
+    this.itemMenuRows.innerHTML = items.length
+      ? items.map(({ def, count }) => `
+        <div class="item-menu-row ${def.id === this._itemMenuSelectedId ? 'selected' : ''}" data-item="${def.id}">
+          <span class="item-menu-row-name"><span class="item-menu-row-icon">${def.icon}</span>${def.name}</span>
+          <span class="item-menu-row-num">${count}</span>
+          <span class="item-menu-row-num">${def.weight.toFixed(1)}</span>
+          <span class="item-menu-row-num">R$${def.value}</span>
         </div>
       `).join('')
-      : '<p class="item-menu-empty">Nada por aqui.</p>';
-    this.itemMenuList.querySelectorAll('[data-item]').forEach(el => {
-      el.onclick = () => {
-        this._selectedItemId = el.dataset.item;
-        this.renderItemMenu(inventorySystem, onUseItem, onDiscardItem);
-      };
+      : '<p class="item-menu-empty">Nenhum item guardado ainda.</p>';
+    this.itemMenuRows.querySelectorAll('[data-item]').forEach(el => {
+      el.onclick = () => { this._itemMenuSelectedId = el.dataset.item; this._renderItemMenuBody(); };
     });
 
-    const selected = itemsInCategory.find(({ def }) => def.id === this._selectedItemId);
-    if (!selected) {
-      this.itemMenuDetail.innerHTML = '';
-      return;
+    const selected = items.find(({ def }) => def.id === this._itemMenuSelectedId);
+    this.itemMenuDetailDock.classList.toggle('hidden', !selected);
+    if (selected) {
+      this.itemMenuDetailDock.innerHTML = `
+        <div class="item-menu-detail-top">
+          <span class="item-menu-detail-icon">${selected.def.icon}</span>
+          <h3 class="item-menu-detail-name">${selected.def.name}</h3>
+        </div>
+        <div class="item-menu-detail-stats">
+          <span>Peso: ${selected.def.weight.toFixed(1)}</span>
+          <span>Valor: R$${selected.def.value}</span>
+        </div>
+        <p class="item-menu-detail-desc">${selected.def.description}</p>
+      `;
     }
-    this.itemMenuDetail.innerHTML = `
-      <div class="item-menu-detail-icon">${selected.def.icon}</div>
-      <h3 class="item-menu-detail-name">${selected.def.name}</h3>
-      <div class="item-menu-detail-count">Quantidade: ${selected.count}</div>
-      <p class="item-menu-detail-desc">${selected.def.description}</p>
-      <div class="item-menu-detail-actions">
-        <button class="item-menu-btn item-menu-btn-use" data-act="use">Usar</button>
-        <button class="item-menu-btn item-menu-btn-discard" data-act="discard">Descartar</button>
-      </div>
-    `;
-    this.itemMenuDetail.querySelector('[data-act="use"]').onclick = () => onUseItem?.(selected.def.id);
-    this.itemMenuDetail.querySelector('[data-act="discard"]').onclick = () => onDiscardItem?.(selected.def.id);
+
+    this.itemMenuMoney.textContent = `Dinheiro: R$${Math.floor(needsSystem.money)}`;
+    this._itemMenuOnUse = onUseItem;
+    this._itemMenuOnDiscard = onDiscardItem;
   }
+
+  itemMenuMoveSelection(delta) {
+    const items = this._itemMenuVisible || [];
+    if (!items.length) return;
+    const idx = Math.max(0, items.findIndex(({ def }) => def.id === this._itemMenuSelectedId));
+    const next = (idx + delta + items.length) % items.length;
+    this._itemMenuSelectedId = items[next].def.id;
+    this._renderItemMenuBody();
+  }
+
+  itemMenuCycleCategory(delta) {
+    const tabIds = Array.from(this.itemMenuTabs.querySelectorAll('[data-tab]')).map(el => el.dataset.tab);
+    if (!tabIds.length) return;
+    const idx = Math.max(0, tabIds.indexOf(this._itemMenuCategory));
+    this._itemMenuCategory = tabIds[(idx + delta + tabIds.length) % tabIds.length];
+    this.renderItemMenu(this._itemMenuCtx.inventorySystem, this._itemMenuCtx.needsSystem, this._itemMenuCtx.onUseItem, this._itemMenuCtx.onDiscardItem);
+  }
+
+  itemMenuUseSelected() { if (this._itemMenuSelectedId) this._itemMenuOnUse?.(this._itemMenuSelectedId); }
+  itemMenuDiscardSelected() { if (this._itemMenuSelectedId) this._itemMenuOnDiscard?.(this._itemMenuSelectedId); }
 
   flashPhoto() {
     this.flashEl.classList.add('active');

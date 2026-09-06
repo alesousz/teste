@@ -156,46 +156,66 @@ html, body {
 .photo-card p { font-size: 0.75em; color: #cfd3da; margin: 6px 8px; }
 .journal-hint { text-align: center; color: #7a8090; font-size: 0.8em; margin-top: 16px; margin-bottom: 0; }
 
-/* Menu de itens — full-screen, três painéis, no estilo de um menu de mod
-   config (lista de categorias / lista de itens / detalhe do selecionado). */
+/* Menu de itens — inspirado no SkyUI: abas de categoria em ícones no topo,
+   uma única tabela ordenável, ficha do item ancorada, barra de comandos
+   fixa embaixo. */
 .item-menu-panel {
-  width: min(1100px, 94vw); height: min(680px, 88vh); padding: 28px 32px;
+  width: min(1000px, 94vw); height: min(640px, 88vh); padding: 22px 26px 0;
   background: linear-gradient(180deg, rgba(16,18,23,0.98), rgba(10,11,15,0.98));
-  border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
-  display: flex; flex-direction: column;
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+  display: flex; flex-direction: column; position: relative;
 }
-.item-menu-panel h2 { margin: 0 0 16px; color: #ffd98a; }
-.item-menu-body { flex: 1; display: grid; grid-template-columns: 1fr 1.4fr 1.8fr; gap: 0; min-height: 0; }
-.item-menu-categories, .item-menu-list {
-  border-right: 1px solid rgba(255,255,255,0.08); overflow-y: auto; padding-right: 14px;
+.item-menu-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.item-menu-header h2 { margin: 0; color: #ffd98a; font-size: 1.1em; letter-spacing: 0.08em; text-transform: uppercase; }
+.item-menu-tabs { display: flex; gap: 4px; }
+.item-menu-tab {
+  width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+  font-size: 1.1em; border-radius: 6px; cursor: pointer; color: #9fb3c8;
+  border: 1px solid transparent;
 }
-.item-menu-list { padding-left: 14px; }
-.item-menu-detail { padding-left: 24px; display: flex; flex-direction: column; }
+.item-menu-tab:hover { background: rgba(255,255,255,0.06); }
+.item-menu-tab.selected { color: #ffd98a; border-color: rgba(255,217,138,0.4); background: rgba(255,217,138,0.1); }
 
-.item-menu-category, .item-menu-row {
-  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px;
-  cursor: pointer; color: #cfd3da; font-size: 0.9em;
+.item-menu-table { flex: 1; display: flex; flex-direction: column; min-height: 0; border-top: 1px solid rgba(255,255,255,0.12); }
+.item-menu-col-headers {
+  display: grid; grid-template-columns: 1fr 70px 80px 80px; gap: 6px;
+  padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.1);
+  color: #9fb3c8; font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.05em;
 }
-.item-menu-category:hover, .item-menu-row:hover { background: rgba(255,255,255,0.05); }
-.item-menu-category.selected, .item-menu-row.selected {
-  background: rgba(255,217,138,0.14); color: #ffd98a; border: 1px solid rgba(255,217,138,0.35);
+.item-menu-col { cursor: pointer; text-align: right; user-select: none; }
+.item-menu-col-name { text-align: left; }
+.item-menu-col.sorted { color: #ffd98a; }
+.item-menu-rows { flex: 1; overflow-y: auto; }
+.item-menu-row {
+  display: grid; grid-template-columns: 1fr 70px 80px 80px; gap: 6px; align-items: center;
+  padding: 8px 10px; cursor: pointer; color: #cfd3da; font-size: 0.88em;
+  border-left: 2px solid transparent;
 }
-.item-menu-row-icon { font-size: 1.3em; }
-.item-menu-row-count { margin-left: auto; color: #9fb3c8; font-size: 0.85em; }
-.item-menu-empty { color: #7a8090; font-size: 0.85em; padding: 10px 12px; }
+.item-menu-row:hover { background: rgba(255,255,255,0.04); }
+.item-menu-row.selected { background: rgba(255,217,138,0.12); border-left-color: #ffd98a; color: #ffd98a; }
+.item-menu-row-name { display: flex; align-items: center; gap: 8px; }
+.item-menu-row-icon { font-size: 1.15em; }
+.item-menu-row-num { text-align: right; color: inherit; opacity: 0.85; }
+.item-menu-empty { color: #7a8090; font-size: 0.85em; padding: 14px 10px; }
 
-.item-menu-detail-icon { font-size: 3.5em; text-align: center; margin-bottom: 12px; }
-.item-menu-detail-name { color: #fff; font-size: 1.3em; text-align: center; margin: 0 0 4px; }
-.item-menu-detail-count { color: #9fb3c8; text-align: center; font-size: 0.85em; margin-bottom: 18px; }
-.item-menu-detail-desc { color: #d6d9df; font-size: 0.95em; line-height: 1.5; text-align: center; margin-bottom: 24px; }
-.item-menu-detail-actions { display: flex; gap: 10px; justify-content: center; margin-top: auto; }
-.item-menu-btn {
-  border-radius: 8px; padding: 10px 22px; font-size: 0.9em; cursor: pointer; border: 1px solid transparent;
+.item-menu-detail-dock {
+  position: absolute; right: 26px; bottom: 56px; width: 260px;
+  background: rgba(12,13,17,0.96); border: 1px solid rgba(255,217,138,0.3); border-radius: 8px;
+  padding: 14px 16px; pointer-events: none;
 }
-.item-menu-btn-use { background: rgba(255,217,138,0.16); border-color: rgba(255,217,138,0.4); color: #ffd98a; }
-.item-menu-btn-use:hover { background: rgba(255,217,138,0.28); }
-.item-menu-btn-discard { background: rgba(224,82,82,0.12); border-color: rgba(224,82,82,0.35); color: #f0a3a3; }
-.item-menu-btn-discard:hover { background: rgba(224,82,82,0.22); }
+.item-menu-detail-dock.hidden { display: none; }
+.item-menu-detail-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.item-menu-detail-icon { font-size: 1.8em; }
+.item-menu-detail-name { color: #fff; font-size: 1em; margin: 0; }
+.item-menu-detail-stats { display: flex; gap: 14px; color: #9fb3c8; font-size: 0.78em; margin-bottom: 8px; }
+.item-menu-detail-desc { color: #d6d9df; font-size: 0.82em; line-height: 1.4; margin: 0; }
+
+.item-menu-bottom-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 4px; border-top: 1px solid rgba(255,255,255,0.1);
+  color: #9fb3c8; font-size: 0.8em;
+}
+.item-menu-money { color: #ffd98a; }
 
 #photo-flash {
   position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 30;
@@ -206,8 +226,7 @@ html, body {
 @media (max-width: 640px) {
   .journal-columns { grid-template-columns: 1fr; }
   .menu-panel { padding: 24px 20px; }
-  .item-menu-body { grid-template-columns: 1fr; overflow-y: auto; }
-  .item-menu-categories, .item-menu-list { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.08); padding: 0 0 10px; }
-  .item-menu-list { padding-left: 0; padding-top: 10px; }
-  .item-menu-detail { padding-left: 0; padding-top: 14px; }
+  .item-menu-col-headers, .item-menu-row { grid-template-columns: 1fr 50px 60px; }
+  .item-menu-col-value, .item-menu-row-num:last-child { display: none; }
+  .item-menu-detail-dock { position: static; width: auto; margin-top: 10px; pointer-events: auto; }
 }
