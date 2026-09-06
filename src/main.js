@@ -178,6 +178,7 @@ class Game {
     this.profile = profile || { name: 'Alex', sex: 'x', originId: 'operario' };
     const origin = ORIGINS[this.profile.originId];
     this.homeSleepSpot = HOMES[origin.home].sleepSpot;
+    this.homeKind = origin.home;
 
     if (this.player) this.scene.remove(this.player.mesh);
     this.player = new Player(this.scene, this.world, this.profile.sex === 'f' ? 'female' : 'male');
@@ -432,7 +433,8 @@ class Game {
     }
 
     this.ui.updateHUD(this.world, this.quests, this.needs, this.obligation, this.player);
-    this.ui.drawMinimap(this.player, this.npcs, this.collectibles);
+    this.ui.drawCompass(this.player, this.collectibles, this.obligation, this.homeKind);
+    this.ui.updateTarget(this.dummy, this.player);
 
     this.camera.position.copy(this.player.cameraPosition);
     this.camera.lookAt(this.player.cameraTarget);

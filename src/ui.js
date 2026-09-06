@@ -1,4 +1,22 @@
-import { CONFIG, CITY, QUESTS, ITEM_CATEGORIES } from './data.js';
+import { CONFIG, QUESTS, ITEM_CATEGORIES, landmarkCenter } from './data.js';
+
+// Bússola: abertura de 180° e os pontos cardeais em português. Na prática,
+// player.facingAngle é 0 = +Z (não -Z): targetAngle em player.js vem de
+// atan2(move.x, move.z), que dá 0 quando o personagem anda pra +Z. bearingTo
+// usa a mesma convenção (atan2(dx, dz), sem inverter o Z) pra bater com isso
+// — confirmado empiricamente: com a inversão antiga, alvos à frente saíam
+// escondidos (fora do FOV) e alvos atrás apareciam centralizados.
+const COMPASS_FOV = Math.PI;
+const CARDINALS = ['N', 'NE', 'L', 'SE', 'S', 'SO', 'O', 'NO'];
+
+function bearingTo(from, to) {
+  return Math.atan2(to.x - from.x, to.z - from.z);
+}
+function normalizeAngle(a) {
+  while (a > Math.PI) a -= Math.PI * 2;
+  while (a < -Math.PI) a += Math.PI * 2;
+  return a;
+}
 
 export class UI {
   constructor() {
@@ -29,10 +47,18 @@ export class UI {
     this._itemMenuSelectedId = null;
     this.flashEl = document.getElementById('photo-flash');
     this.crosshairHint = document.getElementById('crosshair-hint');
-    this.minimapCanvas = document.getElementById('minimap');
-    this.mmCtx = this.minimapCanvas.getContext('2d');
     this.toast = document.getElementById('toast');
     this._toastTimer = null;
+
+    // Bússola (substitui o minimapa) e barra do alvo
+    this.compassCanvas = document.getElementById('compass-strip');
+    this.compassCtx = this.compassCanvas.getContext('2d');
+    this.compassMarkers = document.getElementById('compass-markers');
+    this._markerEls = new Map();
+    this.targetBar = document.getElementById('target-bar');
+    this.targetName = document.getElementById('target-name');
+    this.targetHpText = document.getElementById('target-hp-text');
+    this.targetFill = document.getElementById('target-fill');
 
     this.creationScreen = document.getElementById('creation-screen');
     this.ccNameInput = document.getElementById('cc-name');
@@ -45,6 +71,10 @@ export class UI {
     this.staminaFill = document.getElementById('stamina-fill');
     this.energyFill = document.getElementById('energy-fill');
     this.hungerFill = document.getElementById('hunger-fill');
+    this.hpValue = document.getElementById('hp-value');
+    this.staminaValue = document.getElementById('stamina-value');
+    this.energyValue = document.getElementById('energy-value');
+    this.hungerValue = document.getElementById('hunger-value');
     this.moneyValue = document.getElementById('money-value');
     this.scheduleBox = document.getElementById('schedule-box');
   }
@@ -100,17 +130,23 @@ export class UI {
     this.clockEl.textContent = world.getFormattedTime();
     this.dayEl.textContent = `Dia ${world.dayCount}`;
 
+    const setBar = (fill, valueEl, value, lowAt) => {
+      const v = Math.max(0, Math.round(value));
+      fill.style.width = `${v}%`;
+      fill.classList.toggle('low', value <= lowAt);
+      if (valueEl) {
+        valueEl.textContent = v;
+        valueEl.classList.toggle('low', value <= lowAt);
+      }
+    };
+
     if (player) {
-      this.hpFill.style.width = `${Math.max(0, player.hp)}%`;
-      this.hpFill.classList.toggle('low', player.hp <= 30);
-      this.staminaFill.style.width = `${Math.max(0, player.stamina)}%`;
-      this.staminaFill.classList.toggle('low', player.stamina < CONFIG.PUNCH_STAMINA_COST);
+      setBar(this.hpFill, this.hpValue, player.hp, 30);
+      setBar(this.staminaFill, this.staminaValue, player.stamina, CONFIG.PUNCH_STAMINA_COST);
     }
     if (needs) {
-      this.energyFill.style.width = `${Math.max(0, needs.energy)}%`;
-      this.energyFill.classList.toggle('low', needs.energy <= 15);
-      this.hungerFill.style.width = `${Math.max(0, needs.hunger)}%`;
-      this.hungerFill.classList.toggle('low', needs.hunger <= 15);
+      setBar(this.energyFill, this.energyValue, needs.energy, 15);
+      setBar(this.hungerFill, this.hungerValue, needs.hunger, 15);
       this.moneyValue.textContent = `R$${Math.floor(needs.money)}`;
     }
     if (obligation) {
@@ -122,22 +158,35 @@ export class UI {
       else if (hour >= def.startHour && hour < def.endHour) { status = 'Agora — vá até lá!'; cls = 'active'; }
       else if (hour < def.startHour) { status = `Começa às ${String(def.startHour).padStart(2, '0')}:00`; cls = ''; }
       else { status = 'Faltou hoje'; cls = 'missed'; }
-      this.scheduleBox.innerHTML = `<div class="schedule-label">${def.label}</div><div class="schedule-status ${cls}">${status}</div>`;
+      const hours = `${String(def.startHour).padStart(2, '0')}:00 – ${String(def.endHour).padStart(2, '0')}:00`;
+      this.scheduleBox.innerHTML =
+        `<div class="schedule-label">${def.label}</div>` +
+        `<div class="schedule-status ${cls}">${status}</div>` +
+        `<div class="schedule-hours">${hours}</div>`;
     }
 
     const objectives = questSystem.getActiveObjectivesSummary();
     if (objectives.length === 0) {
-      this.objectiveBox.innerHTML = '<div class="objective-title">Sem missões ativas</div>';
+      this.objectiveBox.innerHTML =
+        '<div class="objective-quest"><div class="objective-kicker">SEM MISSÕES ATIVAS</div></div>';
     } else {
-      this.objectiveBox.innerHTML = objectives
-        .slice(0, 3)
-        .map(o => `<div class="objective-title">${o.quest}</div><div class="objective-text">• ${o.text}</div>`)
-        .join('');
+      this.objectiveBox.innerHTML = objectives.slice(0, 3).map((o, i) => `
+        <div class="objective-quest">
+          ${i === 0 ? '<div class="objective-kicker">MISSÃO ATIVA</div>' : ''}
+          <div class="objective-title">${o.quest}</div>
+          <div class="objective-text">${o.text}</div>
+        </div>
+      `).join('');
     }
   }
 
+  // A tecla sai do texto e vira a "tecla" desenhada pelo CSS (::before).
+  // Prompts sem tecla curta (ex.: "Clique com o botão esquerdo — ...")
+  // continuam como texto puro.
   showPrompt(text, warning = false) {
-    this.promptEl.textContent = text;
+    const m = text.match(/^(.{1,3})\s+—\s+(.*)$/);
+    this.promptEl.dataset.key = m ? m[1] : '';
+    this.promptEl.textContent = m ? m[2] : text;
     this.promptEl.classList.toggle('warning', warning);
     this.promptEl.classList.remove('hidden');
   }
@@ -330,73 +379,89 @@ export class UI {
     this._toastTimer = setTimeout(() => this.toast.classList.remove('visible'), 3200);
   }
 
-  drawMinimap(player, npcs, collectibleSystem) {
-    const ctx = this.mmCtx;
-    const size = this.minimapCanvas.width;
-    const worldSpan = CONFIG.WORLD_HALF * 2 + 20;
-    const scale = size / worldSpan;
-    ctx.clearRect(0, 0, size, size);
-    ctx.fillStyle = 'rgba(15,17,22,0.55)';
-    ctx.beginPath();
-    ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
-    ctx.fill();
+  // Barra do alvo — aparece quando o boneco está machucado ou por perto.
+  updateTarget(dummy, player) {
+    if (!dummy || !player) return;
+    const dist = Math.hypot(dummy.position.x - player.position.x, dummy.position.z - player.position.z);
+    const visible = dummy.hp < dummy.maxHp || dist <= CONFIG.PUNCH_RANGE + 2;
+    this.targetBar.classList.toggle('hidden', !visible);
+    if (!visible) return;
+    this.targetFill.style.width = `${Math.max(0, (dummy.hp / dummy.maxHp) * 100)}%`;
+    this.targetHpText.textContent = `${Math.ceil(dummy.hp)} / ${dummy.maxHp}`;
+  }
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
-    ctx.clip();
+  // -------------------------------------------------------------------
+  // Bússola — substitui o minimapa. Uma fita de graus que rola com a
+  // direção do jogador, mais marcadores para casa, compromisso,
+  // fragmentos não fotografados e o item de missão.
+  // -------------------------------------------------------------------
+  drawCompass(player, collectibleSystem, obligation, homeKind) {
+    const ctx = this.compassCtx;
+    const W = this.compassCanvas.width / 2;   // 500 CSS px
+    const H = this.compassCanvas.height / 2;  // 22 CSS px
+    ctx.setTransform(2, 0, 0, 2, 0, 0);
+    ctx.clearRect(0, 0, W, H);
 
-    const toScreen = (x, z) => ({
-      sx: size / 2 + (x - player.position.x) * scale,
-      sy: size / 2 + (z - player.position.z) * scale,
-    });
+    const heading = normalizeAngle(player.facingAngle);
+    const half = COMPASS_FOV / 2;
+    const xOf = rel => W / 2 + (rel / half) * (W / 2);
+    const fade = rel => Math.max(0, Math.min(1, (1 - Math.abs(rel) / half) * 3.2));
 
-    for (const block of CITY.blocks) {
-      const { sx, sy } = toScreen(block.cx, block.cz);
-      ctx.fillStyle = block.type === 'park' ? 'rgba(80,140,90,0.55)' : block.type === 'plaza' ? 'rgba(170,160,140,0.55)' : 'rgba(120,122,128,0.4)';
-      const s = CONFIG.BLOCK_SIZE * scale;
-      ctx.fillRect(sx - s / 2, sy - s / 2, s, s);
+    ctx.font = '600 11px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'center';
+
+    for (let deg = 0; deg < 360; deg += 5) {
+      const rel = normalizeAngle((deg * Math.PI) / 180 - heading);
+      if (Math.abs(rel) > half) continue;
+      const x = xOf(rel);
+      const isCardinal = deg % 45 === 0;
+      ctx.globalAlpha = fade(rel) * (isCardinal ? 1 : 0.55);
+      ctx.fillStyle = '#f2f4f7';
+      ctx.fillRect(Math.round(x), 0, 1, isCardinal ? 7 : 4);
+      if (isCardinal) {
+        ctx.globalAlpha = fade(rel);
+        ctx.fillStyle = deg === 0 ? '#ffffff' : '#aeb6c0';
+        ctx.fillText(CARDINALS[deg / 45], x, H - 1);
+      }
     }
+    ctx.globalAlpha = 1;
 
+    const targets = [];
+    if (homeKind) targets.push({ id: 'home', cls: 'home', glyph: 'home', pos: landmarkCenter(homeKind) });
+    if (obligation?.active && obligation.def?.location) {
+      targets.push({
+        id: 'duty', cls: 'duty',
+        glyph: obligation.def.type === 'school' ? 'school' : 'work',
+        pos: obligation.def.location,
+      });
+    }
     for (const f of collectibleSystem.fragments) {
       if (f.collected) continue;
-      const { sx, sy } = toScreen(f.mesh.position.x, f.mesh.position.z);
-      ctx.fillStyle = '#ffe58a';
-      ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI * 2); ctx.fill();
+      targets.push({ id: f.id ?? `frag_${targets.length}`, cls: 'fragment', glyph: 'auto_awesome', pos: f.mesh.position });
     }
     if (collectibleSystem.item && !collectibleSystem.item.collected) {
-      const { sx, sy } = toScreen(collectibleSystem.item.mesh.position.x, collectibleSystem.item.mesh.position.z);
-      ctx.fillStyle = '#e05252';
-      ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI * 2); ctx.fill();
+      targets.push({ id: 'quest_item', cls: 'quest', glyph: 'menu_book', pos: collectibleSystem.item.mesh.position });
     }
 
-    for (const npc of npcs) {
-      const { sx, sy } = toScreen(npc.position.x, npc.position.z);
-      ctx.fillStyle = '#7fd0ff';
-      ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI * 2); ctx.fill();
+    const seen = new Set();
+    for (const t of targets) {
+      const rel = normalizeAngle(bearingTo(player.position, t.pos) - heading);
+      if (Math.abs(rel) > half) continue;
+      seen.add(t.id);
+      let el = this._markerEls.get(t.id);
+      if (!el) {
+        el = document.createElement('span');
+        el.className = `compass-marker ms ${t.cls}`;
+        el.textContent = t.glyph;
+        this.compassMarkers.appendChild(el);
+        this._markerEls.set(t.id, el);
+      }
+      el.style.display = '';
+      el.style.left = `${xOf(rel)}px`;
+      el.style.opacity = fade(rel);
     }
-
-    ctx.fillStyle = '#ffffff';
-    ctx.save();
-    ctx.translate(size / 2, size / 2);
-    ctx.rotate(player.facingAngle);
-    ctx.beginPath();
-    ctx.moveTo(0, -7);
-    ctx.lineTo(5, 6);
-    ctx.lineTo(-5, 6);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-
-    ctx.restore();
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.fillText('N', size / 2 - 4, 13);
+    for (const [id, el] of this._markerEls) {
+      if (!seen.has(id)) el.style.display = 'none';
+    }
   }
 }
