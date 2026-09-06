@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Editor de Cenas — Ferramenta Interna</title>
+  <link rel="stylesheet" href="editor-style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="editor-canvas"></canvas>
+
+  <div id="editor-ui">
+    <div id="palette-panel">
+      <h3>Paleta <span class="hint">(teclas 1-8)</span></h3>
+      <div id="palette-list"></div>
+      <div class="hint">0 / Esc — soltar item</div>
+    </div>
+
+    <div id="hud-hint">
+      <div id="crosshair"></div>
+      <div id="mode-label">Selecionar (clique na tela p/ travar o cursor)</div>
+    </div>
+
+    <div id="controls-hint">
+      WASD mover · Q/E descer/subir · Shift correr · Clique esquerdo colocar/selecionar ·
+      R girar · Delete excluir · Tab menu de cenas
+    </div>
+
+    <div id="scene-panel" class="hidden">
+      <h3>Cenas</h3>
+      <input id="scene-name" type="text" placeholder="Nome da cena" />
+      <div class="scene-buttons">
+        <button id="btn-save-scene">Salvar</button>
+        <button id="btn-new-scene">Nova</button>
+        <button id="btn-export-scene">Exportar JSON</button>
+      </div>
+      <div id="scene-list"></div>
+      <textarea id="export-output" class="hidden" readonly></textarea>
+      <p class="hint">Pressione Tab para fechar</p>
+    </div>
+  </div>
+
+  <script type="module" src="src/editor/main.js"></script>
+</body>
+</html>

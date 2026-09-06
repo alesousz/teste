@@ -1,0 +1,62 @@
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+  background: #0a0a0c; font-family: 'Segoe UI', system-ui, sans-serif; color: #eee;
+}
+#editor-canvas { position: fixed; inset: 0; display: block; width: 100%; height: 100%; }
+#editor-ui { position: fixed; inset: 0; pointer-events: none; }
+.hidden { display: none !important; }
+
+#palette-panel {
+  position: absolute; top: 16px; left: 16px; width: 220px;
+  background: rgba(10,12,16,0.7); border-radius: 8px; padding: 12px 14px; pointer-events: all;
+}
+#palette-panel h3 { margin: 0 0 8px; font-size: 0.95em; color: #ffd98a; }
+.hint { font-size: 0.75em; color: #8992a0; }
+#palette-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.palette-item {
+  display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 6px;
+  background: rgba(255,255,255,0.05); font-size: 0.85em; cursor: default;
+}
+.palette-item.active { background: #ffd98a; color: #1a1206; font-weight: 600; }
+.palette-key {
+  display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px;
+  border-radius: 4px; background: rgba(255,255,255,0.15); font-size: 0.8em;
+}
+.palette-item.active .palette-key { background: rgba(0,0,0,0.2); }
+
+#hud-hint { position: absolute; inset: 0; pointer-events: none; }
+#crosshair {
+  position: absolute; top: 50%; left: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
+  background: #fff; border-radius: 50%; box-shadow: 0 0 4px rgba(0,0,0,0.6);
+}
+#mode-label {
+  position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+  background: rgba(10,12,16,0.7); padding: 6px 14px; border-radius: 20px; font-size: 0.85em;
+}
+
+#controls-hint {
+  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+  background: rgba(10,12,16,0.65); padding: 6px 14px; border-radius: 8px; font-size: 0.78em; color: #b6bcc6;
+  white-space: nowrap;
+}
+
+#scene-panel {
+  position: absolute; top: 16px; right: 16px; width: 280px; max-height: 80vh; overflow-y: auto;
+  background: rgba(10,12,16,0.85); border-radius: 8px; padding: 14px; pointer-events: all;
+}
+#scene-panel h3 { margin: 0 0 10px; color: #ffd98a; font-size: 0.95em; }
+#scene-name {
+  width: 100%; padding: 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.06); color: #eee; margin-bottom: 8px;
+}
+.scene-buttons { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.scene-buttons button, .scene-row button {
+  padding: 7px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15);
+  background: #ffd98a; color: #1a1206; font-weight: 600; font-size: 0.8em; cursor: pointer;
+}
+.scene-row { display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 0.85em; }
+.scene-row button { background: rgba(255,255,255,0.1); color: #eee; font-weight: 400; }
+#export-output { width: 100%; height: 140px; margin-top: 10px; background: #05060a; color: #9fe08a;
+  font-family: monospace; font-size: 0.75em; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); padding: 8px; }
