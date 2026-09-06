@@ -2,35 +2,22 @@ import * as THREE from 'three';
 import { clone as cloneSkeleton } from '../vendor/jsm/utils/SkeletonUtils.js';
 import { getCharacterTemplates } from './assets.js';
 
-const X_AXIS = new THREE.Vector3(1, 0, 0);
-const Z_AXIS = new THREE.Vector3(0, 0, 1);
-
-// Poses de bind (T-pose) dos braços, extraídas do glTF original — os dois
-// personagens (macho/fêmea) compartilham o mesmo rig, então os valores
-// servem para ambos.
-const ARM_BIND = {
-  l: new THREE.Quaternion(0.149803027510643, 0.6911307573318481, -0.14938844740390778, 0.6910719275474548),
-  r: new THREE.Quaternion(0.1498030126094818, -0.6911307573318481, 0.14938844740390778, 0.6910719275474548),
+// Nomes de clipe na Universal Animation Library (Quaternius, CC0) — o rig
+// dela usa exatamente os mesmos nomes de osso do Universal Base Characters,
+// então os clipes funcionam direto nos nossos personagens sem retargeting.
+const STATE_CLIPS = {
+  idle: 'Idle_Loop',
+  walk: 'Walk_Loop',
+  run: 'Sprint_Loop',
+  talk: 'Idle_Talking_Loop',
 };
-const THIGH_BIND = new THREE.Quaternion(0.9898310303688049, 0, 0, 0.14224845170974731);
-
-// Correção de T-pose -> braços caídos ao lado do corpo (achada por tentativa
-// e erro: 82° em torno do eixo Z local do ombro, sinais opostos por lado).
-const ARM_REST_ANGLE = (82 * Math.PI) / 180;
-
-function findBones(root) {
-  const get = (name) => root.getObjectByName(name);
-  return {
-    thighL: get('thigh_l'), thighR: get('thigh_r'),
-    upperarmL: get('upperarm_l'), upperarmR: get('upperarm_r'),
-    head: get('Head'),
-  };
-}
+const FADE_SECONDS = 0.25;
 
 /**
  * Instancia um clone independente (esqueleto próprio) do personagem
  * masculino ou feminino do pack "Universal Base Characters" (Quaternius,
- * CC0), já na pose de descanso (braços ao lado do corpo).
+ * CC0), com animação real (idle/andar/correr/conversar) via
+ * AnimationMixer, em vez de pose fixa.
  */
 export function buildHumanoid({ variant = 'male' } = {}) {
   const templates = getCharacterTemplates();
@@ -38,26 +25,36 @@ export function buildHumanoid({ variant = 'male' } = {}) {
   const group = cloneSkeleton(template);
   group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
 
-  const bones = findBones(group);
-  bones.upperarmL.quaternion.copy(ARM_BIND.l).multiply(
-    new THREE.Quaternion().setFromAxisAngle(Z_AXIS, -ARM_REST_ANGLE)
-  );
-  bones.upperarmR.quaternion.copy(ARM_BIND.r).multiply(
-    new THREE.Quaternion().setFromAxisAngle(Z_AXIS, ARM_REST_ANGLE)
-  );
+  const mixer = new THREE.AnimationMixer(group);
+  const actions = {};
+  for (const [state, clipName] of Object.entries(STATE_CLIPS)) {
+    const clip = THREE.AnimationClip.findByName(templates.clips, clipName);
+    if (!clip) continue;
+    const action = mixer.clipAction(clip);
+    action.play();
+    action.setEffectiveWeight(0);
+    actions[state] = action;
+  }
+  let current = 'idle';
+  if (actions.idle) actions.idle.setEffectiveWeight(1);
 
   return {
     group,
-    bones,
-    applyWalkSwing(swing) {
-      bones.thighL.quaternion.copy(THIGH_BIND).multiply(new THREE.Quaternion().setFromAxisAngle(X_AXIS, swing));
-      bones.thighR.quaternion.copy(THIGH_BIND).multiply(new THREE.Quaternion().setFromAxisAngle(X_AXIS, -swing));
-      bones.upperarmL.quaternion.copy(ARM_BIND.l)
-        .multiply(new THREE.Quaternion().setFromAxisAngle(Z_AXIS, -ARM_REST_ANGLE))
-        .multiply(new THREE.Quaternion().setFromAxisAngle(X_AXIS, -swing * 0.6));
-      bones.upperarmR.quaternion.copy(ARM_BIND.r)
-        .multiply(new THREE.Quaternion().setFromAxisAngle(Z_AXIS, ARM_REST_ANGLE))
-        .multiply(new THREE.Quaternion().setFromAxisAngle(X_AXIS, swing * 0.6));
+    setState(state) {
+      if (state === current || !actions[state]) return;
+      if (actions[current]) actions[current].fadeOut(FADE_SECONDS);
+      const next = actions[state];
+      // fadeIn() só agenda uma rampa que multiplica o peso-base da action;
+      // como o peso-base fica em 0 (definido no setup), é preciso restaurá-lo
+      // para 1 aqui, senão o efetivo fica 0*rampa=0 e o personagem "trava"
+      // na pose de bind (T-pose) em vez de assumir a nova animação.
+      next.enabled = true;
+      next.setEffectiveWeight(1);
+      next.reset().setEffectiveTimeScale(1).fadeIn(FADE_SECONDS).play();
+      current = state;
+    },
+    update(dt) {
+      mixer.update(dt);
     },
   };
 }
