@@ -1,4 +1,4 @@
-import { CONFIG, QUESTS, ITEM_CATEGORIES, COURSES, KEYBIND_ACTIONS, FIXED_CONTROLS, DEFAULT_KEYBINDS, landmarkCenter } from './data.js';
+import { CONFIG, QUESTS, ITEM_CATEGORIES, COURSES, KEYBIND_ACTIONS, FIXED_CONTROLS, DEFAULT_KEYBINDS, LOADING_SHOTS, LOADING_TIPS, landmarkCenter } from './data.js';
 
 // Bússola: abertura de 180° e os pontos cardeais em português. Na prática,
 // player.facingAngle é 0 = +Z (não -Z): targetAngle em player.js vem de
@@ -37,6 +37,13 @@ function normalizeAngle(a) {
 export class UI {
   constructor() {
     this.loadingScreen = document.getElementById('loading-screen');
+    this.loadingShot = document.getElementById('loading-shot');
+    this.loadingFill = document.getElementById('loading-fill');
+    this.loadingStatus = document.getElementById('loading-status');
+    this.loadingTipText = document.getElementById('loading-tip-text');
+    this.loadingTipCount = document.getElementById('loading-tip-count');
+    this.loadingDots = document.getElementById('loading-dots');
+    this._startLoadingScreen();
     this.menuScreen = document.getElementById('menu-screen');
     this.continueBtn = document.getElementById('btn-continue');
     this.newGameBtn = document.getElementById('btn-newgame');
@@ -177,7 +184,46 @@ export class UI {
     return { name: this.ccNameInput.value.trim(), sex: this._cc.sex, courseId: this._cc.courseId };
   }
 
-  hideLoading() { this.loadingScreen.classList.add('hidden'); }
+  // -------------------------------------------------------------------
+  // Tela de carregamento — imagem sorteada, dicas em rotação, progresso
+  // real reportado pelo main.js via setLoadingProgress().
+  // -------------------------------------------------------------------
+  _startLoadingScreen() {
+    const shot = LOADING_SHOTS[Math.floor(Math.random() * LOADING_SHOTS.length)];
+    if (shot && this.loadingShot) this.loadingShot.style.backgroundImage = `url("${shot}")`;
+
+    // ordem sorteada, sem repetir dica na mesma sessão
+    this._tips = [...LOADING_TIPS].sort(() => Math.random() - 0.5);
+    this._tipIndex = 0;
+    this._renderTip();
+    this._tipTimer = setInterval(() => {
+      this._tipIndex = (this._tipIndex + 1) % this._tips.length;
+      this._renderTip();
+    }, 6000);
+  }
+
+  _renderTip() {
+    if (!this.loadingTipText) return;
+    this.loadingTipText.textContent = this._tips[this._tipIndex];
+    this.loadingTipCount.textContent = `Dica ${this._tipIndex + 1} de ${this._tips.length} · troca a cada 6s`;
+    if (this.loadingDots) {
+      this.loadingDots.innerHTML = this._tips
+        .slice(0, 4)
+        .map((_, i) => `<span class="${i === this._tipIndex % 4 ? 'on' : ''}"></span>`)
+        .join('');
+    }
+  }
+
+  // progresso real: chame conforme cada etapa termina
+  setLoadingProgress(ratio, status) {
+    if (this.loadingFill) this.loadingFill.style.width = `${Math.round(ratio * 100)}%`;
+    if (status && this.loadingStatus) this.loadingStatus.textContent = status;
+  }
+
+  hideLoading() {
+    clearInterval(this._tipTimer);
+    this.loadingScreen.classList.add('hidden');
+  }
 
   showMenu(canContinue) {
     this.menuScreen.classList.remove('hidden');

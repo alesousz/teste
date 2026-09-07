@@ -522,4 +522,28 @@ button.keycap:hover { border-color: rgba(255, 255, 255, 0.6); }
   .journal-col-right, .item-menu-detail-dock { border-left: none; padding-left: 0; }
   .item-menu-col-headers, .item-menu-row { grid-template-columns: 1fr 50px 60px; }
   .item-menu-col-value, .item-menu-row-num:last-child { display: none; }
+  .loading-bottom { flex-direction: column; align-items: flex-start; gap: 24px; }
+  .loading-main, .loading-tip { width: 100%; }
+  .loading-tip { border-left: none; padding-left: 0; }
 }
+
+/* ---------- Tela de carregamento ---------- */
+#loading-screen.overlay { background: #07090c; padding: 0; }
+.loading-screen { position: relative; width: 100%; height: 100%; font-family: Archivo, sans-serif; color: #f2f4f7; }
+.loading-shot { position: absolute; inset: 0; background-size: cover; background-position: center; }
+.loading-veil { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(7,9,12,0.5) 0 30%, rgba(7,9,12,0.92)); }
+.loading-dots { position: absolute; left: 44px; top: 34px; display: flex; gap: 5px; }
+.loading-dots span { width: 22px; height: 2px; background: rgba(255,255,255,0.25); }
+.loading-dots span.on { background: #f2f4f7; }
+.loading-bottom { position: absolute; left: 44px; right: 44px; bottom: 40px; display: flex; align-items: flex-end; justify-content: space-between; gap: 60px; }
+.loading-main { width: 420px; display: flex; flex-direction: column; gap: 14px; }
+.loading-title { font-size: 34px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
+.loading-track { height: 2px; background: rgba(255,255,255,0.14); }
+#loading-fill { height: 100%; width: 0%; background: oklch(0.78 0.11 225); transition: width 0.3s; }
+.loading-status, .loading-tip-count {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  letter-spacing: 0.1em; text-transform: uppercase; color: #7d8794;
+}
+.loading-tip-count { color: #5f6873; }
+.loading-tip { width: 400px; display: flex; flex-direction: column; gap: 9px; border-left: 1px solid rgba(255,255,255,0.16); padding-left: 28px; }
+.loading-tip-text { font-size: 16px; line-height: 1.5; color: #e3e7ec; }

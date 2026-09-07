@@ -23,9 +23,23 @@
   <div id="ui-root">
     <!-- Carregando assets -->
     <div id="loading-screen" class="overlay">
-      <div class="menu-panel">
-        <h2>Carregando...</h2>
-        <p class="menu-desc">Preparando os personagens da cidade.</p>
+      <div class="loading-screen">
+        <div id="loading-shot" class="loading-shot"></div>
+        <div class="loading-veil"></div>
+        <div id="loading-dots" class="loading-dots"></div>
+        <div class="loading-bottom">
+          <div class="loading-main">
+            <div class="start-kicker">Carregando</div>
+            <div class="loading-title">Ecos da Cidade</div>
+            <div class="loading-track"><div id="loading-fill"></div></div>
+            <div id="loading-status" class="loading-status">Preparando os personagens da cidade</div>
+          </div>
+          <div class="loading-tip">
+            <div class="col-kicker">Dica</div>
+            <div id="loading-tip-text" class="loading-tip-text"></div>
+            <div id="loading-tip-count" class="loading-tip-count"></div>
+          </div>
+        </div>
       </div>
     </div>
 

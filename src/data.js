@@ -515,3 +515,25 @@ export const FIXED_CONTROLS = [
   { label: 'Socar', device: 'Clique esquerdo' },
 ];
 
+// ---------------------------------------------------------------------------
+// Tela de carregamento: imagens de fundo e dicas. A tela sorteia uma imagem
+// por carregamento e passa as dicas em rotação.
+// ---------------------------------------------------------------------------
+export const LOADING_SHOTS = [
+  'assets/loading/praca-noite.jpg',
+  'assets/loading/mercado-manha.jpg',
+  'assets/loading/parque-chuva.jpg',
+  'assets/loading/predios-alvorada.jpg',
+];
+
+export const LOADING_TIPS = [
+  'Faltar ao compromisso do dia tem consequência: primeiro vem o aviso, depois a demissão ou a expulsão do curso.',
+  'Dormir em casa recupera a energia toda e avança para a manhã seguinte.',
+  'Fragmentos de memória brilham em dourado. Chegue perto e pressione a tecla de foto.',
+  'Ficar exausto deixa você mais lento e sem poder correr. Um café resolve por um tempo.',
+  'Alguns NPCs só têm certas conversas depois que a noite cai.',
+  'A bússola no topo mostra sua casa e o compromisso do dia; os pontos dourados são fragmentos.',
+  'O peso e o valor dos itens são só informação — não existe limite de carga.',
+  'O jogo salva sozinho a cada 20 segundos e quando você pausa.',
+];
+
