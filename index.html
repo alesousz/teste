@@ -274,8 +274,16 @@
 
     <!-- Diálogo -->
     <div id="dialogue-box" class="hidden">
-      <div id="dialogue-text"></div>
-      <div id="dialogue-options"></div>
+      <div class="dialogue-line">
+        <div class="dialogue-speaker-row">
+          <span id="dialogue-speaker" class="dialogue-speaker"></span>
+          <span class="dialogue-rule"></span>
+          <span id="dialogue-delta" class="dialogue-delta hidden"></span>
+        </div>
+        <div id="dialogue-text" class="dialogue-text"></div>
+      </div>
+      <div id="dialogue-options" class="dialogue-options"></div>
+      <div class="dialogue-foot">1–9 escolher · Esc encerrar a conversa</div>
     </div>
 
     <!-- Diário -->
@@ -284,22 +292,46 @@
         <header class="full-menu-head">
           <div class="full-menu-titles">
             <h2>Diário</h2>
-            <span id="journal-stamp" class="full-menu-stamp"></span>
+            <div id="journal-tabs" class="journal-tabs">
+              <span class="journal-tab selected" data-jtab="quests">Missões</span>
+              <span class="journal-tab" data-jtab="people">Pessoas</span>
+              <span class="journal-tab" data-jtab="fragments">Fragmentos</span>
+            </div>
           </div>
-          <span id="journal-fragcount" class="full-menu-stamp"></span>
+          <span id="journal-stamp" class="full-menu-stamp"></span>
         </header>
-        <div class="journal-columns">
+
+        <!-- Missões -->
+        <div id="journal-pane-quests" class="journal-pane">
           <div class="journal-col">
             <div class="col-kicker accent">Missões</div>
             <div id="journal-quests"></div>
           </div>
-          <div class="journal-col journal-col-right">
+        </div>
+
+        <!-- Pessoas -->
+        <div id="journal-pane-people" class="journal-pane journal-pane-split hidden">
+          <div class="people-table">
+            <div class="people-col-headers">
+              <span>Pessoa</span>
+              <span>Proximidade</span>
+              <span class="people-last">Última vez</span>
+            </div>
+            <div id="people-rows" class="people-rows"></div>
+          </div>
+          <aside id="people-detail" class="people-detail"></aside>
+        </div>
+
+        <!-- Fragmentos -->
+        <div id="journal-pane-fragments" class="journal-pane hidden">
+          <div class="journal-col">
             <div class="col-kicker">Fragmentos fotografados</div>
             <div id="journal-gallery" class="journal-gallery"></div>
           </div>
         </div>
+
         <footer class="full-menu-foot">
-          <span>F fotografar fragmentos pela cidade</span>
+          <span id="journal-foot-hint">↑↓ navegar · ←→ aba</span>
           <span>Tab fechar</span>
         </footer>
       </div>

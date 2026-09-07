@@ -106,10 +106,10 @@ const BOSS_NPCS = { seu_ivo: 'operario', professora: 'nobre' };
 const PRONOUN_PATTERN = /\{\{m:([^|}]*)\|f:([^|}]*)\|x:([^|}]*)\}\}/g;
 
 export class DialogueSystem {
-  constructor(dialogueTrees, questSystem, uiCallbacks, collectibleSystem, inventorySystem, needsSystem, obligationSystem, gameState, originId, sex) {
+  constructor(dialogueTrees, questSystem, uiCallbacks, collectibleSystem, inventorySystem, needsSystem, obligationSystem, gameState, originId, sex, world) {
     this.trees = dialogueTrees;
     this.quests = questSystem;
-    this.ui = uiCallbacks; // { show(text, options), hide() }
+    this.ui = uiCallbacks; // { show(text, options, npcName, delta), hide() }
     this.collectibles = collectibleSystem;
     this.inventory = inventorySystem;
     this.needs = needsSystem;
@@ -117,6 +117,7 @@ export class DialogueSystem {
     this.gameState = gameState;
     this.originId = originId;
     this.sex = sex;
+    this.world = world;
     this.active = false;
     this.currentNpcId = null;
   }
@@ -169,7 +170,9 @@ export class DialogueSystem {
     this.currentNpcId = npcId;
     this.currentNpc = npc;
     this.nodeId = this._resolveStartNode(npcId, npc);
+    this._lastDelta = 0;
     if (npc) npc.hasMetPlayer = true;
+    this.gameState.recordTalk(npcId, this.world);
     this._render();
   }
 
@@ -183,12 +186,13 @@ export class DialogueSystem {
       (!o.minMoney || this.needs.money >= o.minMoney) &&
       (!o.maxHunger || this.needs.hunger <= o.maxHunger)
     );
-    this.ui.show(text, this._visibleOptions.map(o => o.label));
+    this.ui.show(text, this._visibleOptions.map(o => o.label), this.currentNpc?.def?.name || '', this._lastDelta || 0);
   }
 
   choose(index) {
     const opt = this._visibleOptions?.[index];
     if (!opt) return;
+    this._lastDelta = 0;
     if (opt.effect) this._applyEffect(opt.effect);
     if (opt.next === null) {
       this.close();
@@ -211,7 +215,9 @@ export class DialogueSystem {
     }
     if (effect.type === 'completeObjective') this.quests.completeObjective(effect.quest, effect.objective);
     if (effect.type === 'setFlag') this.gameState.setFlag(effect.flag, effect.value);
-    if (effect.type === 'changeRelationship') this.gameState.changeRelationship(effect.npc, effect.amount);
+    if (effect.type === 'changeRelationship') {
+      this._lastDelta = this.gameState.changeRelationship(effect.npc, effect.amount, effect.note, this.world);
+    }
   }
 
   close() {
