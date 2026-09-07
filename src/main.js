@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CONFIG, ORIGINS, HOMES, OBLIGATIONS, ITEM_DEFS } from './data.js';
+import { CONFIG, ORIGINS, COURSES, HOMES, OBLIGATIONS, ITEM_DEFS } from './data.js';
 import { World } from './world.js';
 import { Player } from './player.js';
 import { createNpcs } from './npc.js';
@@ -153,6 +153,27 @@ class Game {
       this.ui.showMenu(true);
       if (document.pointerLockElement) document.exitPointerLock();
     };
+    document.getElementById('btn-settings').onclick = () => {
+      this.ui.hideMenu();
+      this.ui.showSettings('menu');
+    };
+    document.getElementById('btn-credits').onclick = () => {
+      this.ui.hideMenu();
+      this.ui.showCredits();
+    };
+    document.getElementById('btn-pause-settings').onclick = () => {
+      this.ui.hidePause();
+      this.ui.showSettings('pause');
+    };
+
+    // Voltar da tela de configurações/créditos para onde ela foi aberta.
+    this.ui.onSettingsClose = from => {
+      if (from === 'pause') this.ui.showPause();
+      else this.ui.showMenu(hasSave());
+    };
+    document.getElementById('btn-credits-back').addEventListener('click', () => {
+      this.ui.showMenu(hasSave());
+    });
   }
 
   _bindCharacterCreation() {
@@ -183,8 +204,12 @@ class Game {
   }
 
   _startGame(saveData, profile) {
-    this.profile = profile || { name: 'Alex', sex: 'x', originId: 'operario' };
-    const origin = ORIGINS[this.profile.originId];
+    this.profile = profile || { name: 'Alex', sex: 'f', courseId: 'medicina' };
+    const course = COURSES[this.profile.courseId] || COURSES.medicina;
+    // Nenhum curso define casa/família própria ainda — todos usam a origem
+    // operária como base disso (decisão do usuário), só trocando o
+    // compromisso diário pelo curso escolhido.
+    const origin = ORIGINS.operario;
     this.homeSleepSpot = HOMES[origin.home].sleepSpot;
     this.homeKind = origin.home;
 
@@ -195,12 +220,12 @@ class Game {
       if (!this.player.isDodging) this.player.takeDamage(CONFIG.DUMMY_COUNTER_DAMAGE);
     };
 
-    this.needs = new NeedsSystem(origin.startMoney);
-    this.obligation = new ObligationSystem(OBLIGATIONS[origin.obligation]);
+    this.needs = new NeedsSystem(course.startMoney);
+    this.obligation = new ObligationSystem(OBLIGATIONS[course.obligation]);
     this.dialogue = new DialogueSystem(this.dialogueTrees, this.quests, {
       show: (text, options) => this.ui.showDialogue(text, options, i => this.dialogue.choose(i)),
       hide: () => this.ui.hideDialogue(),
-    }, this.collectibles, this.inventory, this.needs, this.obligation, this.gameState, this.profile.originId, this.profile.sex);
+    }, this.collectibles, this.inventory, this.needs, this.obligation, this.gameState, origin.id, this.profile.sex);
 
     this.ui.hideMenu();
     this.ui.hud.classList.remove('hidden');
@@ -309,9 +334,9 @@ class Game {
     if (this.dialogue.active) return;
 
     // O aviso de contra-ataque tem prioridade sobre qualquer outro prompt —
-    // é a janela real pra esquivar (Q), então precisa ficar bem visível.
+    // é a janela real pra esquivar, então precisa ficar bem visível.
     if (this.dummy.telegraphActive) {
-      this.ui.showPrompt('Q — Esquivar do contra-ataque!', true);
+      this.ui.showPrompt(`${this.ui.getBindingLabel('dodge')} — Esquivar do contra-ataque!`, true);
       return;
     }
 
@@ -325,40 +350,45 @@ class Game {
     const nearbyWorldItem = this.collectibles.findNearbyWorldItem(this.player.position);
     const nearbyFragment = this.collectibles.findNearbyFragment(this.player.position);
 
+    const interactKey = this.ui.getBinding('interact');
+    const interactLabel = this.ui.getBindingLabel('interact');
+    const photoKey = this.ui.getBinding('photo');
+    const photoLabel = this.ui.getBindingLabel('photo');
+
     let promptShown = false;
     if (nearestNpc) {
-      this.ui.showPrompt(`E — Falar com ${nearestNpc.def.name}`);
+      this.ui.showPrompt(`${interactLabel} — Falar com ${nearestNpc.def.name}`);
       promptShown = true;
-      if (this.input.wasPressed('KeyE')) {
+      if (this.input.wasPressed(interactKey)) {
         this.dialogue.start(nearestNpc.def.id, this.world.isNight, nearestNpc);
       }
     } else if (nearbyItem) {
-      this.ui.showPrompt('E — Pegar o livro');
+      this.ui.showPrompt(`${interactLabel} — Pegar o livro`);
       promptShown = true;
-      if (this.input.wasPressed('KeyE')) {
+      if (this.input.wasPressed(interactKey)) {
         this.collectibles.collectItem(nearbyItem);
         this.ui.showToast('Você pegou o livro de Marina.');
       }
     } else if (nearbyWorldItem) {
       const def = ITEM_DEFS[nearbyWorldItem.itemId];
-      this.ui.showPrompt(`E — Pegar ${def.name}`);
+      this.ui.showPrompt(`${interactLabel} — Pegar ${def.name}`);
       promptShown = true;
-      if (this.input.wasPressed('KeyE')) {
+      if (this.input.wasPressed(interactKey)) {
         this.collectibles.collectWorldItem(nearbyWorldItem);
         this.ui.showToast(`Você pegou: ${def.name}`);
       }
     } else if (this._nearSleepSpot()) {
-      this.ui.showPrompt('E — Dormir (recuperar energia e avançar o dia)');
+      this.ui.showPrompt(`${interactLabel} — Dormir (recuperar energia e avançar o dia)`);
       promptShown = true;
-      if (this.input.wasPressed('KeyE')) this._sleep();
+      if (this.input.wasPressed(interactKey)) this._sleep();
     } else if (Math.hypot(this.player.position.x - this.dummy.position.x, this.player.position.z - this.dummy.position.z) < CONFIG.PUNCH_RANGE + 1) {
       this.ui.showPrompt('Clique com o botão esquerdo — Socar o boneco de treino');
       promptShown = true;
     }
 
     if (nearbyFragment) {
-      if (!promptShown) { this.ui.showPrompt('F — Fotografar este instante'); promptShown = true; }
-      if (this.input.wasPressed('KeyF')) {
+      if (!promptShown) { this.ui.showPrompt(`${photoLabel} — Fotografar este instante`); promptShown = true; }
+      if (this.input.wasPressed(photoKey)) {
         const thumb = this._captureThumbnail();
         this.collectibles.capture(nearbyFragment, thumb);
         this.ui.flashPhoto();
@@ -383,19 +413,19 @@ class Game {
     requestAnimationFrame(() => this._loop());
     const dt = Math.min(this.clock.getDelta(), 0.1);
 
-    if (this.input.wasPressed('Tab')) {
+    if (this.input.wasPressed(this.ui.getBinding('journal'))) {
       const opened = this.ui.toggleJournal(this.quests, this.collectibles);
       if (opened) {
         if (document.pointerLockElement) document.exitPointerLock();
       }
     }
-    if (this.input.wasPressed('KeyI')) {
+    if (this.input.wasPressed(this.ui.getBinding('items'))) {
       const opened = this.ui.toggleItemMenu(this.inventory, this.needs, this._boundUseItem, this._boundDiscardItem);
       if (opened) {
         if (document.pointerLockElement) document.exitPointerLock();
       }
     }
-    if (this.input.wasPressed('Escape')) {
+    if (this.input.wasPressed(this.ui.getBinding('pause'))) {
       if (this.ui.isJournalOpen()) this.ui.hideJournal();
       if (this.ui.isItemMenuOpen()) this.ui.hideItemMenu();
     }
@@ -421,7 +451,7 @@ class Game {
       this.player.exhausted = this.needs.isExhausted();
       const { x, y } = this.input.consumeMouseDelta();
       this.player.applyCameraInput(x, y);
-      this.player.update(dt, this.input);
+      this.player.update(dt, this.input, this.ui.getBinding('dodge'));
       // O aviso do contra-ataque só começa quando o jogador não está mais
       // travado no próprio soco, pra não cortar a animação de ataque dele.
       // O dano em si só é resolvido depois (ver onTelegraphExpire), dando

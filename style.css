@@ -22,47 +22,193 @@ html, body {
   background: rgba(6, 8, 12, 0.72); pointer-events: all; z-index: 20;
 }
 
-.menu-panel {
-  max-width: 560px; width: 90%; padding: 36px 40px; text-align: center;
-  background: linear-gradient(180deg, rgba(20,22,28,0.95), rgba(14,15,20,0.95));
-  border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-}
-.menu-panel h1 { font-size: 2.4em; letter-spacing: 0.12em; margin: 0 0 4px; color: #ffd98a; }
-.menu-panel h2 { margin-top: 0; color: #ffd98a; }
-.tagline { color: #9fb3c8; margin: 0 0 18px; font-style: italic; }
-.menu-desc { color: #cfd3da; line-height: 1.5; font-size: 0.95em; }
-.menu-buttons { display: flex; gap: 12px; justify-content: center; margin: 22px 0 18px; flex-wrap: wrap; }
-.menu-buttons button {
-  padding: 12px 22px; font-size: 1em; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15);
-  background: #ffd98a; color: #1a1206; font-weight: 600; cursor: pointer; transition: transform .15s, background .15s;
-}
-.menu-buttons button:hover:not(:disabled) { transform: translateY(-2px); background: #ffe4a8; }
-.menu-buttons button:disabled { background: #3a3a3f; color: #888; cursor: not-allowed; }
-.controls-hint { font-size: 0.82em; color: #8992a0; line-height: 1.6; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 14px; }
+/* Painel restante: só a tela de carregamento usa. */
+.menu-panel { text-align: center; font-family: Archivo, 'Segoe UI', system-ui, sans-serif; }
+.menu-panel h2 { margin: 0 0 6px; font-size: 24px; font-weight: 600; color: #f2f4f7; }
+.menu-desc { margin: 0; font-size: 15px; color: #98a1ac; }
 
-.creation-panel { max-width: 620px; text-align: left; }
-.creation-panel h2 { text-align: center; }
-.creation-panel .menu-desc { text-align: center; }
-.cc-label { display: block; margin: 16px 0 6px; font-size: 0.85em; color: #9fb3c8; text-transform: uppercase; letter-spacing: 0.05em; }
+/* ==========================================================================
+   Menus de início, pausa, configurações e créditos — mesma gramática do HUD:
+   nada de cartão, coluna única alinhada à esquerda, um acento por vez.
+   ========================================================================== */
+
+#menu-screen.overlay { background: linear-gradient(90deg, rgba(7,9,12,0.96) 0 46%, rgba(7,9,12,0.72) 78%, rgba(7,9,12,0.5)); justify-content: flex-start; }
+#creation-screen.overlay, #settings-screen.overlay, #credits-screen.overlay { background: rgba(7, 9, 12, 0.94); }
+#pause-menu.overlay { background: rgba(7, 9, 12, 0.78); justify-content: flex-start; }
+
+.start-screen, .pause-screen {
+  width: min(680px, 92vw); height: min(630px, 88vh); padding: 64px 44px 28px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  font-family: Archivo, 'Segoe UI', system-ui, sans-serif; color: #f2f4f7;
+}
+.pause-screen { justify-content: center; gap: 26px; }
+.start-main { display: flex; flex-direction: column; gap: 22px; }
+.start-titles { display: flex; flex-direction: column; gap: 8px; }
+.start-kicker {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  letter-spacing: 0.24em; text-transform: uppercase; color: oklch(0.78 0.11 225);
+}
+.start-titles h1 { margin: 0; font-size: 62px; font-weight: 600; letter-spacing: -0.025em; line-height: 1; color: #f2f4f7; }
+.start-version, .pause-foot {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: #5f6873;
+}
+.pause-foot { border-top: 1px solid rgba(255, 255, 255, 0.14); padding-top: 14px; color: #7d8794; }
+.pause-head { display: flex; flex-direction: column; gap: 6px; }
+.pause-stamp { font-size: 44px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
+.pause-sub { font-size: 15px; color: #aeb6c0; }
+
+/* ---------- Lista de ações (início e pausa) ---------- */
+.menu-actions { display: flex; flex-direction: column; gap: 2px; width: 330px; margin-top: 10px; }
+.menu-action {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 15px 4px 15px 16px; border: none; background: none; cursor: pointer;
+  border-left: 2px solid transparent; color: #c8cfd8; font: inherit; font-size: 19px; text-align: left;
+}
+.menu-action.divided { border-top: 1px solid rgba(255, 255, 255, 0.09); }
+.menu-action .ms { font-size: 18px; color: #7d8794; }
+.menu-action:hover:not(:disabled) { color: #f2f4f7; background: rgba(255, 255, 255, 0.03); }
+.menu-action.primary {
+  color: #f2f4f7; font-weight: 600;
+  border-left-color: oklch(0.78 0.11 225);
+  background: linear-gradient(90deg, rgba(140, 190, 225, 0.12), transparent 80%);
+}
+.menu-action.primary .ms { color: oklch(0.78 0.11 225); }
+.menu-action:disabled { color: #5f6873; cursor: not-allowed; }
+.menu-action-note {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: #98a1ac;
+}
+.menu-action:disabled .menu-action-note { color: #5f6873; }
+
+/* ---------- Rodapé com ações ---------- */
+.foot-action {
+  border: none; background: none; cursor: pointer; padding: 0;
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  letter-spacing: 0.1em; text-transform: uppercase; color: #7d8794;
+}
+.foot-action:hover:not(:disabled) { color: #f2f4f7; }
+.foot-action.primary {
+  display: flex; align-items: center; gap: 10px;
+  font-family: Archivo, sans-serif; font-size: 17px; font-weight: 600;
+  letter-spacing: 0; text-transform: none; color: oklch(0.78 0.11 225);
+}
+.foot-action.primary:disabled { color: #5f6873; cursor: not-allowed; }
+.foot-action .ms { font-size: 18px; }
+
+/* ---------- Criação de personagem ---------- */
+.creation-body {
+  display: grid; grid-template-columns: 1fr 400px; gap: 52px; min-height: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.14); padding-top: 22px;
+}
+.creation-fields { display: flex; flex-direction: column; gap: 30px; }
+.cc-field { display: flex; flex-direction: column; gap: 11px; }
+.cc-input-line {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  max-width: 420px; border-bottom: 1px solid rgba(255, 255, 255, 0.2); padding-bottom: 8px;
+}
+.cc-input-line:focus-within { border-bottom-color: oklch(0.78 0.11 225); }
 .cc-input {
-  width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15);
-  background: rgba(255,255,255,0.06); color: #eee; font-size: 1em;
+  flex: 1; border: none; background: none; color: #f2f4f7;
+  font: inherit; font-size: 24px; font-weight: 500; padding: 0;
 }
-.cc-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.cc-input:focus { outline: none; }
+.cc-input::placeholder { color: #5f6873; }
+.cc-count { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #7d8794; }
+.cc-row { display: flex; gap: 28px; }
 .cc-chip {
-  padding: 9px 16px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.15);
-  background: rgba(255,255,255,0.05); color: #eee; cursor: pointer; font-size: 0.9em;
+  border: none; background: none; cursor: pointer; padding: 0 0 3px;
+  border-bottom: 2px solid transparent; color: #7d8794; font: inherit; font-size: 17px;
 }
-.cc-chip.selected { background: #ffd98a; color: #1a1206; border-color: #ffd98a; font-weight: 600; }
-.cc-origin-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.cc-origin-card {
-  text-align: left; padding: 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.04); color: #eee; cursor: pointer; display: flex; flex-direction: column; gap: 6px;
+.cc-chip:hover { color: #c8cfd8; }
+.cc-chip.selected { color: #f2f4f7; font-weight: 600; border-bottom-color: oklch(0.78 0.11 225); }
+
+.cc-course-list { display: flex; flex-direction: column; gap: 2px; max-width: 520px; }
+.cc-course-card {
+  display: flex; align-items: center; gap: 13px; text-align: left;
+  border: none; background: none; cursor: pointer;
+  padding: 13px 4px 13px 16px; border-left: 2px solid transparent;
+  color: #aeb6c0; font: inherit; font-size: 18px; font-weight: 600;
 }
-.cc-origin-card strong { color: #ffd98a; font-size: 0.95em; }
-.cc-origin-card span { font-size: 0.82em; color: #c3c8d2; line-height: 1.4; }
-.cc-origin-card.selected { border-color: #ffd98a; background: rgba(255,217,138,0.1); }
+.cc-course-card .ms { font-size: 20px; color: #8d97a4; }
+.cc-course-card:hover { color: #e3e7ec; background: rgba(255, 255, 255, 0.03); }
+.cc-course-card.selected {
+  color: #f2f4f7; border-left-color: oklch(0.78 0.11 225);
+  background: linear-gradient(90deg, rgba(140, 190, 225, 0.1), transparent 80%);
+}
+.cc-course-card.selected .ms { color: oklch(0.78 0.11 225); }
+
+.creation-summary {
+  display: flex; flex-direction: column; gap: 16px;
+  border-left: 1px solid rgba(255, 255, 255, 0.14); padding-left: 30px;
+}
+.cc-summary-rows { display: flex; flex-direction: column; gap: 9px; }
+.cc-summary-row {
+  display: flex; justify-content: space-between; gap: 16px; font-size: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09); padding-bottom: 7px;
+}
+.cc-summary-row:last-child { border-bottom: none; padding-bottom: 0; }
+.cc-summary-row span:first-child { color: #98a1ac; }
+.cc-summary-row .num { font-family: 'IBM Plex Mono', monospace; }
+.cc-summary-row .money { font-family: 'IBM Plex Mono', monospace; color: oklch(0.82 0.13 88); font-weight: 600; }
+.cc-summary-note { margin: 2px 0 0; font-size: 13px; color: #7d8794; line-height: 1.5; }
+
+/* ---------- Configurações › Controles ---------- */
+.settings-tabs { display: flex; gap: 20px; }
+.settings-tab {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+  letter-spacing: 0.16em; text-transform: uppercase; color: #7d8794;
+  padding-bottom: 3px; border-bottom: 2px solid transparent;
+}
+.settings-tab.selected { color: #f2f4f7; border-bottom-color: oklch(0.78 0.11 225); }
+
+.settings-body {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 52px; min-height: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.14); padding-top: 22px;
+}
+.settings-col { display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow-y: auto; }
+.settings-col-right { border-left: 1px solid rgba(255, 255, 255, 0.14); padding-left: 30px; }
+.keybind-list { display: flex; flex-direction: column; gap: 11px; }
+
+.keybind-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  font-size: 15px; border-bottom: 1px solid rgba(255, 255, 255, 0.09); padding-bottom: 9px;
+}
+.keybind-row:last-child { border-bottom: none; padding-bottom: 0; }
+.keybind-keys { display: flex; align-items: center; gap: 5px; }
+.keycap {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600;
+  padding: 4px 9px; border: 1px solid rgba(255, 255, 255, 0.32); border-radius: 3px;
+  background: none; color: inherit;
+}
+.keybind-row .fixed { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #98a1ac; }
+button.keycap { cursor: pointer; }
+button.keycap:hover { border-color: rgba(255, 255, 255, 0.6); }
+.keybind-row.listening {
+  padding: 9px 4px 9px 12px; margin-left: -12px; border-bottom-color: transparent;
+  border-left: 2px solid oklch(0.78 0.11 225);
+  background: linear-gradient(90deg, rgba(140, 190, 225, 0.12), transparent 80%);
+}
+.keybind-hint {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: oklch(0.78 0.11 225);
+}
+.keybind-row.listening button.keycap { border-color: oklch(0.78 0.11 225); color: oklch(0.78 0.11 225); }
+.keybind-row.conflict button.keycap { border-color: oklch(0.7 0.15 25); color: oklch(0.75 0.15 25); }
+
+/* ---------- Créditos ---------- */
+.credits-body {
+  display: flex; flex-direction: column; gap: 30px; min-height: 0; overflow-y: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.14); padding-top: 22px;
+}
+.credits-group { display: flex; flex-direction: column; gap: 14px; }
+.credits-rows { display: flex; flex-direction: column; gap: 9px; max-width: 560px; }
+.credits-row {
+  display: flex; justify-content: space-between; gap: 16px; font-size: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09); padding-bottom: 8px;
+}
+.credits-row:last-child { border-bottom: none; padding-bottom: 0; }
+.credits-row span:first-child { color: #98a1ac; }
 
 /* ==========================================================================
    HUD "Sem caixa" — sem painéis: tipografia, traços finos e sombra.
@@ -366,7 +512,11 @@ html, body {
 }
 
 @media (max-width: 720px) {
-  .menu-panel { padding: 24px 20px; }
+  .start-screen, .pause-screen { padding: 32px 20px 18px; }
+  .start-titles h1 { font-size: 40px; }
+  .menu-actions { width: 100%; }
+  .creation-body, .settings-body { grid-template-columns: 1fr; gap: 24px; }
+  .creation-summary, .settings-col-right { border-left: none; padding-left: 0; }
   .full-menu { padding: 24px 20px 18px; }
   .journal-columns, .item-menu-body { grid-template-columns: 1fr; gap: 24px; }
   .journal-col-right, .item-menu-detail-dock { border-left: none; padding-left: 0; }

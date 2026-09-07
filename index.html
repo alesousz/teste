@@ -31,69 +31,166 @@
 
     <!-- Tela inicial -->
     <div id="menu-screen" class="overlay hidden">
-      <div class="menu-panel">
-        <h1>ECOS DA CIDADE</h1>
-        <p class="tagline">Um RPG de exploração no mundo moderno.</p>
-        <p class="menu-desc">
-          Chegue a uma cidade qualquer, sem missão de dominá-la ou destruí-la.
-          Converse, observe, fotografe instantes esquecidos. A cidade continua
-          girando — o que você faz com o tempo dentro dela é só seu.
-        </p>
-        <div class="menu-buttons">
-          <button id="btn-newgame">Iniciar Jornada</button>
-          <button id="btn-continue" disabled>Continuar</button>
+      <div class="start-screen">
+        <div class="start-main">
+          <div class="start-titles">
+            <div class="start-kicker">Um RPG de exploração no mundo moderno</div>
+            <h1>Ecos da Cidade</h1>
+          </div>
+          <div class="menu-actions">
+            <button id="btn-newgame" class="menu-action primary">
+              <span>Iniciar jornada</span>
+              <span class="ms">arrow_forward</span>
+            </button>
+            <button id="btn-continue" class="menu-action" disabled>
+              <span>Continuar</span>
+              <span id="btn-continue-note" class="menu-action-note">Sem jogo salvo</span>
+            </button>
+            <button id="btn-settings" class="menu-action divided">
+              <span>Configurações</span>
+              <span class="ms">tune</span>
+            </button>
+            <button id="btn-credits" class="menu-action">
+              <span>Créditos</span>
+              <span class="ms">info</span>
+            </button>
+          </div>
         </div>
-        <div class="controls-hint">
-          <strong>Controles:</strong> WASD mover · Shift correr · Mouse (clique para travar o cursor) olhar ·
-          E interagir · F fotografar · Tab diário · I itens · Esc pausar
-        </div>
+        <div class="start-version">Ecos da Cidade · v0.1</div>
       </div>
     </div>
 
     <!-- Criação de personagem -->
     <div id="creation-screen" class="overlay hidden">
-      <div class="menu-panel creation-panel">
-        <h2>Antes de começar...</h2>
-        <p class="menu-desc">Toda vida começa em algum lugar. A sua começa aqui.</p>
-
-        <label class="cc-label" for="cc-name">Como você se chama?</label>
-        <input id="cc-name" class="cc-input" type="text" maxlength="24" placeholder="Seu nome" />
-
-        <label class="cc-label">Você é...</label>
-        <div class="cc-row">
-          <button class="cc-chip" data-sex="m">Homem</button>
-          <button class="cc-chip" data-sex="f">Mulher</button>
-          <button class="cc-chip" data-sex="x">Não-binário</button>
+      <div class="full-menu">
+        <header class="full-menu-head">
+          <div class="full-menu-titles">
+            <h2>Antes de começar</h2>
+            <span class="full-menu-stamp">Toda vida começa em algum lugar</span>
+          </div>
+        </header>
+        <div class="creation-body">
+          <div class="creation-fields">
+            <div class="cc-field">
+              <div class="col-kicker">Como você se chama</div>
+              <div class="cc-input-line">
+                <input id="cc-name" class="cc-input" type="text" maxlength="24" placeholder="Seu nome" />
+                <span id="cc-name-count" class="cc-count">0 / 24</span>
+              </div>
+            </div>
+            <div class="cc-field">
+              <div class="col-kicker">Você é</div>
+              <div class="cc-row">
+                <button class="cc-chip" data-sex="m">Homem</button>
+                <button class="cc-chip" data-sex="f">Mulher</button>
+              </div>
+            </div>
+            <div class="cc-field">
+              <div class="col-kicker">Qual curso você escolheu</div>
+              <div id="cc-course-list" class="cc-course-list"></div>
+            </div>
+          </div>
+          <aside class="creation-summary">
+            <div class="col-kicker">O que esse curso decide</div>
+            <div id="cc-course-summary" class="cc-summary-rows"></div>
+            <p id="cc-course-note" class="cc-summary-note"></p>
+          </aside>
         </div>
-
-        <label class="cc-label">Onde você nasceu?</label>
-        <div class="cc-origin-row">
-          <button class="cc-origin-card" data-origin="operario">
-            <strong>Bairro Operário</strong>
-            <span>Você cresceu apertado, mas cercado de gente que se ajuda. Começa hoje seu primeiro turno no mercado — R$60 no bolso.</span>
+        <footer class="full-menu-foot">
+          <button id="cc-back" class="foot-action">Esc voltar</button>
+          <button id="cc-confirm" class="foot-action primary" disabled>
+            <span>Começar a vida</span>
+            <span class="ms">arrow_forward</span>
           </button>
-          <button class="cc-origin-card" data-origin="nobre">
-            <strong>Bairro Nobre</strong>
-            <span>Você nunca precisou se preocupar com dinheiro, mas a cobrança em casa é constante. Começa hoje numa escola nova — R$250 no bolso.</span>
-          </button>
-        </div>
-
-        <div class="menu-buttons">
-          <button id="cc-back">Voltar</button>
-          <button id="cc-confirm" disabled>Começar a Vida</button>
-        </div>
+        </footer>
       </div>
     </div>
 
     <!-- Menu de pausa -->
     <div id="pause-menu" class="overlay hidden">
-      <div class="menu-panel">
-        <h2>Pausado</h2>
-        <p class="menu-desc">Clique na tela para voltar a olhar ao redor.</p>
-        <div class="menu-buttons">
-          <button id="btn-resume">Continuar Jogando</button>
-          <button id="btn-save-quit">Salvar e Sair ao Menu</button>
+      <div class="pause-screen">
+        <div class="pause-head">
+          <div class="start-kicker">Pausado</div>
+          <div id="pause-stamp" class="pause-stamp">Dia 1, 00:00</div>
+          <div id="pause-sub" class="pause-sub"></div>
         </div>
+        <div class="menu-actions">
+          <button id="btn-resume" class="menu-action primary">
+            <span>Continuar jogando</span>
+            <span class="menu-action-note">Clique na tela</span>
+          </button>
+          <button id="btn-pause-settings" class="menu-action divided">
+            <span>Configurações</span>
+            <span class="ms">chevron_right</span>
+          </button>
+          <button id="btn-save-quit" class="menu-action">
+            <span>Salvar e sair ao menu</span>
+            <span class="ms">logout</span>
+          </button>
+        </div>
+        <div class="pause-foot">Progresso salvo automaticamente</div>
+      </div>
+    </div>
+
+    <!-- Configurações › Controles (abre do menu inicial e da pausa) -->
+    <div id="settings-screen" class="overlay hidden">
+      <div class="full-menu">
+        <header class="full-menu-head">
+          <div class="full-menu-titles">
+            <h2>Configurações</h2>
+            <div class="settings-tabs">
+              <span class="settings-tab selected">Controles</span>
+            </div>
+          </div>
+          <span class="full-menu-stamp">Teclado e mouse</span>
+        </header>
+        <div class="settings-body">
+          <div class="settings-col">
+            <div class="col-kicker accent">Movimento</div>
+            <div id="keybinds-fixed" class="keybind-list"></div>
+          </div>
+          <div class="settings-col settings-col-right">
+            <div class="col-kicker accent">Ação e menus</div>
+            <div id="keybinds-editable" class="keybind-list"></div>
+          </div>
+        </div>
+        <footer class="full-menu-foot">
+          <button id="btn-keybinds-reset" class="foot-action">R restaurar padrões</button>
+          <button id="btn-settings-back" class="foot-action">Esc voltar</button>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Créditos -->
+    <div id="credits-screen" class="overlay hidden">
+      <div class="full-menu">
+        <header class="full-menu-head">
+          <div class="full-menu-titles">
+            <h2>Créditos</h2>
+            <span class="full-menu-stamp">Ecos da Cidade · v0.1</span>
+          </div>
+        </header>
+        <div class="credits-body">
+          <div class="credits-group">
+            <div class="col-kicker accent">Jogo</div>
+            <div class="credits-rows">
+              <div class="credits-row"><span>Desenvolvimento</span><span>alesousz</span></div>
+              <div class="credits-row"><span>Cidade, missões e diálogos</span><span>alesousz</span></div>
+            </div>
+          </div>
+          <div class="credits-group">
+            <div class="col-kicker accent">Tecnologia</div>
+            <div class="credits-rows">
+              <div class="credits-row"><span>Motor 3D</span><span>three.js 0.160.0</span></div>
+              <div class="credits-row"><span>Tipografia</span><span>Archivo · IBM Plex Mono</span></div>
+              <div class="credits-row"><span>Ícones</span><span>Material Symbols Rounded</span></div>
+            </div>
+          </div>
+        </div>
+        <footer class="full-menu-foot">
+          <span>Obrigado por jogar</span>
+          <button id="btn-credits-back" class="foot-action">Esc voltar</button>
+        </footer>
       </div>
     </div>
 

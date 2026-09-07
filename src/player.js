@@ -57,7 +57,7 @@ export class Player {
     if (this.hp === 0) this.koTimer = CONFIG.PLAYER_KO_RECOVER_DELAY;
   }
 
-  update(dt, input) {
+  update(dt, input, dodgeKey = 'KeyQ') {
     const moveX = (input.isDown('KeyD') ? 1 : 0) - (input.isDown('KeyA') ? 1 : 0);
     const moveZ = (input.isDown('KeyS') ? 1 : 0) - (input.isDown('KeyW') ? 1 : 0);
     const hasInput = moveX !== 0 || moveZ !== 0;
@@ -101,7 +101,7 @@ export class Player {
     // Esquiva: enquanto isDodging for true, takeDamage() não faz nada — é
     // a janela de invulnerabilidade que dá sentido a esquivar do
     // contra-ataque telegrafado do boneco de treino.
-    if (input.wasPressed('KeyQ') && this.isGrounded && !this.isAttacking && !this.isHitStunned && !this.isDodging && !this.isCrouching && this.stamina >= CONFIG.DODGE_STAMINA_COST) {
+    if (input.wasPressed(dodgeKey) && this.isGrounded && !this.isAttacking && !this.isHitStunned && !this.isDodging && !this.isCrouching && this.stamina >= CONFIG.DODGE_STAMINA_COST) {
       this.isDodging = true;
       this.stamina -= CONFIG.DODGE_STAMINA_COST;
       this.rig.playOnce('dodge', () => { this.isDodging = false; });

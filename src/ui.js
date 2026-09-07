@@ -1,4 +1,4 @@
-import { CONFIG, QUESTS, ITEM_CATEGORIES, landmarkCenter } from './data.js';
+import { CONFIG, QUESTS, ITEM_CATEGORIES, COURSES, KEYBIND_ACTIONS, FIXED_CONTROLS, DEFAULT_KEYBINDS, landmarkCenter } from './data.js';
 
 // Bússola: abertura de 180° e os pontos cardeais em português. Na prática,
 // player.facingAngle é 0 = +Z (não -Z): targetAngle em player.js vem de
@@ -12,6 +12,22 @@ const CARDINALS = ['N', 'NE', 'L', 'SE', 'S', 'SO', 'O', 'NO'];
 function bearingTo(from, to) {
   return Math.atan2(to.x - from.x, to.z - from.z);
 }
+const KEYBINDS_STORAGE = 'ecos.keybinds';
+
+// Rótulo curto pra tecla, a partir do KeyboardEvent.code.
+function keyLabel(code) {
+  if (!code) return '—';
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Digit')) return code.slice(5);
+  if (code.startsWith('Numpad')) return 'Num ' + code.slice(6);
+  const named = {
+    Escape: 'Esc', Space: 'Space', Tab: 'Tab', Enter: 'Enter', Backspace: 'Backspace',
+    ShiftLeft: 'Shift', ShiftRight: 'Shift dir.', ControlLeft: 'Ctrl', ControlRight: 'Ctrl dir.',
+    AltLeft: 'Alt', AltRight: 'Alt dir.', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
+  };
+  return named[code] || code;
+}
+
 function normalizeAngle(a) {
   while (a > Math.PI) a -= Math.PI * 2;
   while (a < -Math.PI) a += Math.PI * 2;
@@ -64,9 +80,27 @@ export class UI {
 
     this.creationScreen = document.getElementById('creation-screen');
     this.ccNameInput = document.getElementById('cc-name');
+    this.ccNameCount = document.getElementById('cc-name-count');
     this.ccConfirmBtn = document.getElementById('cc-confirm');
-    this._cc = { sex: null, originId: null };
+    this.ccCourseList = document.getElementById('cc-course-list');
+    this.ccCourseSummary = document.getElementById('cc-course-summary');
+    this.ccCourseNote = document.getElementById('cc-course-note');
+    this._cc = { sex: null, courseId: null };
     this._bindCreationChips();
+
+    this.continueNote = document.getElementById('btn-continue-note');
+    this.pauseStamp = document.getElementById('pause-stamp');
+    this.pauseSub = document.getElementById('pause-sub');
+
+    // Configurações / créditos
+    this.settingsScreen = document.getElementById('settings-screen');
+    this.creditsScreen = document.getElementById('credits-screen');
+    this.keybindsFixed = document.getElementById('keybinds-fixed');
+    this.keybindsEditable = document.getElementById('keybinds-editable');
+    this._settingsFrom = 'menu';
+    this._listeningAction = null;
+    this.keybinds = this._loadKeybinds();
+    this._bindSettings();
 
     this.needsBar = document.getElementById('needs-bar');
     this.hpFill = document.getElementById('hp-fill');
@@ -90,20 +124,46 @@ export class UI {
         this._updateCreationValidity();
       };
     });
-    document.querySelectorAll('[data-origin]').forEach(el => {
-      el.onclick = () => {
-        document.querySelectorAll('[data-origin]').forEach(o => o.classList.remove('selected'));
-        el.classList.add('selected');
-        this._cc.originId = el.dataset.origin;
-        this._updateCreationValidity();
-      };
-    });
+    this._renderCourses();
     this.ccNameInput?.addEventListener('input', () => this._updateCreationValidity());
   }
 
+  _renderCourses() {
+    if (!this.ccCourseList) return;
+    this.ccCourseList.innerHTML = Object.values(COURSES).map(c => `
+      <button class="cc-course-card" data-course="${c.id}">
+        <span class="ms">${c.glyph}</span>
+        <span>${c.label}</span>
+      </button>
+    `).join('');
+    this.ccCourseList.querySelectorAll('[data-course]').forEach(el => {
+      el.onclick = () => {
+        this.ccCourseList.querySelectorAll('[data-course]').forEach(o => o.classList.remove('selected'));
+        el.classList.add('selected');
+        this._cc.courseId = el.dataset.course;
+        this._renderCourseSummary(el.dataset.course);
+        this._updateCreationValidity();
+      };
+    });
+  }
+
+  _renderCourseSummary(courseId) {
+    const c = COURSES[courseId];
+    if (!c || !this.ccCourseSummary) return;
+    const hours = `${String(c.startHour).padStart(2, '0')}:00 – ${String(c.endHour).padStart(2, '0')}:00`;
+    this.ccCourseSummary.innerHTML = `
+      <div class="cc-summary-row"><span>Compromisso</span><span>${c.obligationLabel}</span></div>
+      <div class="cc-summary-row"><span>Horário</span><span class="num">${hours}</span></div>
+      <div class="cc-summary-row"><span>Idade</span><span>${c.age} anos</span></div>
+      <div class="cc-summary-row"><span>No bolso</span><span class="money">R$${c.startMoney}</span></div>
+    `;
+    if (this.ccCourseNote) this.ccCourseNote.textContent = c.note || '';
+  }
+
   _updateCreationValidity() {
-    const nameOk = this.ccNameInput.value.trim().length > 0;
-    this.ccConfirmBtn.disabled = !(nameOk && this._cc.sex && this._cc.originId);
+    const name = this.ccNameInput.value.trim();
+    if (this.ccNameCount) this.ccNameCount.textContent = `${name.length} / 24`;
+    this.ccConfirmBtn.disabled = !(name.length > 0 && this._cc.sex && this._cc.courseId);
   }
 
   showCreation() {
@@ -114,7 +174,7 @@ export class UI {
 
   getCreationProfile() {
     if (this.ccConfirmBtn.disabled) return null;
-    return { name: this.ccNameInput.value.trim(), sex: this._cc.sex, originId: this._cc.originId };
+    return { name: this.ccNameInput.value.trim(), sex: this._cc.sex, courseId: this._cc.courseId };
   }
 
   hideLoading() { this.loadingScreen.classList.add('hidden'); }
@@ -122,10 +182,21 @@ export class UI {
   showMenu(canContinue) {
     this.menuScreen.classList.remove('hidden');
     this.continueBtn.disabled = !canContinue;
+    if (this.continueNote) this.continueNote.textContent = canContinue ? 'Retomar o dia' : 'Sem jogo salvo';
   }
   hideMenu() { this.menuScreen.classList.add('hidden'); }
 
-  showPause() { this.pauseMenu.classList.remove('hidden'); }
+  // A pausa reaproveita o que o HUD já mostra (dia, hora, compromisso, dinheiro).
+  showPause() {
+    if (this.pauseStamp) this.pauseStamp.textContent = `${this.dayEl.textContent}, ${this.clockEl.textContent}`;
+    if (this.pauseSub) {
+      const status = this.scheduleBox.querySelector('.schedule-status')?.textContent;
+      const label = this.scheduleBox.querySelector('.schedule-label')?.textContent;
+      const duty = label && status ? `${label}: ${status.toLowerCase()}` : null;
+      this.pauseSub.textContent = [duty, `${this.moneyValue.textContent} no bolso`].filter(Boolean).join(' · ');
+    }
+    this.pauseMenu.classList.remove('hidden');
+  }
   hidePause() { this.pauseMenu.classList.add('hidden'); }
 
   updateHUD(world, questSystem, needs, obligation, player) {
@@ -493,5 +564,112 @@ export class UI {
     for (const [id, el] of this._markerEls) {
       if (!seen.has(id)) el.style.display = 'none';
     }
+  }
+  // -------------------------------------------------------------------
+  // Configurações › Controles — a mesma tela abre do menu inicial e da
+  // pausa; `from` decide pra onde o "voltar" retorna. As teclas ficam em
+  // localStorage e são lidas pelo main.js via getBinding().
+  // -------------------------------------------------------------------
+  _loadKeybinds() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(KEYBINDS_STORAGE) || '{}');
+      return { ...DEFAULT_KEYBINDS, ...saved };
+    } catch {
+      return { ...DEFAULT_KEYBINDS };
+    }
+  }
+
+  _saveKeybinds() {
+    try { localStorage.setItem(KEYBINDS_STORAGE, JSON.stringify(this.keybinds)); } catch {}
+  }
+
+  getBinding(action) { return this.keybinds[action] || DEFAULT_KEYBINDS[action]; }
+  getBindingLabel(action) { return keyLabel(this.getBinding(action)); }
+
+  _bindSettings() {
+    document.getElementById('btn-settings-back')?.addEventListener('click', () => this.hideSettings());
+    document.getElementById('btn-credits-back')?.addEventListener('click', () => this.hideCredits());
+    document.getElementById('btn-keybinds-reset')?.addEventListener('click', () => {
+      this.keybinds = { ...DEFAULT_KEYBINDS };
+      this._saveKeybinds();
+      this._renderKeybinds();
+    });
+
+    // A tela abre também fora do loop do jogo (menu inicial), então ela
+    // escuta o teclado por conta própria.
+    window.addEventListener('keydown', e => {
+      if (this.isCreditsOpen() && e.code === 'Escape') { e.preventDefault(); this.hideCredits(); return; }
+      if (!this.isSettingsOpen()) return;
+      if (this._listeningAction) {
+        e.preventDefault();
+        if (e.code !== 'Escape') {
+          // Se a tecla já era de outra ação, a outra fica sem tecla.
+          for (const [action, code] of Object.entries(this.keybinds)) {
+            if (code === e.code && action !== this._listeningAction) this.keybinds[action] = null;
+          }
+          this.keybinds[this._listeningAction] = e.code;
+          this._saveKeybinds();
+        }
+        this._listeningAction = null;
+        this._renderKeybinds();
+        return;
+      }
+      if (e.code === 'Escape') { e.preventDefault(); this.hideSettings(); }
+      if (e.code === 'KeyR') {
+        this.keybinds = { ...DEFAULT_KEYBINDS };
+        this._saveKeybinds();
+        this._renderKeybinds();
+      }
+    });
+  }
+
+  showSettings(from = 'menu') {
+    this._settingsFrom = from;
+    this._listeningAction = null;
+    this._renderKeybinds();
+    this.settingsScreen.classList.remove('hidden');
+  }
+  hideSettings() {
+    this._listeningAction = null;
+    this.settingsScreen.classList.add('hidden');
+    this.onSettingsClose?.(this._settingsFrom);
+  }
+  isSettingsOpen() { return !this.settingsScreen.classList.contains('hidden'); }
+
+  showCredits() { this.creditsScreen.classList.remove('hidden'); }
+  hideCredits() { this.creditsScreen.classList.add('hidden'); }
+  isCreditsOpen() { return !this.creditsScreen.classList.contains('hidden'); }
+
+  _renderKeybinds() {
+    if (this.keybindsFixed) {
+      this.keybindsFixed.innerHTML = FIXED_CONTROLS.map(c => `
+        <div class="keybind-row">
+          <span>${c.label}</span>
+          ${c.keys
+            ? `<span class="keybind-keys">${c.keys.map(k => `<span class="keycap">${k}</span>`).join('')}</span>`
+            : `<span class="fixed">${c.device}</span>`}
+        </div>
+      `).join('');
+    }
+    if (!this.keybindsEditable) return;
+    this.keybindsEditable.innerHTML = KEYBIND_ACTIONS.map(a => {
+      const listening = this._listeningAction === a.id;
+      const code = this.keybinds[a.id];
+      return `
+        <div class="keybind-row ${listening ? 'listening' : ''} ${code ? '' : 'conflict'}" data-action="${a.id}">
+          <span>${a.label}</span>
+          <span class="keybind-keys">
+            ${listening ? '<span class="keybind-hint">Pressione a nova tecla</span>' : ''}
+            <button class="keycap" data-rebind="${a.id}">${keyLabel(code)}</button>
+          </span>
+        </div>
+      `;
+    }).join('');
+    this.keybindsEditable.querySelectorAll('[data-rebind]').forEach(el => {
+      el.onclick = () => {
+        this._listeningAction = el.dataset.rebind;
+        this._renderKeybinds();
+      };
+    });
   }
 }

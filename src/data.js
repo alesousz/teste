@@ -373,6 +373,24 @@ export const ORIGINS = {
 };
 
 // ---------------------------------------------------------------------------
+// Cursos — a criação de personagem escolhe um curso (não mais um bairro de
+// origem). Por ora nenhum curso define casa/família própria: todos usam
+// ORIGINS.operario como base disso, só trocando o compromisso diário pelo
+// curso escolhido. Cada curso reaproveita o compromisso de "school" (mesma
+// Professora Elaine, mesmo prédio) — não é conteúdo novo, só um rótulo novo.
+// ---------------------------------------------------------------------------
+const courseObligation = (id, label) => ({ ...OBLIGATIONS.school, id, label });
+OBLIGATIONS.course_medicina = courseObligation('course_medicina', 'Aula de Medicina');
+OBLIGATIONS.course_direito = courseObligation('course_direito', 'Aula de Direito');
+OBLIGATIONS.course_engenharia = courseObligation('course_engenharia', 'Aula de Engenharia');
+
+export const COURSES = {
+  medicina: { id: 'medicina', label: 'Medicina', glyph: 'stethoscope', age: 18, startHour: 8, endHour: 14, startMoney: 60, obligationLabel: 'Aula de Medicina', obligation: 'course_medicina', note: 'Faltar à aula três vezes te tira do curso — e a família comenta.' },
+  direito: { id: 'direito', label: 'Direito', glyph: 'gavel', age: 18, startHour: 8, endHour: 14, startMoney: 60, obligationLabel: 'Aula de Direito', obligation: 'course_direito', note: 'Faltar à aula três vezes te tira do curso — e a família comenta.' },
+  engenharia: { id: 'engenharia', label: 'Engenharia', glyph: 'engineering', age: 18, startHour: 8, endHour: 14, startMoney: 60, obligationLabel: 'Aula de Engenharia', obligation: 'course_engenharia', note: 'Faltar à aula três vezes te tira do curso — e a família comenta.' },
+};
+
+// ---------------------------------------------------------------------------
 // Item de missão: o livro perdido de Marina
 // ---------------------------------------------------------------------------
 export const ITEM_PROPS = [
@@ -463,4 +481,37 @@ export const QUESTS = {
     autoStart: true,
   },
 };
+
+// ---------------------------------------------------------------------------
+// Controles — ações remapeáveis (lidas pelo main.js via ui.getBinding(id)) e
+// os controles que continuam fixos por enquanto porque vivem em player.js
+// (movimento, corrida, pulo, agachar) — só exibidos como referência na tela
+// de configurações, não editáveis.
+// ---------------------------------------------------------------------------
+export const KEYBIND_ACTIONS = [
+  { id: 'interact', label: 'Interagir / conversar' },
+  { id: 'photo', label: 'Fotografar fragmento' },
+  { id: 'dodge', label: 'Esquivar' },
+  { id: 'journal', label: 'Diário' },
+  { id: 'items', label: 'Itens' },
+  { id: 'pause', label: 'Pausar' },
+];
+
+export const DEFAULT_KEYBINDS = {
+  interact: 'KeyE',
+  photo: 'KeyF',
+  dodge: 'KeyQ',
+  journal: 'Tab',
+  items: 'KeyI',
+  pause: 'Escape',
+};
+
+export const FIXED_CONTROLS = [
+  { label: 'Mover', keys: ['W', 'A', 'S', 'D'] },
+  { label: 'Correr', keys: ['Shift'] },
+  { label: 'Pular', keys: ['Space'] },
+  { label: 'Agachar', keys: ['C'] },
+  { label: 'Olhar ao redor', device: 'Mouse' },
+  { label: 'Socar', device: 'Clique esquerdo' },
+];
 
