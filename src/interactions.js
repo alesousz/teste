@@ -5,8 +5,12 @@ import { QUESTS, FRAGMENT_SPOTS, ITEM_PROPS, WORLD_ITEM_SPOTS, CONFIG } from './
 // Sistema de missões
 // ---------------------------------------------------------------------------
 export class QuestSystem {
-  constructor(onChange) {
+  // `gameState` é opcional — hoje o QuestSystem não consulta nem altera
+  // flags/relacionamentos sozinho, mas fica com a referência pronta pra
+  // quando uma missão precisar disso (ex: exigir uma flag pra iniciar).
+  constructor(onChange, gameState = null) {
     this.onChange = onChange || (() => {});
+    this.gameState = gameState;
     this.state = {}; // id -> {active, done, objectives: {objId: {done, count}}}
     for (const q of Object.values(QUESTS)) {
       this.state[q.id] = {
@@ -102,7 +106,7 @@ const BOSS_NPCS = { seu_ivo: 'operario', professora: 'nobre' };
 const PRONOUN_PATTERN = /\{\{m:([^|}]*)\|f:([^|}]*)\|x:([^|}]*)\}\}/g;
 
 export class DialogueSystem {
-  constructor(dialogueTrees, questSystem, uiCallbacks, collectibleSystem, inventorySystem, needsSystem, obligationSystem, originId, sex) {
+  constructor(dialogueTrees, questSystem, uiCallbacks, collectibleSystem, inventorySystem, needsSystem, obligationSystem, gameState, originId, sex) {
     this.trees = dialogueTrees;
     this.quests = questSystem;
     this.ui = uiCallbacks; // { show(text, options), hide() }
@@ -110,6 +114,7 @@ export class DialogueSystem {
     this.inventory = inventorySystem;
     this.needs = needsSystem;
     this.obligation = obligationSystem;
+    this.gameState = gameState;
     this.originId = originId;
     this.sex = sex;
     this.active = false;
@@ -130,7 +135,22 @@ export class DialogueSystem {
       case 'obligationHasMisses': return this.obligation.misses > 0;
       case 'isPlayerFamily': return FAMILY_NPCS[npcId] === this.originId;
       case 'isPlayerBoss': return BOSS_NPCS[npcId] === this.originId;
+      case 'flag': return this.gameState.getFlag(cond.flag) === cond.value;
+      case 'relationship': return this._compareRelationship(cond.npc, cond.operator, cond.value);
       case 'not': return !this._evalCondition(cond.of, npcId, npc);
+      default: return false;
+    }
+  }
+
+  _compareRelationship(npcId, operator, value) {
+    const rel = this.gameState.getRelationship(npcId);
+    switch (operator) {
+      case '>': return rel > value;
+      case '>=': return rel >= value;
+      case '<': return rel < value;
+      case '<=': return rel <= value;
+      case '==': return rel === value;
+      case '!=': return rel !== value;
       default: return false;
     }
   }
@@ -190,6 +210,8 @@ export class DialogueSystem {
       }
     }
     if (effect.type === 'completeObjective') this.quests.completeObjective(effect.quest, effect.objective);
+    if (effect.type === 'setFlag') this.gameState.setFlag(effect.flag, effect.value);
+    if (effect.type === 'changeRelationship') this.gameState.changeRelationship(effect.npc, effect.amount);
   }
 
   close() {
