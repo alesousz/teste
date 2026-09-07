@@ -15,7 +15,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Portão do deploy. Só os testes unitários travam a publicação: rodam em
+  # segundos, são determinísticos e não abrem navegador, então o custo de
+  # exigi-los é praticamente zero. Os E2E continuam rodando em
+  # test.yml (a cada push e PR) sem bloquear — são lentos e dependem de
+  # timing, e um gate que trava por motivo bobo ensina a contornar o gate.
+  unit:
+    name: Testes unitários
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:unit
+
   deploy:
+    needs: unit
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
