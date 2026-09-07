@@ -114,12 +114,16 @@ class Game {
   }
 
   async _boot() {
-    const [, dialogueTrees] = await Promise.all([
-      preloadCharacterAssets(),
-      fetch('src/data/dialogues.json').then(r => r.json()),
-    ]);
-    this.dialogueTrees = dialogueTrees;
+    this.ui.setLoadingProgress(0.1, 'Carregando personagens');
+    await preloadCharacterAssets();
+
+    this.ui.setLoadingProgress(0.5, 'Carregando diálogos');
+    this.dialogueTrees = await fetch('src/data/dialogues.json').then(r => r.json());
+
+    this.ui.setLoadingProgress(0.8, 'Montando a cidade');
     this.npcs = createNpcs(this.scene, this.world);
+
+    this.ui.setLoadingProgress(1, 'Pronto');
     this.ui.hideLoading();
     this.ui.showMenu(hasSave());
   }
