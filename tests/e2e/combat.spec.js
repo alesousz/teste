@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createNewGameViaMenu, collectConsoleErrors } from './helpers.js';
+import { startGameRunning, collectConsoleErrors } from './helpers.js';
 
 async function positionPlayerAtDummy(page) {
   await page.evaluate(() => {
@@ -10,11 +10,13 @@ async function positionPlayerAtDummy(page) {
   });
 }
 
+// Vai direto pro jogo rodando em vez de clicar pela tela de criação: o fluxo
+// de criação já é coberto por menus.spec.js, e pagar por ele em cada um dos
+// cinco testes de combate era o que fazia este arquivo estourar o timeout
+// num runner lento.
 test.beforeEach(async ({ page }) => {
   collectConsoleErrors(page);
-  await createNewGameViaMenu(page, { name: 'Combate', sex: 'm' });
-  await page.click('#btn-resume');
-  await page.waitForTimeout(300);
+  await startGameRunning(page, { name: 'Combate', sex: 'm' });
   await positionPlayerAtDummy(page);
 });
 

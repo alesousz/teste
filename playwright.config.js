@@ -9,11 +9,15 @@ const chromiumPath = process.env.PLAYWRIGHT_CHROMIUM_PATH;
 export default defineConfig({
   testDir: './tests/e2e',
   // O boot do jogo gera a cidade proceduralmente (25 quarteirões, prédios
-  // aleatórios) e roda em WebGL via software rendering (swiftshader) nesse
-  // tipo de ambiente sandboxed — um único boot já leva a maior parte de um
-  // orçamento de 30s. Testes que recarregam a página (save/load) fazem dois
-  // boots inteiros na mesma execução, por isso o timeout generoso.
-  timeout: 90_000,
+  // aleatórios) e roda em WebGL via software rendering (swiftshader) — um
+  // único boot já leva vários segundos. Testes que recarregam a página
+  // (save/load) fazem dois boots inteiros na mesma execução.
+  //
+  // O tamanho do orçamento vem de medição, não de chute: a mesma suíte levou
+  // 6.3 min numa execução no CI e 13.2 min na seguinte, sem mudança
+  // relevante no código — a variação de desempenho do runner é de ~2x. Um
+  // teste que passa com folga no dia bom precisa passar no dia ruim também.
+  timeout: 180_000,
   expect: { timeout: 15_000 },
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

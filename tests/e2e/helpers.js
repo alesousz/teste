@@ -38,6 +38,20 @@ export async function startGameDirect(page, profile = { name: 'Testador', sex: '
   await page.waitForTimeout(200);
 }
 
+// Como startGameDirect, mas com o jogo despausado e o loop rodando — pro que
+// depende do mundo avançando (combate, telegraph do boneco, física).
+// _startGame termina pausado (mostrando o menu de pausa), então é preciso
+// tirar a pausa explicitamente.
+export async function startGameRunning(page, profile = { name: 'Testador', sex: 'x', courseId: 'engenharia' }) {
+  await startGameDirect(page, profile);
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.paused = false;
+    g.ui.hidePause();
+  });
+  await page.waitForTimeout(100);
+}
+
 export function collectConsoleErrors(page) {
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
