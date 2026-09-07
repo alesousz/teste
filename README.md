@@ -102,19 +102,61 @@ src/
   world.js            Geração da cidade em three.js, iluminação e ciclo dia/noite
   player.js           Personagem, controle em terceira pessoa e câmera
   npc.js              NPCs com IA simples de vagar e props temáticos
-  interactions.js     Sistemas de missão, diálogo e colecionáveis
-  needs.js            Necessidades simplificadas (energia, dinheiro)
+  interactions.js     Sistemas de missão e diálogo (lógica pura, sem three.js)
+  collectibles.js     Colecionáveis: fragmentos, livro e itens pelo mundo
+  gameState.js        Flags, relacionamentos por NPC e estado do mundo
+  inventory.js        Inventário e uso de itens
+  needs.js            Necessidades simplificadas (energia, fome, dinheiro)
   schedule.js         Rotina/compromisso fixo (presença, pagamento, demissão)
-  ui.js               HUD, criação de personagem, minimapa, diálogo, diário e menus
+  ui.js               HUD, criação de personagem, bússola, diálogo, diário e menus
   save.js             Persistência em localStorage
   main.js             Loop principal do jogo e entrada (teclado/mouse)
 vendor/
   three.module.js     three.js (build ESM), incluso localmente
+tests/
+  unit/               Testes de lógica pura em Node (sem navegador)
+  e2e/                Testes de ponta a ponta no navegador (Playwright)
 ```
 
 Todo o conteúdo do jogo (layout da cidade, textos de diálogo, missões,
 posições de colecionáveis) fica centralizado em `src/data.js` — é o
 primeiro lugar para expandir a história ou adicionar novos personagens.
+
+## Testes
+
+```bash
+npm install        # só na primeira vez
+npm run test:unit  # lógica pura em Node — rápido (segundos)
+npm run test:e2e   # jogo real no navegador via Playwright — lento (minutos)
+npm test           # os dois, em sequência
+```
+
+São duas camadas com propósitos diferentes:
+
+- **`tests/unit/`** — roda no Node puro, sem navegador, usando o runner
+  nativo (`node --test`). Cobre o que é lógica de dados e regra de jogo:
+  `GameState` (flags, relacionamentos, migração de saves antigos),
+  `NeedsSystem`, `InventorySystem`, `ObligationSystem`, `save.js`,
+  `QuestSystem`/`DialogueSystem` (com árvores de diálogo sintéticas) e
+  invariantes de `data.js` — por exemplo, que todo curso aponta para uma
+  obrigação que existe e que nenhum prédio gerado vaza para fora do
+  quarteirão. É a camada que dá retorno em segundos.
+
+- **`tests/e2e/`** — sobe o jogo de verdade num Chromium headless e
+  interage com ele. Cobre o que só existe integrado: boot, criação de
+  personagem, save/load através do `localStorage` real, combate, bússola,
+  diário e menus. Cada teste inicializa o jogo inteiro (cidade procedural
+  + WebGL por software), então é naturalmente lento — os testes rodam em
+  série de propósito (`workers: 1`), porque em paralelo eles competem por
+  CPU e derrubam uns aos outros por timeout.
+
+Ambas as camadas rodam no CI (`.github/workflows/test.yml`) a cada push na
+`main` e em cada pull request.
+
+Um caso específico merece nota: `tests/e2e/compass.spec.js` existe porque o
+sinal do `bearingTo()` da bússola já foi revertido várias vezes ao aplicar
+arquivos de UI gerados fora do repositório. O teste falha automaticamente se
+isso acontecer de novo, em vez de depender de alguém reparar à mão.
 
 ## Por que não usar um CDN para o three.js?
 

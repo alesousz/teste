@@ -2,12 +2,17 @@
   "name": "ecos-da-cidade",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Ecos da Cidade — RPG 3D de exploração ambientado numa cidade moderna.",
   "scripts": {
     "dev": "http-server -c-1 -p 8080 .",
-    "start": "http-server -c-1 -p 8080 ."
+    "start": "http-server -c-1 -p 8080 .",
+    "test:unit": "node --test tests/unit/*.test.js",
+    "test:e2e": "playwright test",
+    "test": "npm run test:unit && npm run test:e2e"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
     "http-server": "^14.1.1"
   }
 }

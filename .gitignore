@@ -1,3 +1,9 @@
 node_modules/
 .DS_Store
 *.log
+
+# Saída dos testes (Playwright)
+test-results/
+playwright-report/
+blob-report/
+.playwright/

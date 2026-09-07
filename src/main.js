@@ -3,7 +3,8 @@ import { CONFIG, ORIGINS, COURSES, HOMES, OBLIGATIONS, ITEM_DEFS } from './data.
 import { World } from './world.js';
 import { Player } from './player.js';
 import { createNpcs } from './npc.js';
-import { QuestSystem, DialogueSystem, CollectibleSystem } from './interactions.js';
+import { QuestSystem, DialogueSystem } from './interactions.js';
+import { CollectibleSystem } from './collectibles.js';
 import { NeedsSystem } from './needs.js';
 import { InventorySystem } from './inventory.js';
 import { GameState } from './gameState.js';
