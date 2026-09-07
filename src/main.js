@@ -6,11 +6,18 @@ import { createNpcs } from './npc.js';
 import { QuestSystem, DialogueSystem, CollectibleSystem } from './interactions.js';
 import { NeedsSystem } from './needs.js';
 import { InventorySystem } from './inventory.js';
+import { GameState } from './gameState.js';
 import { ObligationSystem } from './schedule.js';
 import { UI } from './ui.js';
 import { hasSave, loadSave, writeSave, clearSave } from './save.js';
 import { preloadCharacterAssets } from './assets.js';
 import { createTrainingDummy } from './combat.js';
+
+// Sobe quando o formato do save ganha um campo novo relevante o bastante pra
+// merecer distinguir "salvo antes disso existir" de "salvo depois" (hoje só
+// serve pra marcar a partir de quando o GameState passou a ser salvo — saves
+// sem essa versão são tratados como legado e carregam com os padrões).
+const SAVE_VERSION = 1;
 
 class InputManager {
   constructor(canvas) {
@@ -87,7 +94,8 @@ class Game {
     this.npcs = [];
     this.dummy = createTrainingDummy(this.scene);
 
-    this.quests = new QuestSystem(() => this._onQuestChange());
+    this.gameState = new GameState();
+    this.quests = new QuestSystem(() => this._onQuestChange(), this.gameState);
     this.inventory = new InventorySystem();
     this.collectibles = new CollectibleSystem(this.scene, this.quests, this.inventory);
     this._boundUseItem = itemId => this._useItem(itemId);
@@ -192,7 +200,7 @@ class Game {
     this.dialogue = new DialogueSystem(this.dialogueTrees, this.quests, {
       show: (text, options) => this.ui.showDialogue(text, options, i => this.dialogue.choose(i)),
       hide: () => this.ui.hideDialogue(),
-    }, this.collectibles, this.inventory, this.needs, this.obligation, this.profile.originId, this.profile.sex);
+    }, this.collectibles, this.inventory, this.needs, this.obligation, this.gameState, this.profile.originId, this.profile.sex);
 
     this.ui.hideMenu();
     this.ui.hud.classList.remove('hidden');
@@ -212,6 +220,10 @@ class Game {
       this.inventory.deserialize(saveData.inventory);
       this.needs.deserialize(saveData.needs);
       this.obligation.deserialize(saveData.obligation);
+      // Ausente em saves de antes do GameState existir — deserialize(undefined)
+      // não faz nada, então o GameState fica nos valores padrão (sem flags,
+      // sem relacionamentos), sem perder nenhum outro dado do save antigo.
+      this.gameState.deserialize(saveData.gameState);
     } else {
       this.player.position.set(this.homeSleepSpot.x, 0, this.homeSleepSpot.z);
     }
@@ -224,6 +236,8 @@ class Game {
 
   _saveGame() {
     writeSave({
+      version: SAVE_VERSION,
+      timestamp: Date.now(),
       player: { x: this.player.position.x, z: this.player.position.z, camYaw: this.player.camYaw },
       timeOfDay: this.world.timeOfDay,
       dayCount: this.world.dayCount,
@@ -235,6 +249,7 @@ class Game {
       profile: this.profile,
       needs: this.needs.serialize(),
       obligation: this.obligation.serialize(),
+      gameState: this.gameState.serialize(),
     });
   }
 
