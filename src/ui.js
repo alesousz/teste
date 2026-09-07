@@ -1,4 +1,4 @@
-import { CONFIG, QUESTS, ITEM_CATEGORIES, COURSES, KEYBIND_ACTIONS, FIXED_CONTROLS, DEFAULT_KEYBINDS, LOADING_SHOTS, LOADING_TIPS, landmarkCenter } from './data.js';
+import { CONFIG, QUESTS, ITEM_CATEGORIES, COURSES, KEYBIND_ACTIONS, FIXED_CONTROLS, DEFAULT_KEYBINDS, LOADING_SHOTS, LOADING_TIPS, NPC_PROFILES, RELATIONSHIP_MAX, landmarkCenter } from './data.js';
 
 // Bússola: abertura de 180° e os pontos cardeais em português. Na prática,
 // player.facingAngle é 0 = +Z (não -Z): targetAngle em player.js vem de
@@ -43,7 +43,6 @@ export class UI {
     this.loadingTipText = document.getElementById('loading-tip-text');
     this.loadingTipCount = document.getElementById('loading-tip-count');
     this.loadingDots = document.getElementById('loading-dots');
-    this._startLoadingScreen();
     this.menuScreen = document.getElementById('menu-screen');
     this.continueBtn = document.getElementById('btn-continue');
     this.newGameBtn = document.getElementById('btn-newgame');
@@ -55,11 +54,23 @@ export class UI {
     this.dialogueBox = document.getElementById('dialogue-box');
     this.dialogueText = document.getElementById('dialogue-text');
     this.dialogueOptions = document.getElementById('dialogue-options');
+    this.dialogueSpeaker = document.getElementById('dialogue-speaker');
+    this.dialogueDelta = document.getElementById('dialogue-delta');
     this.journal = document.getElementById('journal');
     this.journalQuests = document.getElementById('journal-quests');
     this.journalGallery = document.getElementById('journal-gallery');
     this.journalStamp = document.getElementById('journal-stamp');
-    this.journalFragCount = document.getElementById('journal-fragcount');
+    this.journalTabs = document.getElementById('journal-tabs');
+    this.journalPanes = {
+      quests: document.getElementById('journal-pane-quests'),
+      people: document.getElementById('journal-pane-people'),
+      fragments: document.getElementById('journal-pane-fragments'),
+    };
+    this.peopleRows = document.getElementById('people-rows');
+    this.peopleDetail = document.getElementById('people-detail');
+    this._journalTab = 'quests';
+    this._peopleSelectedId = null;
+    this._bindJournalTabs();
     this.pauseMenu = document.getElementById('pause-menu');
     this.itemMenu = document.getElementById('item-menu');
     this.itemMenuTitle = document.getElementById('item-menu-title');
@@ -94,6 +105,7 @@ export class UI {
     this.ccCourseNote = document.getElementById('cc-course-note');
     this._cc = { sex: null, courseId: null };
     this._bindCreationChips();
+    this._startLoadingScreen();
 
     this.continueNote = document.getElementById('btn-continue-note');
     this.pauseStamp = document.getElementById('pause-stamp');
@@ -185,16 +197,19 @@ export class UI {
   }
 
   // -------------------------------------------------------------------
-  // Tela de carregamento — imagem sorteada, dicas em rotação, progresso
-  // real reportado pelo main.js via setLoadingProgress().
+  // Tela de carregamento — sorteia uma imagem de assets/loading/ e passa
+  // as dicas em rotação. Sem imagens declaradas, o fundo fica escuro e a
+  // tela continua funcionando.
   // -------------------------------------------------------------------
   _startLoadingScreen() {
-    const shot = LOADING_SHOTS[Math.floor(Math.random() * LOADING_SHOTS.length)];
+    const shots = LOADING_SHOTS || [];
+    const shot = shots[Math.floor(Math.random() * shots.length)];
     if (shot && this.loadingShot) this.loadingShot.style.backgroundImage = `url("${shot}")`;
 
-    // ordem sorteada, sem repetir dica na mesma sessão
-    this._tips = [...LOADING_TIPS].sort(() => Math.random() - 0.5);
+    // Ordem sorteada: nenhuma dica repete antes das outras aparecerem.
+    this._tips = [...(LOADING_TIPS || [])].sort(() => Math.random() - 0.5);
     this._tipIndex = 0;
+    if (!this._tips.length) return;
     this._renderTip();
     this._tipTimer = setInterval(() => {
       this._tipIndex = (this._tipIndex + 1) % this._tips.length;
@@ -207,14 +222,13 @@ export class UI {
     this.loadingTipText.textContent = this._tips[this._tipIndex];
     this.loadingTipCount.textContent = `Dica ${this._tipIndex + 1} de ${this._tips.length} · troca a cada 6s`;
     if (this.loadingDots) {
-      this.loadingDots.innerHTML = this._tips
-        .slice(0, 4)
-        .map((_, i) => `<span class="${i === this._tipIndex % 4 ? 'on' : ''}"></span>`)
-        .join('');
+      const dots = Math.min(4, this._tips.length);
+      this.loadingDots.innerHTML = Array.from({ length: dots },
+        (_, i) => `<span class="${i === this._tipIndex % dots ? 'on' : ''}"></span>`).join('');
     }
   }
 
-  // progresso real: chame conforme cada etapa termina
+  // Chame conforme cada etapa do boot termina.
   setLoadingProgress(ratio, status) {
     if (this.loadingFill) this.loadingFill.style.width = `${Math.round(ratio * 100)}%`;
     if (status && this.loadingStatus) this.loadingStatus.textContent = status;
@@ -311,37 +325,80 @@ export class UI {
   }
   hidePrompt() { this.promptEl.classList.add('hidden'); this.promptEl.classList.remove('warning'); }
 
-  showDialogue(text, optionLabels, onChoose) {
+  // `speaker` é o nome do NPC; `delta` é a mudança de relacionamento que a
+  // última escolha causou (vem do gameState.changeRelationship).
+  showDialogue(text, optionLabels, onChoose, speaker = '', delta = 0) {
     this.dialogueBox.classList.remove('hidden');
+    if (this.dialogueSpeaker) this.dialogueSpeaker.textContent = speaker;
+    this.showRelationshipDelta(delta);
     this.dialogueText.textContent = text;
     this.dialogueOptions.innerHTML = '';
     optionLabels.forEach((label, i) => {
       const btn = document.createElement('button');
       btn.className = 'dialogue-option';
-      btn.textContent = `${i + 1}. ${label}`;
+      btn.innerHTML = `<span class="dialogue-option-num">${i + 1}</span><span>${label}</span>`;
       btn.onclick = () => onChoose(i);
       this.dialogueOptions.appendChild(btn);
     });
   }
-  hideDialogue() { this.dialogueBox.classList.add('hidden'); }
 
-  toggleJournal(questSystem, collectibleSystem) {
+  // Aparece por 2,5s ao lado do nome: "proximidade +1".
+  showRelationshipDelta(delta) {
+    const el = this.dialogueDelta;
+    if (!el) return;
+    clearTimeout(this._deltaTimer);
+    if (!delta) { el.classList.add('hidden'); return; }
+    const up = delta > 0;
+    el.className = `dialogue-delta ${up ? 'up' : 'down'}`;
+    el.innerHTML = `<span class="ms">${up ? 'arrow_upward' : 'arrow_downward'}</span>proximidade ${up ? '+' : ''}${delta}`;
+    this._deltaTimer = setTimeout(() => el.classList.add('hidden'), 2500);
+  }
+
+  hideDialogue() {
+    this.dialogueBox.classList.add('hidden');
+    this.dialogueDelta?.classList.add('hidden');
+  }
+
+  _bindJournalTabs() {
+    this.journalTabs?.querySelectorAll('[data-jtab]').forEach(el => {
+      el.onclick = () => this.setJournalTab(el.dataset.jtab);
+    });
+  }
+
+  setJournalTab(tab) {
+    this._journalTab = tab;
+    this.journalTabs?.querySelectorAll('[data-jtab]').forEach(el => {
+      el.classList.toggle('selected', el.dataset.jtab === tab);
+    });
+    for (const [name, pane] of Object.entries(this.journalPanes)) {
+      pane?.classList.toggle('hidden', name !== tab);
+    }
+  }
+
+  journalCycleTab(delta) {
+    const tabs = ['quests', 'people', 'fragments'];
+    const i = tabs.indexOf(this._journalTab);
+    this.setJournalTab(tabs[(i + delta + tabs.length) % tabs.length]);
+  }
+
+  toggleJournal(questSystem, collectibleSystem, gameState) {
     const isHidden = this.journal.classList.contains('hidden');
-    if (isHidden) this.renderJournal(questSystem, collectibleSystem);
+    if (isHidden) this.renderJournal(questSystem, collectibleSystem, gameState);
     this.journal.classList.toggle('hidden');
     return isHidden;
   }
   hideJournal() { this.journal.classList.add('hidden'); }
   isJournalOpen() { return !this.journal.classList.contains('hidden'); }
 
-  renderJournal(questSystem, collectibleSystem) {
+  renderJournal(questSystem, collectibleSystem, gameState) {
+    this._gameState = gameState;
+    this._renderPeople();
     // O carimbo reaproveita o que o HUD já calculou (dia + hora), pra não
     // precisar passar o `world` até aqui.
     if (this.journalStamp) this.journalStamp.textContent = `${this.dayEl.textContent} · ${this.clockEl.textContent}`;
 
     const fragments = collectibleSystem.fragments || [];
     const photos = collectibleSystem.photos || [];
-    if (this.journalFragCount) this.journalFragCount.textContent = `${photos.length} / ${fragments.length} fragmentos`;
 
     // Em andamento primeiro, concluídas depois.
     const shown = Object.values(QUESTS)
@@ -717,5 +774,90 @@ export class UI {
         this._renderKeybinds();
       };
     });
+  }
+  // -------------------------------------------------------------------
+  // Diário › Pessoas — o número de relacionamento do gameState virando
+  // escala, contagem de conversas e histórico. Só aparece quem já foi
+  // conhecido (gameState.metNpcs).
+  // -------------------------------------------------------------------
+  _peopleList() {
+    const gs = this._gameState;
+    if (!gs) return [];
+    return Object.values(NPC_PROFILES)
+      .filter(p => gs.hasMet?.(p.id))
+      .map(p => ({
+        ...p,
+        score: gs.getRelationship?.(p.id) ?? 0,
+        talks: gs.getTalkCount?.(p.id) ?? 0,
+        lastSeen: gs.getLastSeen?.(p.id) || null,
+        log: gs.getRelationshipLog?.(p.id) || [],
+      }))
+      .sort((a, b) => b.score - a.score);
+  }
+
+  _scaleHtml(score) {
+    const filled = Math.max(0, Math.min(RELATIONSHIP_MAX, score));
+    const tone = filled >= RELATIONSHIP_MAX - 1 ? 'high' : filled <= 1 ? 'low' : '';
+    const pips = Array.from({ length: RELATIONSHIP_MAX },
+      (_, i) => `<span class="${i < filled ? 'on' : ''}"></span>`).join('');
+    return `<span class="people-scale ${tone}">${pips}</span>`;
+  }
+
+  _renderPeople() {
+    if (!this.peopleRows) return;
+    const people = this._peopleList();
+
+    if (!people.length) {
+      this.peopleRows.innerHTML = '<p class="item-menu-empty">Você ainda não conversou com ninguém.</p>';
+      this.peopleDetail.innerHTML = '';
+      return;
+    }
+    if (!people.some(p => p.id === this._peopleSelectedId)) {
+      this._peopleSelectedId = people[0].id;
+    }
+
+    this.peopleRows.innerHTML = people.map(p => `
+      <button class="people-row ${p.id === this._peopleSelectedId ? 'selected' : ''}" data-person="${p.id}">
+        <span class="people-name"><strong>${p.name}</strong><span>${p.blurb}</span></span>
+        ${this._scaleHtml(p.score)}
+        <span class="people-when">${p.lastSeen || '—'}</span>
+      </button>
+    `).join('');
+    this.peopleRows.querySelectorAll('[data-person]').forEach(el => {
+      el.onclick = () => { this._peopleSelectedId = el.dataset.person; this._renderPeople(); };
+    });
+
+    const p = people.find(x => x.id === this._peopleSelectedId);
+    const log = p.log.length
+      ? p.log.slice(-3).reverse().map(e => `
+          <div class="people-log-entry">
+            <span class="people-log-when">Dia ${e.day}</span>
+            <span>${e.text}</span>
+          </div>`).join('')
+      : '<div class="people-log-entry"><span>Nada anotado ainda.</span></div>';
+
+    this.peopleDetail.innerHTML = `
+      <div class="people-detail-head">
+        <strong>${p.name}</strong>
+        <span>${p.role} · ${p.place}</span>
+      </div>
+      <div class="people-detail-rows">
+        <div class="people-detail-row"><span>Proximidade</span><span class="accent-num">${p.score} / ${RELATIONSHIP_MAX}</span></div>
+        <div class="people-detail-row"><span>Conversas</span><span class="num">${p.talks}</span></div>
+        ${p.quest ? `<div class="people-detail-row"><span>Missão ligada</span><span>${p.quest}</span></div>` : ''}
+      </div>
+      <div class="people-log">
+        <div class="col-kicker">O que aconteceu</div>
+        ${log}
+      </div>
+    `;
+  }
+
+  peopleMoveSelection(delta) {
+    const people = this._peopleList();
+    if (!people.length) return;
+    const i = Math.max(0, people.findIndex(p => p.id === this._peopleSelectedId));
+    this._peopleSelectedId = people[(i + delta + people.length) % people.length].id;
+    this._renderPeople();
   }
 }

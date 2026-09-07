@@ -227,9 +227,9 @@ class Game {
     this.needs = new NeedsSystem(course.startMoney);
     this.obligation = new ObligationSystem(OBLIGATIONS[course.obligation]);
     this.dialogue = new DialogueSystem(this.dialogueTrees, this.quests, {
-      show: (text, options) => this.ui.showDialogue(text, options, i => this.dialogue.choose(i)),
+      show: (text, options, npcName, delta) => this.ui.showDialogue(text, options, i => this.dialogue.choose(i), npcName, delta),
       hide: () => this.ui.hideDialogue(),
-    }, this.collectibles, this.inventory, this.needs, this.obligation, this.gameState, origin.id, this.profile.sex);
+    }, this.collectibles, this.inventory, this.needs, this.obligation, this.gameState, origin.id, this.profile.sex, this.world);
 
     this.ui.hideMenu();
     this.ui.hud.classList.remove('hidden');
@@ -315,7 +315,7 @@ class Game {
 
   _onQuestChange() {
     this.ui.showToast('Diário atualizado');
-    if (this.ui.isJournalOpen()) this.ui.renderJournal(this.quests, this.collectibles);
+    if (this.ui.isJournalOpen()) this.ui.renderJournal(this.quests, this.collectibles, this.gameState);
   }
 
   _useItem(itemId) {
@@ -418,7 +418,7 @@ class Game {
     const dt = Math.min(this.clock.getDelta(), 0.1);
 
     if (this.input.wasPressed(this.ui.getBinding('journal'))) {
-      const opened = this.ui.toggleJournal(this.quests, this.collectibles);
+      const opened = this.ui.toggleJournal(this.quests, this.collectibles, this.gameState);
       if (opened) {
         if (document.pointerLockElement) document.exitPointerLock();
       }
@@ -432,6 +432,14 @@ class Game {
     if (this.input.wasPressed(this.ui.getBinding('pause'))) {
       if (this.ui.isJournalOpen()) this.ui.hideJournal();
       if (this.ui.isItemMenuOpen()) this.ui.hideItemMenu();
+      if (this.dialogue.active) this.dialogue.close();
+    }
+
+    if (this.ui.isJournalOpen()) {
+      if (this.input.wasPressed('ArrowLeft')) this.ui.journalCycleTab(-1);
+      if (this.input.wasPressed('ArrowRight')) this.ui.journalCycleTab(1);
+      if (this.input.wasPressed('ArrowUp')) this.ui.peopleMoveSelection(-1);
+      if (this.input.wasPressed('ArrowDown')) this.ui.peopleMoveSelection(1);
     }
 
     if (this.ui.isItemMenuOpen()) {
@@ -444,7 +452,7 @@ class Game {
     }
 
     if (this.dialogue.active) {
-      for (const code of ['Digit1', 'Digit2', 'Digit3', 'Digit4']) {
+      for (const code of ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9']) {
         if (this.input.wasPressed(code)) this.dialogue.choose(Number(code.slice(-1)) - 1);
       }
     }

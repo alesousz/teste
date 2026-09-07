@@ -537,3 +537,18 @@ export const LOADING_TIPS = [
   'O jogo salva sozinho a cada 20 segundos e quando você pausa.',
 ];
 
+// ---------------------------------------------------------------------------
+// Diário › Pessoas: quem aparece na aba e o que mostrar sobre cada um.
+// `blurb` é a linha curta na tabela; `role`/`place` formam o subtítulo da
+// ficha. Os ids têm que casar com os que o gameState usa (mesmos ids de
+// NPC_DEFS) — "rosa" do rascunho original era, na verdade, mae_operaria.
+// ---------------------------------------------------------------------------
+export const RELATIONSHIP_MAX = 5;
+
+export const NPC_PROFILES = {
+  mae_operaria: { id: 'mae_operaria', name: 'Dona Rosa',   blurb: 'Família',                     role: 'Família',   place: 'Sua casa' },
+  marina:       { id: 'marina',       name: 'Marina',      blurb: 'Perdeu um livro no parque',   role: 'Conhecida', place: 'Parque Norte', quest: 'O Livro Esquecido' },
+  almeida:      { id: 'almeida',      name: 'Sr. Almeida', blurb: 'Vendedor ambulante na praça', role: 'Conhecido', place: 'Praça central' },
+  diego:        { id: 'diego',        name: 'Diego',       blurb: 'Não larga o celular',         role: 'Conhecido', place: 'Ponto de ônibus' },
+};
+
