@@ -2,6 +2,7 @@
 // (no load do módulo) e compartilhado por todos os sistemas — por isso não
 // precisa de seed determinística: é um singleton de módulo ES.
 import { SCENE } from './data/scene.js';
+import { AP as AP_FOOTPRINT } from './data/apartment.js';
 
 export const CONFIG = {
   GRID_SIZE: 5,
@@ -12,6 +13,10 @@ export const CONFIG = {
   PLAYER_SPEED_RUN: 6.5,
   PLAYER_SPEED_CROUCH: 1.8,
   PLAYER_RADIUS: 0.45,
+  PLAYER_HEIGHT: 1.7,          // altura do corpo usada na colisão
+  CAM_DIST_OUTDOOR: 6.5,       // câmera na rua
+  CAM_DIST_INDOOR: 2.5,        // câmera dentro do prédio: 6,5 m não cabe num quarto
+  CAM_DIST_LERP: 4.5,          // velocidade da transição entre as duas
   INTERACT_RADIUS: 3.2,
   PHOTO_RADIUS: 3.5,
   GRAVITY: 18,
@@ -44,6 +49,13 @@ export function blockCenter(ix, iz) {
 }
 
 const PLAZA = { ix: 2, iz: 2 };
+
+// Quarteirão do prédio residencial onde o jogo começa — vizinho da praça, pra
+// que a saída do prédio já caia num lugar com vida. O quarteirão é RESERVADO
+// (a geração procedural não põe nada aqui), mas de propósito NÃO entra em
+// CITY.buildings: as paredes desse prédio vêm da planta em data/apartment.js,
+// e uma AABB maciça no lugar impediria o jogador de entrar nele.
+const HOME_BLOCK = { ix: 2, iz: 1 };
 const PARKS = [
   { ix: 1, iz: 3 },
   { ix: 3, iz: 1 },
@@ -92,6 +104,7 @@ for (const item of SCENE.items) {
 
 function isSpecial(ix, iz) {
   if (ix === PLAZA.ix && iz === PLAZA.iz) return 'plaza';
+  if (ix === HOME_BLOCK.ix && iz === HOME_BLOCK.iz) return 'predio_inicial';
   for (const p of PARKS) if (p.ix === ix && p.iz === iz) return 'park';
   for (const kind of Object.keys(sceneLandmarks)) {
     if (sceneLandmarks[kind].ix === ix && sceneLandmarks[kind].iz === iz) return kind;
@@ -180,6 +193,14 @@ function generateCity() {
 }
 
 export const CITY = generateCity();
+
+// Canto mínimo do prédio inicial em coordenadas de mundo. A planta de
+// data/apartment.js é local (0..W, 0..D); somar esta origem leva pro mundo.
+// A fachada com a porta fica em z local = 0, virada pra rua ao sul.
+export const HOME_ORIGIN = (() => {
+  const c = blockCenter(HOME_BLOCK.ix, HOME_BLOCK.iz);
+  return { x: c.x - AP_FOOTPRINT.W / 2, z: c.z - AP_FOOTPRINT.D / 2 };
+})();
 export const BUILDING_COLOR_PALETTE = BUILDING_COLORS;
 
 // Boneco de treino de combate: fica num canto livre da praça central,

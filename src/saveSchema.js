@@ -132,6 +132,9 @@ function normalizeSave(raw, player) {
     timestamp: num(raw.timestamp),
     player: compact({
       x: num(player.x),
+      // `y` só passou a existir com o prédio de dois pavimentos. Save antigo
+      // não tem, e `undefined` aqui significa "nível da rua" — o padrão certo.
+      y: num(player.y),
       z: num(player.z),
       camYaw: num(player.camYaw),
     }),
