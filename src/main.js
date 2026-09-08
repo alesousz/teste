@@ -10,15 +10,10 @@ import { InventorySystem } from './inventory.js';
 import { GameState } from './gameState.js';
 import { ObligationSystem } from './schedule.js';
 import { UI } from './ui.js';
-import { hasSave, loadSave, writeSave, clearSave } from './save.js';
+import { writeSave, clearSave, readSave, quarantineSave } from './save.js';
+import { SAVE_VERSION, SaveStatus, validateSave, saveErrorMessage } from './saveSchema.js';
 import { preloadCharacterAssets } from './assets.js';
 import { createTrainingDummy } from './combat.js';
-
-// Sobe quando o formato do save ganha um campo novo relevante o bastante pra
-// merecer distinguir "salvo antes disso existir" de "salvo depois" (hoje só
-// serve pra marcar a partir de quando o GameState passou a ser salvo — saves
-// sem essa versão são tratados como legado e carregam com os padrões).
-const SAVE_VERSION = 1;
 
 class InputManager {
   constructor(canvas) {
@@ -126,7 +121,30 @@ class Game {
 
     this.ui.setLoadingProgress(1, 'Pronto');
     this.ui.hideLoading();
-    this.ui.showMenu(hasSave());
+    this._showMenu();
+  }
+
+  // Único lugar que decide o estado do menu a partir do save. "Continuar" só
+  // fica disponível quando existe um save que realmente carrega — um save
+  // ilegível desabilita o botão e explica o motivo, em vez de deixar o
+  // jogador clicar num caminho que sempre falha.
+  _showMenu({ notificarErro = true } = {}) {
+    const result = readSave();
+    this._saveState = result;
+    if (result.status === SaveStatus.OK) {
+      this.ui.showMenu(true);
+    } else if (result.status === SaveStatus.EMPTY) {
+      this.ui.showMenu(false);
+    } else {
+      // A nota abaixo do botão é permanente; o toast, com a explicação
+      // completa, só aparece quando o estado é descoberto ou quando o jogador
+      // tenta continuar — voltar das configurações não repete o aviso.
+      this.ui.showMenu(false, 'Save não pôde ser lido');
+      if (notificarErro && this._statusAvisado !== result.status) {
+        this._statusAvisado = result.status;
+        this.ui.showToast(result.message);
+      }
+    }
   }
 
   _bindResize() {
@@ -143,10 +161,7 @@ class Game {
       this.ui.hideMenu();
       this.ui.showCreation();
     };
-    document.getElementById('btn-continue').onclick = () => {
-      const data = loadSave();
-      this._startGame(data, data?.profile);
-    };
+    document.getElementById('btn-continue').onclick = () => this._continueGame();
     document.getElementById('btn-resume').onclick = () => {
       this.ui.hidePause();
       this.canvas.requestPointerLock();
@@ -155,7 +170,7 @@ class Game {
       this._saveGame();
       this.ui.hidePause();
       this.running = false;
-      this.ui.showMenu(true);
+      this._showMenu();
       if (document.pointerLockElement) document.exitPointerLock();
     };
     document.getElementById('btn-settings').onclick = () => {
@@ -174,21 +189,44 @@ class Game {
     // Voltar da tela de configurações/créditos para onde ela foi aberta.
     this.ui.onSettingsClose = from => {
       if (from === 'pause') this.ui.showPause();
-      else this.ui.showMenu(hasSave());
+      else this._showMenu();
     };
     document.getElementById('btn-credits-back').addEventListener('click', () => {
-      this.ui.showMenu(hasSave());
+      this._showMenu();
     });
+  }
+
+  // Carrega o save existente. Toda a validação acontece ANTES de qualquer
+  // mudança de estado ou de tela: se o save não serve, o jogador continua no
+  // menu, sabendo o porquê, e o save original fica intacto.
+  _continueGame() {
+    const result = readSave();
+    if (result.status !== SaveStatus.OK) {
+      this._saveState = result;
+      // Tentativa explícita do jogador: sempre responde, mesmo que o mesmo
+      // erro já tenha sido avisado antes.
+      this._statusAvisado = null;
+      this.ui.showToast(result.message || 'Não há jogo salvo.');
+      this._showMenu();
+      return false;
+    }
+    return this._startGame(result.save, result.save.profile);
   }
 
   _bindCharacterCreation() {
     document.getElementById('cc-back').onclick = () => {
       this.ui.hideCreation();
-      this.ui.showMenu(hasSave());
+      this._showMenu();
     };
     document.getElementById('cc-confirm').onclick = () => {
       const profile = this.ui.getCreationProfile();
       if (!profile) return;
+      // Se o save existente não podia ser carregado, ele é posto em quarentena
+      // antes de a chave ser reaproveitada — assim a partida nova não leva
+      // junto o dado que o jogador não conseguiu recuperar.
+      if (this._saveState && this._saveState.status !== SaveStatus.OK && this._saveState.status !== SaveStatus.EMPTY) {
+        quarantineSave();
+      }
       clearSave();
       this.ui.hideCreation();
       this._startGame(null, profile);
@@ -208,7 +246,25 @@ class Game {
     });
   }
 
+  // `saveData` null/undefined = partida nova. Qualquer outra coisa é validada
+  // ANTES de mudar estado ou esconder o menu: antes desta guarda, um save sem
+  // `player` lançava no meio da restauração, depois de `running = true` e do
+  // menu já escondido, deixando o jogador numa tela sem jogo e sem saída.
+  // A validação fica aqui, e não só no chamador, porque é o ponto por onde
+  // todo carregamento passa.
   _startGame(saveData, profile) {
+    let restore = null;
+    if (saveData !== null && saveData !== undefined) {
+      const result = validateSave(saveData);
+      if (result.status !== SaveStatus.OK) {
+        this._saveState = result;
+        this.ui.showToast(result.message || saveErrorMessage(SaveStatus.MALFORMED));
+        this._showMenu();
+        return false;
+      }
+      restore = result.save;
+    }
+
     this.profile = profile || { name: 'Alex', sex: 'f', courseId: 'medicina' };
     const course = COURSES[this.profile.courseId] || COURSES.medicina;
     // Nenhum curso define casa/família própria ainda — todos usam a origem
@@ -238,34 +294,44 @@ class Game {
     this.paused = true;
     this.ui.showPause();
 
-    if (saveData) {
-      this.player.position.set(saveData.player.x, 0, saveData.player.z);
-      this.player.camYaw = saveData.player.camYaw ?? Math.PI;
-      this.world.setTimeOfDay(saveData.timeOfDay ?? 0.3);
-      this.world.dayCount = saveData.dayCount ?? 1;
-      this.quests.deserialize(saveData.quests);
-      this.collectibles.restoreCollected(saveData.collectedFragments);
-      this.collectibles.restoreItem(saveData.bookCollected);
-      this.collectibles.restoreCollectedWorldItems(saveData.collectedWorldItems);
-      this.inventory.deserialize(saveData.inventory);
-      this.needs.deserialize(saveData.needs);
-      this.obligation.deserialize(saveData.obligation);
+    // `restore` já passou pela validação: todo campo presente aqui é do tipo
+    // certo, e o que estava inválido foi omitido — daí os `??`, que agora
+    // aplicam o padrão do sistema em vez de deixar lixo entrar.
+    if (restore) {
+      this.player.position.set(restore.player.x, 0, restore.player.z);
+      this.player.camYaw = restore.player.camYaw ?? Math.PI;
+      this.world.setTimeOfDay(restore.timeOfDay ?? 0.3);
+      this.world.dayCount = restore.dayCount ?? 1;
+      this.quests.deserialize(restore.quests);
+      this.collectibles.restoreCollected(restore.collectedFragments);
+      this.collectibles.restoreItem(restore.bookCollected);
+      this.collectibles.restoreCollectedWorldItems(restore.collectedWorldItems);
+      this.inventory.deserialize(restore.inventory);
+      this.needs.deserialize(restore.needs);
+      this.obligation.deserialize(restore.obligation);
       // Ausente em saves de antes do GameState existir — deserialize(undefined)
       // não faz nada, então o GameState fica nos valores padrão (sem flags,
       // sem relacionamentos), sem perder nenhum outro dado do save antigo.
-      this.gameState.deserialize(saveData.gameState);
+      this.gameState.deserialize(restore.gameState);
     } else {
       this.player.position.set(this.homeSleepSpot.x, 0, this.homeSleepSpot.z);
     }
     this.player.snapCamera();
     this._lastDayCount = this.world.dayCount;
+    this._saveState = { status: SaveStatus.OK };
 
     this.clock.getDelta();
     this._loop();
+    return true;
   }
 
   _saveGame() {
-    writeSave({
+    // Só uma partida de fato iniciada pode gravar. Sem esta guarda, qualquer
+    // caminho que deixasse o jogo meio-inicializado poderia sobrescrever um
+    // save existente (inclusive um corrompido que o jogador ainda não teve
+    // chance de recuperar) com um estado incompleto.
+    if (!this.running || !this.player) return false;
+    return writeSave({
       version: SAVE_VERSION,
       timestamp: Date.now(),
       player: { x: this.player.position.x, z: this.player.position.z, camYaw: this.player.camYaw },

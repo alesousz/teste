@@ -239,10 +239,15 @@ export class UI {
     this.loadingScreen.classList.add('hidden');
   }
 
-  showMenu(canContinue) {
+  // `note` sobrescreve o texto abaixo do botão Continuar — usado pra dizer que
+  // existe um save mas ele não pôde ser lido, caso em que "Sem jogo salvo"
+  // seria mentira.
+  showMenu(canContinue, note) {
     this.menuScreen.classList.remove('hidden');
     this.continueBtn.disabled = !canContinue;
-    if (this.continueNote) this.continueNote.textContent = canContinue ? 'Retomar o dia' : 'Sem jogo salvo';
+    if (this.continueNote) {
+      this.continueNote.textContent = note || (canContinue ? 'Retomar o dia' : 'Sem jogo salvo');
+    }
   }
   hideMenu() { this.menuScreen.classList.add('hidden'); }
 
