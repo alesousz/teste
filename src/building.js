@@ -10,19 +10,15 @@
 
 import * as THREE from 'three';
 import { planoDoPredio } from './interior.js';
-import { AP, DOORS, WINDOWS, STAIRS, ROOMS, UNITS } from './data/apartment.js';
+import { AP, DOORS, WINDOWS, STAIRS, ROOMS, UNITS, CORRIDOR } from './data/apartment.js';
+import { criarMateriaisTexturizados } from './textures.js';
 
 // Materiais compartilhados: um por acabamento, reaproveitados por todas as
 // peças. Menos trocas de material = menos draw calls.
 function criarMateriais() {
   return {
-    reboco: new THREE.MeshStandardMaterial({ color: 0xd6d2c8, roughness: 0.92, metalness: 0 }),
-    rebocoExterno: new THREE.MeshStandardMaterial({ color: 0xb9ae9c, roughness: 0.95, metalness: 0 }),
-    concreto: new THREE.MeshStandardMaterial({ color: 0x9a978f, roughness: 0.88, metalness: 0 }),
+    ...criarMateriaisTexturizados(),
     madeira: new THREE.MeshStandardMaterial({ color: 0x8a5a34, roughness: 0.7, metalness: 0 }),
-    pisoMadeira: new THREE.MeshStandardMaterial({ color: 0x9c6b41, roughness: 0.6, metalness: 0.02 }),
-    pisoFrio: new THREE.MeshStandardMaterial({ color: 0xbfc0bd, roughness: 0.45, metalness: 0.02 }),
-    forro: new THREE.MeshStandardMaterial({ color: 0xe8e6e0, roughness: 0.95, metalness: 0 }),
     vidro: new THREE.MeshStandardMaterial({
       color: 0x9fc6d8, roughness: 0.12, metalness: 0.1,
       transparent: true, opacity: 0.42,
@@ -31,11 +27,29 @@ function criarMateriais() {
   };
 }
 
+// Reescala a UV de cada face de um cubo pelo tamanho REAL daquela face, pra a
+// textura ter a mesma escala em toda peça. A ordem das faces do BoxGeometry é
+// fixa: +X, -X, +Y, -Y, +Z, -Z, quatro vértices cada.
+function escalarUV(geo, w, h, d, tile) {
+  const uv = geo.attributes.uv;
+  const dims = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+  for (let face = 0; face < 6; face++) {
+    const [su, sv] = dims[face];
+    for (let v = 0; v < 4; v++) {
+      const i = face * 4 + v;
+      uv.setXY(i, uv.getX(i) * (su / tile), uv.getY(i) * (sv / tile));
+    }
+  }
+  uv.needsUpdate = true;
+}
+
 function caixa(aabb, material, nome) {
   const w = aabb.maxX - aabb.minX;
   const h = aabb.maxY - aabb.minY;
   const d = aabb.maxZ - aabb.minZ;
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+  const geo = new THREE.BoxGeometry(w, h, d);
+  if (material.userData?.tile) escalarUV(geo, w, h, d, material.userData.tile);
+  const m = new THREE.Mesh(geo, material);
   m.position.set(aabb.minX + w / 2, aabb.minY + h / 2, aabb.minZ + d / 2);
   m.castShadow = true;
   m.receiveShadow = true;
@@ -71,14 +85,24 @@ export function buildBuilding(origin = { x: 0, z: 0 }) {
   // Cada piso vira uma laje com espessura pra baixo; a face de baixo é o forro
   // do pavimento anterior.
   for (const f of plano.floors) {
-    const ehApartamento = f.tag === 'andar';
-    const laje = caixa({
-      minX: f.minX, maxX: f.maxX,
-      minZ: f.minZ, maxZ: f.maxZ,
-      minY: f.y - AP.SLAB, maxY: f.y,
-    }, ehApartamento ? mats.pisoMadeira : mats.pisoFrio, `piso_${f.tag}`);
-    laje.castShadow = false;   // laje não projeta sombra útil, só custa
-    group.add(laje);
+    // A laje 'andar' é uma peça só na física, mas visualmente são dois pisos:
+    // assoalho dentro das unidades e ladrilho no corredor, que é área comum.
+    const faixas = f.tag === 'andar'
+      ? [
+          { z0: f.minZ, z1: UNITS[0].z1, mat: mats.pisoMadeira },
+          { z0: UNITS[0].z1, z1: f.maxZ, mat: mats.pisoFrio },
+        ]
+      : [{ z0: f.minZ, z1: f.maxZ, mat: mats.pisoFrio }];
+
+    for (const faixa of faixas) {
+      const laje = caixa({
+        minX: f.minX, maxX: f.maxX,
+        minZ: faixa.z0, maxZ: faixa.z1,
+        minY: f.y - AP.SLAB, maxY: f.y,
+      }, faixa.mat, `piso_${f.tag}`);
+      laje.castShadow = false;   // laje não projeta sombra útil, só custa
+      group.add(laje);
+    }
 
     // Forro do pavimento de baixo, quando há um.
     if (f.y > 0) {

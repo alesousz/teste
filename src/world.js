@@ -406,7 +406,9 @@ export class World {
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xffffff, 1.2);
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(1536, 1536);
+    // 2048 combinado com a câmera de sombra estreitada em render.js: o mapa
+    // passa a valer ~5 cm por texel em vez de ~18 cm.
+    this.sun.shadow.mapSize.set(2048, 2048);
     const d = 140;
     this.sun.shadow.camera.left = -d;
     this.sun.shadow.camera.right = d;
@@ -464,6 +466,11 @@ export class World {
     }
     this.scene.background.copy(skyColor);
     this.scene.fog.color.copy(skyColor);
+    // Guardados pra o pipeline de render montar o mapa de ambiente sem
+    // recalcular o ciclo do dia por conta própria.
+    this.skyColor = skyColor;
+    this.groundColor = new THREE.Color(0x3a3a2f).lerp(new THREE.Color(0x6b6558), dayFactor);
+    this.dayFactor = dayFactor;
     this.sun.color.copy(dayFactor > 0.5 ? new THREE.Color(0xfff3e0) : duskColor);
 
     const isNight = dayFactor < 0.35;
@@ -514,6 +521,11 @@ export class World {
 
     this._buildHomeLights(group);
     this.scene.add(group);
+    // O interior recebe só uma fração do mapa de ambiente: ver
+    // RenderPipeline.applyEnvIntensity. O valor fica guardado aqui pra o
+    // pipeline aplicar assim que o ambiente existir.
+    this.homeEnvIntensity = 0.2;
+    this.cityEnvIntensity = 0.45;
   }
 
   // Luz interna. Sem isto o prédio é uma caixa fechada iluminada só pelo sol

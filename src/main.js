@@ -3,6 +3,8 @@ import { CONFIG, ORIGINS, COURSES, HOMES, OBLIGATIONS, ITEM_DEFS } from './data.
 import { World } from './world.js';
 import { abrirPorta } from './building.js';
 import { Phone, PHONE_DEFAULT_KEY } from './phone.js';
+import { RenderPipeline } from './render.js';
+import { PostFX, rendererEhSoftware } from './postfx.js';
 import { OBSERVACOES } from './data/apartment.js';
 import { Player } from './player.js';
 import { createNpcs } from './npc.js';
@@ -81,11 +83,18 @@ class Game {
 
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.scene = new THREE.Scene();
+    // Mapeamento tonal, iluminação por imagem e foco da sombra vivem aqui.
+    this.render = new RenderPipeline(this.renderer, this.scene);
+
+    // Pós-processamento: ligado por padrão, desligado em rasterizador de
+    // software (onde só custaria quadro). `?postfx=0` / `?postfx=1` força
+    // qualquer um dos dois — é assim que a cadeia é inspecionada em ambiente
+    // sem GPU, já que é justamente lá que ela ficaria desligada.
+    const forcado = new URLSearchParams(location.search).get('postfx');
+    const usarPostfx = forcado === null ? !rendererEhSoftware(this.renderer) : forcado !== '0';
+    this.postfx = new PostFX(this.renderer, window.innerWidth, window.innerHeight, { enabled: usarPostfx });
     this.camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 500);
 
     this.world = new World(this.scene);
@@ -155,6 +164,7 @@ class Game {
       this.camera.aspect = window.innerWidth / window.innerHeight;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(window.innerWidth, window.innerHeight);
+      this.postfx?.setSize(window.innerWidth, window.innerHeight);
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
@@ -629,10 +639,26 @@ class Game {
     this.ui.drawCompass(this.player, this.collectibles, this.obligation, this.homeKind);
     this.ui.updateTarget(this.dummy, this.player);
 
+    // Sombra e ambiente acompanham o jogador e o horário. O ambiente só é
+    // refeito quando o céu muda de verdade — é um render + convolução.
+    this.render.focusShadows(this.world.sun, this.player.position);
+    if (this.world.skyColor
+        && this.render.updateEnvironment(this.world.skyColor, this.world.groundColor, this.world.dayFactor)
+        && this.world.homeBuilding) {
+      // Reaplicado a cada troca de ambiente porque materiais criados depois
+      // (ou clonados) voltariam ao padrao 1.0 e lavariam o interior.
+      // Ordem importa: a cena inteira primeiro, o prédio depois — o segundo
+      // passe sobrescreve os materiais do interior. O asfalto e as fachadas da
+      // cidade são rugosos, e com ambiente cheio devolviam o azul do céu como
+      // se fossem espelhos foscos.
+      this.render.applyEnvIntensity(this.scene, this.world.cityEnvIntensity);
+      this.render.applyEnvIntensity(this.world.homeBuilding, this.world.homeEnvIntensity);
+    }
+
     this.camera.position.copy(this.player.cameraPosition);
     this.camera.lookAt(this.player.cameraTarget);
 
-    this.renderer.render(this.scene, this.camera);
+    this.postfx.render(this.scene, this.camera);
 
     this._autoSaveTimer = (this._autoSaveTimer || 0) + dt;
     if (this._autoSaveTimer > 20) {
