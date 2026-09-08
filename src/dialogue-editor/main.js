@@ -1,55 +1,50 @@
 import { NPC_DEFS, QUESTS, ITEM_DEFS } from '../data.js';
+import {
+  CONDITION_TYPES,
+  SELECTABLE_CONDITION_TYPES,
+  EFFECT_TYPES,
+  RELATIONSHIP_OPERATORS,
+  NO_EFFECT,
+  conditionMeta,
+  effectMeta,
+  isKnownConditionType,
+  isKnownEffectType,
+  retypeCondition,
+  retypeEffect,
+  ruleFromJson,
+  ruleToJson,
+  flagValueKind,
+  flagValueFromKind,
+} from './vocabulary.js';
 
 const DRAFT_KEY = 'dialogue-editor-draft';
 
-const CONDITION_TYPES = [
-  { type: 'questDone', label: 'Missão concluída', fields: ['quest'] },
-  { type: 'questActive', label: 'Missão ativa', fields: ['quest'] },
-  { type: 'objectiveDone', label: 'Objetivo de missão concluído', fields: ['quest', 'objective'] },
-  { type: 'isNight', label: 'É noite', fields: [] },
-  { type: 'hasMetPlayer', label: 'Já se conheceram antes', fields: [] },
-  { type: 'obligationActive', label: 'Compromisso (emprego/escola) ainda ativo', fields: [] },
-  { type: 'obligationHasMisses', label: 'Jogador tem falta registrada', fields: [] },
-  { type: 'isPlayerFamily', label: 'É família do jogador', fields: [] },
-  { type: 'isPlayerBoss', label: 'É chefe/responsável do jogador', fields: [] },
-];
-
-const EFFECT_TYPES = [
-  { type: '', label: '(Nenhum)', fields: [] },
-  { type: 'giveItem', label: 'Dar item (pro inventário)', fields: ['item', 'cost'] },
-  { type: 'startQuest', label: 'Iniciar missão', fields: ['quest'] },
-  { type: 'completeObjective', label: 'Completar objetivo de missão', fields: ['quest', 'objective'] },
-];
+// Tipo padrão de uma condição recém-criada.
+const DEFAULT_CONDITION_TYPE = SELECTABLE_CONDITION_TYPES[0].type;
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function conditionMeta(type) {
-  return CONDITION_TYPES.find(c => c.type === type) || CONDITION_TYPES[0];
-}
-function effectMeta(type) {
-  return EFFECT_TYPES.find(e => e.type === type) || EFFECT_TYPES[0];
+// Um tipo que este editor não conhece nunca é escondido nem trocado por outro:
+// ganha uma opção própria no select, marcada como desconhecida, e o objeto
+// original fica intacto no rascunho. Sem isso o navegador selecionaria a
+// primeira opção da lista e o editor mostraria um tipo que não é o do dado.
+function unknownOptionHtml(meta) {
+  return meta.unknown ? `<option value="${escapeHtml(meta.type)}" selected>${escapeHtml(meta.label)}</option>` : '';
 }
 
-// Converte uma regra do formato salvo ({if:[...], node}) pro formato de
-// edição (condições com uma flag "negate" em vez de aninhar {type:'not'}) —
-// cobre 100% do uso real, já que "not" nunca aparece aninhado mais de um
-// nível nos dados de hoje.
-function ruleFromJson(rule) {
-  return {
-    node: rule.node,
-    conditions: rule.if.map(cond => {
-      if (cond.type === 'not') return { ...cond.of, negate: true };
-      return { ...cond, negate: false };
-    }),
-  };
+// Mostra, em texto puro, o que o editor não sabe editar — pra quem estiver
+// mexendo ver que existe conteúdo ali antes de decidir trocar o tipo.
+function unknownPayloadHtml(obj, dropKeys = []) {
+  const rest = Object.fromEntries(Object.entries(obj).filter(([k]) => k !== 'type' && !dropKeys.includes(k)));
+  return `<p class="hint unknown-payload">Este editor não conhece este tipo. O conteúdo está preservado e será exportado como está:<br><code>${escapeHtml(JSON.stringify(rest))}</code></p>`;
 }
-function ruleToJson(rule) {
-  return {
-    node: rule.node,
-    if: rule.conditions.map(({ negate, ...cond }) => (negate ? { type: 'not', of: cond } : cond)),
-  };
+
+// Trocar o tipo de algo que o editor não entende é a única operação capaz de
+// destruir um dado preservado — então ela é sempre explícita.
+function confirmLeavingUnknown(currentType) {
+  return confirm(`"${currentType}" é um tipo que este editor não conhece, e os campos dele serão descartados se você trocar o tipo agora.\n\nTrocar mesmo assim?`);
 }
 
 export class DialogueEditorApp {
@@ -174,7 +169,7 @@ export class DialogueEditorApp {
     });
     list.querySelectorAll('[data-act="add-cond"]').forEach(btn => {
       btn.onclick = () => {
-        this._editRules[Number(btn.dataset.ri)].conditions.push({ type: CONDITION_TYPES[0].type, negate: false });
+        this._editRules[Number(btn.dataset.ri)].conditions.push({ type: DEFAULT_CONDITION_TYPE, negate: false });
         this._commitRules();
       };
     });
@@ -184,7 +179,13 @@ export class DialogueEditorApp {
     list.querySelectorAll('[data-act="cond-type"]').forEach(sel => {
       sel.onchange = () => {
         const { ri, ci } = sel.dataset;
-        this._editRules[ri].conditions[ci] = { type: sel.value, negate: this._editRules[ri].conditions[ci].negate };
+        const atual = this._editRules[ri].conditions[ci];
+        if (sel.value === atual.type) return;
+        if (!isKnownConditionType(atual.type) && !confirmLeavingUnknown(atual.type)) {
+          this._renderStartRules(); // devolve o select pro tipo original
+          return;
+        }
+        this._editRules[ri].conditions[ci] = retypeCondition(atual, sel.value);
         this._commitRules();
       };
     });
@@ -196,6 +197,34 @@ export class DialogueEditorApp {
     });
     list.querySelectorAll('[data-act="cond-objective"]').forEach(sel => {
       sel.onchange = () => { this._editRules[sel.dataset.ri].conditions[sel.dataset.ci].objective = sel.value; this._commitRules(); };
+    });
+    list.querySelectorAll('[data-act="cond-flag"]').forEach(inp => {
+      inp.oninput = () => { this._editRules[inp.dataset.ri].conditions[inp.dataset.ci].flag = inp.value; this._commitRulesQuiet(); };
+    });
+    list.querySelectorAll('[data-act="cond-flag-kind"]').forEach(sel => {
+      sel.onchange = () => {
+        const cond = this._editRules[sel.dataset.ri].conditions[sel.dataset.ci];
+        cond.value = flagValueFromKind(sel.value, typeof cond.value === 'string' ? cond.value : '');
+        this._commitRules();
+      };
+    });
+    list.querySelectorAll('[data-act="cond-flag-text"]').forEach(inp => {
+      inp.oninput = () => { this._editRules[inp.dataset.ri].conditions[inp.dataset.ci].value = inp.value; this._commitRulesQuiet(); };
+    });
+    list.querySelectorAll('[data-act="cond-npc"]').forEach(sel => {
+      sel.onchange = () => { this._editRules[sel.dataset.ri].conditions[sel.dataset.ci].npc = sel.value; this._commitRules(); };
+    });
+    list.querySelectorAll('[data-act="cond-operator"]').forEach(sel => {
+      sel.onchange = () => { this._editRules[sel.dataset.ri].conditions[sel.dataset.ci].operator = sel.value; this._commitRules(); };
+    });
+    list.querySelectorAll('[data-act="cond-relvalue"]').forEach(inp => {
+      inp.oninput = () => {
+        const cond = this._editRules[inp.dataset.ri].conditions[inp.dataset.ci];
+        // Campo vazio some do JSON em vez de virar 0 — 0 é um relacionamento
+        // válido e não pode ser inventado a partir de "não preenchido".
+        if (inp.value === '') delete cond.value; else cond.value = Number(inp.value);
+        this._commitRulesQuiet();
+      };
     });
     list.querySelectorAll('[data-act="del-cond"]').forEach(btn => {
       btn.onclick = () => {
@@ -214,13 +243,35 @@ export class DialogueEditorApp {
     const objectiveOptions = cond.quest && QUESTS[cond.quest]
       ? QUESTS[cond.quest].objectives.map(o => `<option value="${o.id}" ${o.id === cond.objective ? 'selected' : ''}>${escapeHtml(o.text)}</option>`).join('')
       : '';
+    const kind = flagValueKind(cond.value);
     return `
       <div class="condition-row">
         <select data-act="cond-type" data-ri="${ri}" data-ci="${ci}">
-          ${CONDITION_TYPES.map(c => `<option value="${c.type}" ${c.type === cond.type ? 'selected' : ''}>${c.label}</option>`).join('')}
+          ${unknownOptionHtml(meta)}
+          ${SELECTABLE_CONDITION_TYPES.map(c => `<option value="${c.type}" ${c.type === cond.type ? 'selected' : ''}>${c.label}</option>`).join('')}
         </select>
+        ${meta.unknown ? unknownPayloadHtml(cond, ['negate']) : ''}
         ${meta.fields.includes('quest') ? `<select data-act="cond-quest" data-ri="${ri}" data-ci="${ci}"><option value="">(escolha a missão)</option>${questOptions}</select>` : ''}
         ${meta.fields.includes('objective') ? `<select data-act="cond-objective" data-ri="${ri}" data-ci="${ci}"><option value="">(escolha o objetivo)</option>${objectiveOptions}</select>` : ''}
+        ${meta.type === 'flag' ? `
+          <input type="text" data-act="cond-flag" data-ri="${ri}" data-ci="${ci}" value="${escapeHtml(cond.flag)}" placeholder="nome da flag (ex: ja_conheceu)" />
+          <select data-act="cond-flag-kind" data-ri="${ri}" data-ci="${ci}">
+            <option value="true" ${kind === 'true' ? 'selected' : ''}>vale verdadeiro</option>
+            <option value="false" ${kind === 'false' ? 'selected' : ''}>vale falso</option>
+            <option value="text" ${kind === 'text' ? 'selected' : ''}>vale este texto…</option>
+          </select>
+          ${kind === 'text' ? `<input type="text" data-act="cond-flag-text" data-ri="${ri}" data-ci="${ci}" value="${escapeHtml(cond.value)}" placeholder="valor exato" />` : ''}
+        ` : ''}
+        ${meta.type === 'relationship' ? `
+          <select data-act="cond-npc" data-ri="${ri}" data-ci="${ci}">
+            <option value="">(escolha o NPC)</option>
+            ${NPC_DEFS.map(n => `<option value="${n.id}" ${n.id === cond.npc ? 'selected' : ''}>${escapeHtml(n.name)}</option>`).join('')}
+          </select>
+          <select data-act="cond-operator" data-ri="${ri}" data-ci="${ci}">
+            ${RELATIONSHIP_OPERATORS.map(o => `<option value="${escapeHtml(o.op)}" ${o.op === cond.operator ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+          </select>
+          <input type="number" data-act="cond-relvalue" data-ri="${ri}" data-ci="${ci}" value="${typeof cond.value === 'number' ? cond.value : ''}" placeholder="valor" />
+        ` : ''}
         <div class="negate-row">
           <label class="negate"><input type="checkbox" data-act="cond-negate" data-ri="${ri}" data-ci="${ci}" ${cond.negate ? 'checked' : ''}/> negar (NÃO)</label>
           <button class="btn-icon" data-act="del-cond" data-ri="${ri}" data-ci="${ci}">✕</button>
@@ -230,15 +281,21 @@ export class DialogueEditorApp {
   }
 
   _commitRules() {
+    this._commitRulesQuiet();
+    this._renderStartRules();
+  }
+
+  // Grava sem redesenhar. É o que os campos de texto usam: redesenhar a cada
+  // tecla tiraria o foco de quem está digitando.
+  _commitRulesQuiet() {
     this._currentTree().startRules = this._editRules.map(ruleToJson);
     this._persistDraft();
-    this._renderStartRules();
   }
 
   _addRule() {
     const nodeIds = Object.keys(this._currentTree().nodes);
     if (nodeIds.length === 0) { alert('Crie um nó antes de adicionar uma regra.'); return; }
-    this._editRules.push({ conditions: [{ type: CONDITION_TYPES[0].type, negate: false }], node: nodeIds[0] });
+    this._editRules.push({ conditions: [{ type: DEFAULT_CONDITION_TYPE, negate: false }], node: nodeIds[0] });
     this._commitRules();
   }
 
@@ -329,7 +386,14 @@ export class DialogueEditorApp {
     list.querySelectorAll('[data-act="opt-effect"]').forEach(sel => {
       sel.onchange = () => {
         const opt = node.options[sel.dataset.oi];
-        opt.effect = sel.value ? { type: sel.value } : undefined;
+        const atual = opt.effect?.type ?? NO_EFFECT;
+        if (sel.value === atual) return;
+        if (atual && !isKnownEffectType(atual) && !confirmLeavingUnknown(atual)) {
+          this._renderNodeEditor(); // devolve o select pro tipo original
+          return;
+        }
+        opt.effect = retypeEffect(opt.effect, sel.value);
+        if (opt.effect === undefined) delete opt.effect;
         this._persistDraft();
         this._renderNodeEditor();
       };
@@ -365,14 +429,49 @@ export class DialogueEditorApp {
         this._persistDraft();
       };
     });
+    list.querySelectorAll('[data-act="opt-effect-flag"]').forEach(inp => {
+      inp.oninput = () => { node.options[inp.dataset.oi].effect.flag = inp.value; this._persistDraft(); };
+    });
+    list.querySelectorAll('[data-act="opt-effect-flag-kind"]').forEach(sel => {
+      sel.onchange = () => {
+        const effect = node.options[sel.dataset.oi].effect;
+        effect.value = flagValueFromKind(sel.value, typeof effect.value === 'string' ? effect.value : '');
+        this._persistDraft();
+        this._renderNodeEditor();
+      };
+    });
+    list.querySelectorAll('[data-act="opt-effect-flag-text"]').forEach(inp => {
+      inp.oninput = () => { node.options[inp.dataset.oi].effect.value = inp.value; this._persistDraft(); };
+    });
+    list.querySelectorAll('[data-act="opt-effect-npc"]').forEach(sel => {
+      sel.onchange = () => { node.options[sel.dataset.oi].effect.npc = sel.value; this._persistDraft(); };
+    });
+    list.querySelectorAll('[data-act="opt-effect-amount"]').forEach(inp => {
+      inp.oninput = () => {
+        const effect = node.options[inp.dataset.oi].effect;
+        // Vazio some do JSON: 0 seria um delta válido e não pode ser inventado.
+        if (inp.value === '') delete effect.amount; else effect.amount = Number(inp.value);
+        this._persistDraft();
+      };
+    });
+    list.querySelectorAll('[data-act="opt-effect-note"]').forEach(inp => {
+      inp.oninput = () => {
+        const effect = node.options[inp.dataset.oi].effect;
+        // `note` é opcional: sem texto, o motor só muda o número sem registrar
+        // linha no histórico do Diário.
+        if (inp.value === '') delete effect.note; else effect.note = inp.value;
+        this._persistDraft();
+      };
+    });
     list.querySelectorAll('[data-act="del-opt"]').forEach(btn => {
       btn.onclick = () => { node.options.splice(Number(btn.dataset.oi), 1); this._persistDraft(); this._renderNodeEditor(); };
     });
   }
 
   _renderOptionRow(opt, oi, otherNodeIds) {
-    const effectType = opt.effect?.type || '';
+    const effectType = opt.effect?.type ?? NO_EFFECT;
     const meta = effectMeta(effectType);
+    const flagKind = flagValueKind(opt.effect?.value);
     const questOptions = Object.values(QUESTS).map(q => `<option value="${q.id}" ${q.id === opt.effect?.quest ? 'selected' : ''}>${escapeHtml(q.title)}</option>`).join('');
     const objectiveOptions = opt.effect?.quest && QUESTS[opt.effect.quest]
       ? QUESTS[opt.effect.quest].objectives.map(o => `<option value="${o.id}" ${o.id === opt.effect?.objective ? 'selected' : ''}>${escapeHtml(o.text)}</option>`).join('')
@@ -395,13 +494,37 @@ export class DialogueEditorApp {
           </label>
           <label class="field">Efeito
             <select data-act="opt-effect" data-oi="${oi}">
+              ${unknownOptionHtml(meta)}
+              <option value="${NO_EFFECT}" ${meta.none ? 'selected' : ''}>(Nenhum)</option>
               ${EFFECT_TYPES.map(e => `<option value="${e.type}" ${e.type === effectType ? 'selected' : ''}>${e.label}</option>`).join('')}
             </select>
           </label>
+          ${meta.unknown ? unknownPayloadHtml(opt.effect) : ''}
           ${meta.fields.includes('quest') ? `<label class="field">Missão<select data-act="opt-effect-quest" data-oi="${oi}"><option value="">(escolha)</option>${questOptions}</select></label>` : ''}
           ${meta.fields.includes('objective') ? `<label class="field">Objetivo<select data-act="opt-effect-objective" data-oi="${oi}"><option value="">(escolha)</option>${objectiveOptions}</select></label>` : ''}
           ${meta.fields.includes('item') ? `<label class="field">Item<select data-act="opt-effect-item" data-oi="${oi}"><option value="">(escolha)</option>${Object.values(ITEM_DEFS).map(it => `<option value="${it.id}" ${it.id === opt.effect?.item ? 'selected' : ''}>${it.icon} ${escapeHtml(it.name)}</option>`).join('')}</select></label>` : ''}
           ${meta.fields.includes('cost') ? `<label class="field">Custo (R$)<input type="number" data-act="opt-effect-cost" data-oi="${oi}" value="${opt.effect?.cost ?? ''}" placeholder="grátis" /></label>` : ''}
+          ${meta.type === 'setFlag' ? `
+            <label class="field">Flag<input type="text" data-act="opt-effect-flag" data-oi="${oi}" value="${escapeHtml(opt.effect?.flag)}" placeholder="nome da flag (ex: ja_conheceu)" /></label>
+            <label class="field">Valor gravado
+              <select data-act="opt-effect-flag-kind" data-oi="${oi}">
+                <option value="true" ${flagKind === 'true' ? 'selected' : ''}>verdadeiro</option>
+                <option value="false" ${flagKind === 'false' ? 'selected' : ''}>falso</option>
+                <option value="text" ${flagKind === 'text' ? 'selected' : ''}>este texto…</option>
+              </select>
+            </label>
+            ${flagKind === 'text' ? `<label class="field">Texto<input type="text" data-act="opt-effect-flag-text" data-oi="${oi}" value="${escapeHtml(opt.effect?.value)}" placeholder="valor exato" /></label>` : ''}
+          ` : ''}
+          ${meta.type === 'changeRelationship' ? `
+            <label class="field">NPC
+              <select data-act="opt-effect-npc" data-oi="${oi}">
+                <option value="">(escolha)</option>
+                ${NPC_DEFS.map(n => `<option value="${n.id}" ${n.id === opt.effect?.npc ? 'selected' : ''}>${escapeHtml(n.name)}</option>`).join('')}
+              </select>
+            </label>
+            <label class="field">Quanto muda (negativo piora)<input type="number" data-act="opt-effect-amount" data-oi="${oi}" value="${typeof opt.effect?.amount === 'number' ? opt.effect.amount : ''}" placeholder="ex: 1 ou -1" /></label>
+            <label class="field">Nota pro Diário (opcional)<input type="text" data-act="opt-effect-note" data-oi="${oi}" value="${escapeHtml(opt.effect?.note ?? '')}" placeholder="ex: Você ajudou com a caixa" /></label>
+          ` : ''}
           <div class="option-inline">
             <label class="field">Dinheiro mínimo p/ aparecer
               <input type="number" data-act="opt-minmoney" data-oi="${oi}" value="${opt.minMoney ?? ''}" placeholder="sem mínimo" />

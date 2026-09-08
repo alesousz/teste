@@ -158,6 +158,14 @@ sinal do `bearingTo()` da bússola já foi revertido várias vezes ao aplicar
 arquivos de UI gerados fora do repositório. O teste falha automaticamente se
 isso acontecer de novo, em vez de depender de alguém reparar à mão.
 
+Pelo mesmo motivo existe `tests/unit/dialogueEditorVocabulary.test.js`: o
+vocabulário de condições e efeitos de diálogo é definido em dois lugares — o
+`switch` de `DialogueSystem` (`src/interactions.js`, que é a fonte de verdade)
+e a lista declarativa que o editor usa (`src/dialogue-editor/vocabulary.js`).
+Esse teste lê o fonte do motor e falha se os dois divergirem, inclusive nos
+campos de cada tipo. Ao acrescentar um tipo novo ao motor, atualize a lista do
+editor — o teste diz exatamente o que falta.
+
 ## Por que não usar um CDN para o three.js?
 
 O three.js vem versionado em `vendor/three.module.js` (build oficial da
