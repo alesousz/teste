@@ -267,6 +267,14 @@
         <span id="money-value">R$0</span>
       </div>
 
+      <!-- Celular: pendência de mensagem e dica do tutorial -->
+      <div id="phone-badge" class="hidden">
+        <span class="ms">chat_bubble</span>
+        <span id="phone-badge-count">0</span>
+        <span id="phone-badge-key" class="phone-badge-key"></span>
+      </div>
+      <div id="tutorial-hint" class="hidden"></div>
+
       <div id="interact-prompt" class="hidden"></div>
       <div id="crosshair-hint"></div>
       <div id="toast"></div>
@@ -365,6 +373,35 @@
         <footer class="full-menu-foot">
           <span>↑↓ navegar &nbsp;·&nbsp; ←→ categoria &nbsp;·&nbsp; E usar &nbsp;·&nbsp; R descartar</span>
           <span>I fechar</span>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Celular -->
+    <div id="phone" class="overlay hidden">
+      <div class="full-menu">
+        <header class="full-menu-head">
+          <div class="full-menu-titles">
+            <h2>Celular</h2>
+            <div class="phone-tabs">
+              <span class="phone-tab selected">Mensagens</span>
+            </div>
+          </div>
+          <span id="phone-stamp" class="full-menu-stamp"></span>
+        </header>
+        <div class="phone-body">
+          <div class="phone-list-col">
+            <div class="col-kicker accent">Conversas</div>
+            <div id="phone-conversations" class="phone-conversations"></div>
+          </div>
+          <div class="phone-thread-col">
+            <div id="phone-thread-name" class="phone-thread-name"></div>
+            <div id="phone-thread" class="phone-thread"></div>
+          </div>
+        </div>
+        <footer class="full-menu-foot">
+          <span>↑↓ trocar de conversa</span>
+          <span>M fechar</span>
         </footer>
       </div>
     </div>

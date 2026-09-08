@@ -127,15 +127,32 @@ export class Player {
       this.velocityY = CONFIG.JUMP_SPEED;
       this.isGrounded = false;
     }
+    // Colisão horizontal ANTES da vertical: assim a altura do chão é
+    // consultada num ponto que já está fora das paredes. Na ordem inversa, o
+    // jogador encostado numa parede consultaria o piso do outro lado dela.
+    this.world.resolveCollision(this.position, CONFIG.PLAYER_RADIUS, CONFIG.PLAYER_HEIGHT);
+
     this.velocityY -= CONFIG.GRAVITY * dt;
     this.position.y += this.velocityY * dt;
-    if (this.position.y <= 0) {
-      this.position.y = 0;
-      this.velocityY = 0;
+
+    // O chão deixou de ser `y = 0`: agora é a laje, o degrau ou a rua,
+    // conforme onde o jogador está. Fora do prédio o resultado é 0, que é
+    // exatamente o comportamento antigo.
+    const chao = this.world.supportAt(this.position.x, this.position.z, this.position.y);
+    if (this.position.y <= chao + 0.02) {
+      this.position.y = chao;
+      if (this.velocityY < 0) this.velocityY = 0;
       this.isGrounded = true;
+    } else {
+      this.isGrounded = false;
     }
 
-    this.world.resolveCollision(this.position, CONFIG.PLAYER_RADIUS);
+    // Teto: impede pular através da laje do andar de cima ou da cobertura.
+    const teto = this.world.ceilingAt(this.position.x, this.position.z, this.position.y);
+    if (this.position.y + CONFIG.PLAYER_HEIGHT > teto) {
+      this.position.y = teto - CONFIG.PLAYER_HEIGHT;
+      if (this.velocityY > 0) this.velocityY = 0;
+    }
 
     this.mesh.position.copy(this.position);
     this.mesh.rotation.y = this.facingAngle;
@@ -150,6 +167,12 @@ export class Player {
       }
     }
     this.rig.update(dt);
+
+    // Dentro do prédio a câmera se aproxima: 6,5 m atrás do personagem não
+    // cabe num quarto de 3 m, e ficaria o tempo todo colada na parede.
+    const dentro = this.world.insideHome?.(this.position.x, this.position.z) ?? false;
+    const alvoDist = dentro ? CONFIG.CAM_DIST_INDOOR : CONFIG.CAM_DIST_OUTDOOR;
+    this.camDistance += (alvoDist - this.camDistance) * Math.min(1, dt * CONFIG.CAM_DIST_LERP);
 
     this._updateCamera();
   }

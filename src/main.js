@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { CONFIG, ORIGINS, COURSES, HOMES, OBLIGATIONS, ITEM_DEFS } from './data.js';
 import { World } from './world.js';
+import { abrirPorta } from './building.js';
+import { Phone, PHONE_DEFAULT_KEY } from './phone.js';
+import { OBSERVACOES } from './data/apartment.js';
 import { Player } from './player.js';
 import { createNpcs } from './npc.js';
 import { QuestSystem, DialogueSystem } from './interactions.js';
@@ -239,7 +242,7 @@ class Game {
       if (e.detail) {
         this.paused = false;
         this.ui.hidePause();
-      } else if (!this.ui.isJournalOpen() && !this.ui.isItemMenuOpen()) {
+      } else if (!this.ui.isJournalOpen() && !this.ui.isItemMenuOpen() && !this.phone?.isOpen) {
         this.paused = true;
         this.ui.showPause();
       }
@@ -288,6 +291,18 @@ class Game {
       hide: () => this.ui.hideDialogue(),
     }, this.collectibles, this.inventory, this.needs, this.obligation, this.gameState, origin.id, this.profile.sex, this.world);
 
+    // Celular: entrega a primeira mensagem e conduz o tutorial dos primeiros
+    // minutos. Guardado em gameState.worldState porque o esquema do save é
+    // uma lista branca e um campo novo no topo seria descartado em silêncio.
+    this.phone = new Phone({
+      sex: this.profile.sex,
+      getKeyLabel: acao => this.ui.getBindingLabel(acao),
+      getTimeLabel: () => this.world.getFormattedTime(),
+      onOpen: () => { if (document.pointerLockElement) document.exitPointerLock(); },
+      onMessageRead: () => this.phone.advanceTutorial('leu_mensagem'),
+      onNotify: msg => this.ui.showToast(`Nova mensagem — ${msg.from}`),
+    });
+
     this.ui.hideMenu();
     this.ui.hud.classList.remove('hidden');
     this.running = true;
@@ -298,7 +313,9 @@ class Game {
     // certo, e o que estava inválido foi omitido — daí os `??`, que agora
     // aplicam o padrão do sistema em vez de deixar lixo entrar.
     if (restore) {
-      this.player.position.set(restore.player.x, 0, restore.player.z);
+      // `?? 0` cobre saves anteriores ao prédio: sem altura gravada, o
+      // jogador volta ao nível da rua, que é onde ele estava naquela versão.
+      this.player.position.set(restore.player.x, restore.player.y ?? 0, restore.player.z);
       this.player.camYaw = restore.player.camYaw ?? Math.PI;
       this.world.setTimeOfDay(restore.timeOfDay ?? 0.3);
       this.world.dayCount = restore.dayCount ?? 1;
@@ -313,9 +330,16 @@ class Game {
       // não faz nada, então o GameState fica nos valores padrão (sem flags,
       // sem relacionamentos), sem perder nenhum outro dado do save antigo.
       this.gameState.deserialize(restore.gameState);
+      this.phone.deserialize(this.gameState.worldState.phone);
     } else {
-      this.player.position.set(this.homeSleepSpot.x, 0, this.homeSleepSpot.z);
+      // Partida nova começa DENTRO do apartamento, no quarto — é o ponto de
+      // partida dos primeiros minutos.
+      const s = this.world.interior.spawn;
+      this.player.position.set(s.x, s.y, s.z);
+      this.player.facingAngle = s.facing;
+      this.player.camYaw = s.facing;
     }
+    this.phone.startParentsConversation();
     this.player.snapCamera();
     this._lastDayCount = this.world.dayCount;
     this._saveState = { status: SaveStatus.OK };
@@ -331,10 +355,11 @@ class Game {
     // save existente (inclusive um corrompido que o jogador ainda não teve
     // chance de recuperar) com um estado incompleto.
     if (!this.running || !this.player) return false;
+    this.gameState.worldState.phone = this.phone.serialize();
     return writeSave({
       version: SAVE_VERSION,
       timestamp: Date.now(),
-      player: { x: this.player.position.x, z: this.player.position.z, camYaw: this.player.camYaw },
+      player: { x: this.player.position.x, y: this.player.position.y, z: this.player.position.z, camYaw: this.player.camYaw },
       timeOfDay: this.world.timeOfDay,
       dayCount: this.world.dayCount,
       quests: this.quests.serialize(),
@@ -426,8 +451,33 @@ class Game {
     const photoKey = this.ui.getBinding('photo');
     const photoLabel = this.ui.getBindingLabel('photo');
 
+    // Porta vem antes de tudo: dentro do prédio é a única interação que
+    // existe, e do lado de fora ela só aparece encostado na entrada.
+    const porta = this.world.nearestDoor(this.player.position);
+    const objeto = porta ? null : this.world.nearestAnchor(this.player.position);
+
     let promptShown = false;
-    if (nearestNpc) {
+    if (porta) {
+      const rotulo = porta.def.label;
+      if (porta.def.locked) {
+        this.ui.showPrompt(`${rotulo} — trancada`);
+      } else {
+        this.ui.showPrompt(`${interactLabel} — ${porta.aberta ? 'Fechar' : 'Abrir'}: ${rotulo}`);
+        if (this.input.wasPressed(interactKey) && abrirPorta(porta)) {
+          this.phone.advanceTutorial('interagiu');
+          if (porta.def.id === 'ap201') this.phone.advanceTutorial('saiu_do_apartamento');
+          if (porta.def.id === 'entrada') this.phone.advanceTutorial('saiu_do_predio');
+        }
+      }
+      promptShown = true;
+    } else if (objeto) {
+      this.ui.showPrompt(`${interactLabel} — ${objeto.label}`);
+      promptShown = true;
+      if (this.input.wasPressed(interactKey)) {
+        this.ui.showToast(OBSERVACOES[objeto.id] || objeto.label);
+        this.phone.advanceTutorial('interagiu');
+      }
+    } else if (nearestNpc) {
       this.ui.showPrompt(`${interactLabel} — Falar com ${nearestNpc.def.name}`);
       promptShown = true;
       if (this.input.wasPressed(interactKey)) {
@@ -496,7 +546,15 @@ class Game {
         if (document.pointerLockElement) document.exitPointerLock();
       }
     }
+    if (this.input.wasPressed(this.ui.getBinding('phone') ?? PHONE_DEFAULT_KEY)) {
+      if (this.phone.toggle() && document.pointerLockElement) document.exitPointerLock();
+    }
+    if (this.phone.isOpen) {
+      if (this.input.wasPressed('ArrowUp')) this.phone.moveSelection(-1);
+      if (this.input.wasPressed('ArrowDown')) this.phone.moveSelection(1);
+    }
     if (this.input.wasPressed(this.ui.getBinding('pause'))) {
+      if (this.phone.isOpen) this.phone.close();
       if (this.ui.isJournalOpen()) this.ui.hideJournal();
       if (this.ui.isItemMenuOpen()) this.ui.hideItemMenu();
       if (this.dialogue.active) this.dialogue.close();
@@ -524,13 +582,22 @@ class Game {
       }
     }
 
-    const uiBlocking = this.paused || this.ui.isJournalOpen() || this.ui.isItemMenuOpen() || this.dialogue.active;
+    const uiBlocking = this.paused || this.ui.isJournalOpen() || this.ui.isItemMenuOpen() || this.dialogue.active || this.phone.isOpen;
 
     if (!uiBlocking) {
       this.player.exhausted = this.needs.isExhausted();
       const { x, y } = this.input.consumeMouseDelta();
+      if (Math.abs(x) + Math.abs(y) > 2) this.phone.advanceTutorial('olhou');
       this.player.applyCameraInput(x, y);
+      const antes = { x: this.player.position.x, z: this.player.position.z };
       this.player.update(dt, this.input, this.ui.getBinding('dodge'));
+      if (Math.hypot(this.player.position.x - antes.x, this.player.position.z - antes.z) > 0.01) {
+        this.phone.advanceTutorial('moveu');
+      }
+      // Voltar ao nível da rua ainda dentro do prédio = desceu a escada.
+      if (this.world.insideHome(this.player.position.x, this.player.position.z) && this.player.position.y < 0.2) {
+        this.phone.advanceTutorial('desceu_a_escada');
+      }
       // O aviso do contra-ataque só começa quando o jogador não está mais
       // travado no próprio soco, pra não cortar a animação de ataque dele.
       // O dano em si só é resolvido depois (ver onTelegraphExpire), dando
@@ -548,6 +615,8 @@ class Game {
     for (const npc of this.npcs) npc.update(uiBlocking ? 0 : dt);
     this.collectibles.update(uiBlocking ? 0 : dt);
     this.world.update(uiBlocking ? 0 : dt);
+    this.world.updateBuilding(uiBlocking ? 0 : dt);
+    this.phone.update(uiBlocking ? 0 : dt);
     this.dummy.update(uiBlocking ? 0 : dt);
 
     if (this.world.dayCount !== this._lastDayCount) {

@@ -1,5 +1,8 @@
 import * as THREE from 'three';
-import { CONFIG, CITY, BUILDING_COLOR_PALETTE, LANDMARK_SPECS } from './data.js';
+import { CONFIG, CITY, BUILDING_COLOR_PALETTE, LANDMARK_SPECS , HOME_ORIGIN } from './data.js';
+import { Interior } from './interior.js';
+import { buildBuilding, updateDoors } from './building.js';
+import { buildApartmentProps } from './apartmentProps.js';
 import { SCENE } from './data/scene.js';
 
 function makeWindowTexture(seed, w, h, lit) {
@@ -53,6 +56,10 @@ export class World {
   constructor(scene) {
     this.scene = scene;
     this.buildingAABBs = CITY.buildings;
+    // Prédio inicial: o único volume do mundo com interior de verdade. Ele
+    // NÃO entra em `buildingAABBs` de propósito — uma caixa maciça no lugar
+    // impediria o jogador de entrar. As paredes dele vêm do `Interior`.
+    this.interior = new Interior(HOME_ORIGIN);
     this.windowTexturesLit = [];
     this.windowTexturesDark = [];
     this.streetLamps = [];
@@ -62,6 +69,7 @@ export class World {
     this._buildSky();
     this._buildLights();
     this._buildStreetLamps();
+    this._buildHomeBuilding();
     this.timeOfDay = 0.3; // 0..1, 0 = meia-noite, 0.5 = meio-dia
     this.dayCount = 1;
   }
@@ -488,8 +496,114 @@ export class World {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   }
 
+  _buildHomeBuilding() {
+    const { group, doors } = buildBuilding(this.interior.origin);
+    this.homeBuilding = group;
+    this.doors = doors;
+
+    // Mobília: a geometria entra no mesmo grupo (e herda a translação); os
+    // volumes de colisão vão pro Interior, que os translada por conta.
+    const props = buildApartmentProps(THREE);
+    group.add(props.group);
+    this.interior.addSolids(props.solids);
+    this.homeAnchors = props.anchors.map(a => ({
+      ...a,
+      x: a.x + this.interior.origin.x,
+      z: a.z + this.interior.origin.z,
+    }));
+
+    this._buildHomeLights(group);
+    this.scene.add(group);
+  }
+
+  // Luz interna. Sem isto o prédio é uma caixa fechada iluminada só pelo sol
+  // lá fora, e o jogador anda no escuro — é requisito de jogabilidade, não de
+  // acabamento. Sem sombra de propósito: cada luz pontual com sombra custa
+  // seis mapas, e são sete lâmpadas.
+  _buildHomeLights(group) {
+    const N = 3.2;   // altura de um pavimento
+    const pontos = [
+      // térreo
+      { x: 5.5,  y: 2.55,       z: 6.0,  cor: 0xffe6c0, i: 0.9, d: 11 },
+      { x: 13.6, y: 2.55,       z: 1.9,  cor: 0xfff0d4, i: 0.7, d: 8 },
+      // caixa de escada (vão duplo: uma luz alta cobre o lance inteiro)
+      { x: 13.6, y: N + 2.4,    z: 6.0,  cor: 0xfff0d4, i: 1.0, d: 12 },
+      // andar
+      { x: 5.5,  y: N + 2.55,   z: 10.0, cor: 0xffe6c0, i: 0.8, d: 11 },
+      { x: 1.7,  y: N + 2.5,    z: 1.9,  cor: 0xffdcb0, i: 0.85, d: 7 },  // quarto
+      { x: 4.4,  y: N + 2.5,    z: 1.9,  cor: 0xdfefff, i: 0.7, d: 5 },   // banheiro
+      { x: 2.8,  y: N + 2.5,    z: 5.9,  cor: 0xffe6c0, i: 0.95, d: 9 },  // sala
+    ];
+    this.homeLights = [];
+    for (const p of pontos) {
+      const luz = new THREE.PointLight(p.cor, p.i, p.d, 2);
+      luz.position.set(p.x, p.y, p.z);
+      luz.castShadow = false;
+      group.add(luz);
+      this.homeLights.push(luz);
+    }
+  }
+
+  /** Move as folhas das portas. Chamado pelo loop do jogo. */
+  updateBuilding(dt) {
+    if (this.doors) updateDoors(this.doors, dt);
+  }
+
+  /** Altura do chão sob o jogador — rua, laje ou degrau da escada. */
+  supportAt(x, z, feetY) {
+    return this.interior.supportAt(x, z, feetY);
+  }
+
+  /** Altura livre acima da cabeça (laje ou cobertura). */
+  ceilingAt(x, z, feetY) {
+    return this.interior.ceilingAt(x, z, feetY);
+  }
+
+  /**
+   * Porta mais próxima do jogador que esteja no mesmo pavimento e ao alcance.
+   * O filtro por pavimento evita o prompt da porta do saguão aparecer pra quem
+   * está no corredor logo acima dela.
+   */
+  nearestDoor(pos, maxDist = 2.2) {
+    if (!this.doors) return null;
+    let melhor = null;
+    let menor = maxDist;
+    for (const p of this.doors.values()) {
+      const alvoY = p.level * 3.2;
+      if (Math.abs(pos.y - alvoY) > 1.6) continue;
+      const d = Math.hypot(
+        pos.x - (p.ponto.x + this.interior.origin.x),
+        pos.z - (p.ponto.z + this.interior.origin.z),
+      );
+      if (d < menor) { menor = d; melhor = p; }
+    }
+    return melhor;
+  }
+
+  /**
+   * Objeto do apartamento mais próximo e ao alcance. O raio é menor que o de
+   * NPC porque a mobília é densa: com 3,2 m dois móveis disputariam o prompt.
+   */
+  nearestAnchor(pos, maxDist = 1.5) {
+    if (!this.homeAnchors) return null;
+    let melhor = null;
+    let menor = maxDist;
+    for (const a of this.homeAnchors) {
+      if (Math.abs(pos.y - (a.y > 3 ? 3.2 : 0)) > 1.6) continue;
+      const d = Math.hypot(pos.x - a.x, pos.z - a.z);
+      if (d < menor) { menor = d; melhor = a; }
+    }
+    return melhor;
+  }
+
+  /** O jogador está dentro da pegada do prédio inicial? */
+  insideHome(x, z) {
+    return this.interior.containsXZ(x, z);
+  }
+
   // Resolve colisão circular do jogador contra todas as AABBs de edifícios.
-  resolveCollision(pos, radius) {
+  // A cidade continua sendo 2D; o prédio inicial acrescenta o eixo vertical.
+  resolveCollision(pos, radius, height = 1.7) {
     for (const b of this.buildingAABBs) {
       const closestX = THREE.MathUtils.clamp(pos.x, b.minX, b.maxX);
       const closestZ = THREE.MathUtils.clamp(pos.z, b.minZ, b.maxZ);
@@ -503,6 +617,7 @@ export class World {
         pos.z += (dz / dist) * overlap;
       }
     }
+    this.interior.resolve(pos, radius, height);
     const half = CONFIG.WORLD_HALF - 2;
     pos.x = THREE.MathUtils.clamp(pos.x, -half, half);
     pos.z = THREE.MathUtils.clamp(pos.z, -half, half);
@@ -523,6 +638,11 @@ export class World {
         if (d < closest) closest = d;
       }
     }
-    return closest;
+    // As paredes do interior também travam a câmera — sem isso ela atravessa
+    // o prédio inteiro e mostra o lado de fora enquanto o jogador está dentro.
+    closest = Math.min(closest, this.interior.raycast(origin, dir, closest));
+    // A fronteira do prédio também limita: a porta é um buraco legítimo na
+    // parede, e sem isto a câmera de quem está na rua entra por ela.
+    return Math.min(closest, this.interior.boundaryDistance(origin, dir, closest));
   }
 }
