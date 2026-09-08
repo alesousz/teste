@@ -10,6 +10,11 @@ h2 { font-size: 0.95em; color: #ffd98a; margin-top: 18px; }
 h2:first-child { margin-top: 0; }
 h3 { font-size: 0.88em; color: #cfd3da; margin-top: 16px; }
 .hint { font-size: 0.78em; color: #8992a0; margin: 4px 0 10px; line-height: 1.4; }
+
+/* Conteúdo que o editor reconhece como existente mas não sabe editar. Fica à
+   vista de propósito: é o aviso de que há dado preservado ali. */
+.unknown-payload { color: #e0b64a; border-left: 2px solid #e0b64a; padding-left: 8px; margin: 6px 0; word-break: break-all; }
+.unknown-payload code { color: #f0d896; }
 code { background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px; }
 
 #topbar {
