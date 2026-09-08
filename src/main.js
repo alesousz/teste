@@ -85,19 +85,23 @@ class Game {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
     this.scene = new THREE.Scene();
-    // Mapeamento tonal, iluminação por imagem e foco da sombra vivem aqui.
-    this.render = new RenderPipeline(this.renderer, this.scene);
+    // Uma detecção só governa toda a escala de qualidade: pós-processamento,
+    // tamanho do mapa de sombra e frequência do mapa de ambiente. Num
+    // rasterizador de software cada texel de sombra e cada busca de textura é
+    // CPU, e o passe visual dobrava o tempo de um teste E2E.
+    const ehSoftware = rendererEhSoftware(this.renderer);
+    this.render = new RenderPipeline(this.renderer, this.scene, { software: ehSoftware });
 
-    // Pós-processamento: ligado por padrão, desligado em rasterizador de
-    // software (onde só custaria quadro). `?postfx=0` / `?postfx=1` força
-    // qualquer um dos dois — é assim que a cadeia é inspecionada em ambiente
-    // sem GPU, já que é justamente lá que ela ficaria desligada.
+    // `?postfx=0` / `?postfx=1` força qualquer um dos dois — é assim que a
+    // cadeia é inspecionada em ambiente sem GPU, já que é justamente lá que
+    // ela ficaria desligada.
     const forcado = new URLSearchParams(location.search).get('postfx');
-    const usarPostfx = forcado === null ? !rendererEhSoftware(this.renderer) : forcado !== '0';
+    const usarPostfx = forcado === null ? !ehSoftware : forcado !== '0';
     this.postfx = new PostFX(this.renderer, window.innerWidth, window.innerHeight, { enabled: usarPostfx });
     this.camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 500);
 
     this.world = new World(this.scene);
+    this.render.configurarSombra(this.world.sun);
     this.player = null;
     this.npcs = [];
     this.dummy = createTrainingDummy(this.scene);
