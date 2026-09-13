@@ -6,6 +6,15 @@ import { SCENE as GAME_SCENE } from '../data/scene.js';
 const GRID_SIZE = 60;
 const CELL = 1;
 
+// Papel de uma peça de kit pelo nome do arquivo: `papeis` no índice mapeia
+// expressão regular → papel (piso, escada, porta).
+function papelDoArquivo(papeis, arquivo) {
+  for (const [padrao, papel] of Object.entries(papeis ?? {})) {
+    if (new RegExp(padrao, 'i').test(arquivo)) return papel;
+  }
+  return null;
+}
+
 class EditorApp {
   constructor() {
     this.canvas = document.getElementById('editor-canvas');
@@ -74,7 +83,7 @@ class EditorApp {
       if (m.escala !== 1) pecas.children.forEach(c => c.scale.multiplyScalar(m.escala));
       addDynamicProps(pecas, {
         categoria: m.categoria, url: m.url, escala: m.escala, variasPecas: m.variasPecas || m.variacoes,
-        colisao: m.colisao,
+        colisao: m.colisao, sobreposicaoLivre: m.sobreposicaoLivre, papel: m.papel,
       });
     }
 
@@ -120,6 +129,10 @@ class EditorApp {
           escala: indice.escalas?.[arquivo] ?? indice.escala ?? 1,
           categoria: indice.categoria ?? null, variasPecas: false,
           variacoes: !!indice.variacoes,
+          // Kit de construção: peças que encaixam umas nas outras (porta no
+          // vão, piso sob a parede) e não passam pela trava de lugar ocupado.
+          sobreposicaoLivre: !!indice.sobreposicaoLivre,
+          papel: papelDoArquivo(indice.papeis, arquivo),
           // Exceção à colisão automática: `colisoes` por arquivo ou `colisao`
           // pro pacote inteiro (true força, false desliga).
           colisao: indice.colisoes?.[arquivo] ?? indice.colisao,
@@ -357,6 +370,9 @@ class EditorApp {
 
     for (const it of this.items) {
       if (it.mesh === ghostMesh) continue;
+      // Peça de kit já colocada não impede nada: móvel em cima do piso,
+      // quadro na parede.
+      if (paletteById(it.typeId)?.sobreposicaoLivre) continue;
       const box2 = new THREE.Box3().setFromObject(it.mesh);
       box2.expandByScalar(-0.05);
       if (box1.intersectsBox(box2)) {
@@ -364,6 +380,14 @@ class EditorApp {
       }
     }
     return false;
+  }
+
+  // Trava de lugar ocupado na hora de colocar. Peça de kit encaixa sem trava;
+  // segurando Shift, qualquer item também.
+  _ocupadoParaColocar() {
+    if (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')) return false;
+    if (paletteById(this.armedType)?.sobreposicaoLivre) return false;
+    return this._isOccupied3D(this.ghost);
   }
 
   _raycastGround() {
@@ -421,7 +445,7 @@ class EditorApp {
       
       if (this.ghost) {
         this.ghost.position.set(sx, sy, sz);
-        if (this._isOccupied3D(this.ghost)) return;
+        if (this._ocupadoParaColocar()) return;
       }
       
       const placed = this._place(this.armedType, sx, sy, sz, this._armedProps);
@@ -788,7 +812,7 @@ class EditorApp {
         }
         
         this.ghost.position.set(sx, sy, sz);
-        const occupied = this._isOccupied3D(this.ghost);
+        const occupied = this._ocupadoParaColocar();
         
         this._updateGhostMaterial(this.ghost, occupied);
       }

@@ -17,9 +17,22 @@ Gerados pelos scripts de `tools/blender/` (rodar de novo o script regera o arqui
 
 ## De terceiros
 
-Os dois pacotes são da Quaternius, licença **CC0 1.0** (domínio público): uso
-livre, inclusive comercial, sem exigência de crédito — fica registrado aqui
-mesmo assim. Licenças conferidas nas páginas oficiais em 13/09/2026.
+Todos os pacotes abaixo têm licença **CC0 1.0** (domínio público): uso livre,
+inclusive comercial, sem exigência de crédito — fica registrado aqui mesmo
+assim. Licenças conferidas nas páginas dos pacotes em 13/09/2026.
+
+### `kenney-building-kit/` — Building Kit (Kenney)
+
+- Autor: Kenney — https://kenney.nl/
+- Página do pacote no Poly Pizza (de onde vêm os `.glb`):
+  https://poly.pizza/bundle/Building-Kit-HMVCsp80XU
+- 78 dos 79 modelos: paredes (inteira, meia, baixa, com vão de porta e de
+  janela, cantos), colunas, pisos, telhado plano, escadas, portas (com
+  animação de abrir), barricadas, calhas e telha de zinco. Módulo de 2 m,
+  pé-direito de 2,4 m, já em tamanho real.
+- Alterações: nomes de arquivo com espaço trocado por `_`. Vários nomes vêm
+  cortados em 20 caracteres pelo Poly Pizza (`Wall_Window_Round_De`) e foram
+  mantidos assim.
 
 ### `quaternius-animals/` — Ultimate Animated Animal Pack
 
