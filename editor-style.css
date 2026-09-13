@@ -68,9 +68,12 @@ html, body {
 .tool-btn.active { background: #ffd98a; color: #1a1206; font-weight: 600; }
 
 #controls-hint {
-  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+  /* Acima do catálogo (que ocupa os 210 px de baixo) e quebrando linha: com
+     todos os atalhos, uma linha só vazava pelas bordas da tela. */
+  position: absolute; bottom: 222px; left: 50%; transform: translateX(-50%);
   background: rgba(10,12,16,0.65); padding: 6px 14px; border-radius: 8px; font-size: 0.78em; color: #b6bcc6;
-  white-space: nowrap;
+  white-space: normal; text-align: center; line-height: 1.5;
+  width: max-content; max-width: min(1100px, 92vw);
 }
 
 #props-panel {
