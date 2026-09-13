@@ -7,8 +7,8 @@ import { carregarModelosMoveis } from './propModels.js';
 import { loadGLTF } from './assets.js';
 import { SCENE } from './data/scene.js';
 import { modelosDaCena } from './sceneModels.js';
-import { pegadaNaFaixa, colisorDoObjeto, empurrarParaFora } from './objectCollision.js';
-import { pisoDoKit, escadaDoKit, apoioEm, tetoEm } from './kitSurfaces.js';
+import { pegadaNaFaixa, colisorDoObjeto, empurrarParaFora, raioContraColisor } from './objectCollision.js';
+import { pisoDoKit, escadaDoKit, apoioEm, tetoEm, raioContraPiso } from './kitSurfaces.js';
 import { clone as clonarComEsqueleto } from '../vendor/jsm/utils/SkeletonUtils.js';
 import { criarAsfalto, criarChaoDaRua } from './streetGround.js';
 
@@ -779,6 +779,18 @@ export class World {
     return melhor;
   }
 
+  /**
+   * O jogador está num lugar fechado, onde a câmera tem de ficar curta? No
+   * prédio inicial, embaixo de um piso de kit (até 4 m acima) ou em cima de
+   * um piso de kit.
+   */
+  dentroDeConstrucao(pos) {
+    if (this.interior.containsXZ(pos.x, pos.z)) return true;
+    if (this.superficiesKit.length === 0) return false;
+    if (tetoEm(this.superficiesKit, pos.x, pos.z, pos.y) - pos.y < 4) return true;
+    return apoioEm(this.superficiesKit, pos.x, pos.z, pos.y, 0.05) > 0.05;
+  }
+
   /** O jogador está dentro da pegada do prédio inicial? */
   insideHome(x, z) {
     return this.interior.containsXZ(x, z);
@@ -828,6 +840,18 @@ export class World {
     // As paredes do interior também travam a câmera — sem isso ela atravessa
     // o prédio inteiro e mostra o lado de fora enquanto o jogador está dentro.
     closest = Math.min(closest, this.interior.raycast(origin, dir, closest));
+    // Objetos do catálogo (paredes de kit, porta fechada, móveis) e as lajes
+    // dos pisos de kit também seguram a câmera.
+    for (const s of this.objetosSolidos) {
+      if (s.porta?.aberta) continue;
+      const t = raioContraColisor(origin, dir, s);
+      if (t !== null && t < closest) closest = t;
+    }
+    for (const piso of this.superficiesKit) {
+      if (piso.tipo !== 'piso') continue;
+      const t = raioContraPiso(origin, dir, piso);
+      if (t !== null && t < closest) closest = t;
+    }
     // A fronteira do prédio também limita: a porta é um buraco legítimo na
     // parede, e sem isto a câmera de quem está na rua entra por ela.
     return Math.min(closest, this.interior.boundaryDistance(origin, dir, closest));

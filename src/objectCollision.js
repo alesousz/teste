@@ -138,6 +138,43 @@ export function colisorDoObjeto(pegada, { x, y, z, rotY = 0 }) {
 }
 
 /**
+ * Raio contra uma caixa alinhada (slab method), em arrays [x, y, z].
+ * Devolve a distância de entrada (0 se a origem já está dentro) ou null.
+ */
+export function raioContraLimites(o, d, min, max) {
+  let t0 = 0;
+  let t1 = Infinity;
+  for (let k = 0; k < 3; k++) {
+    if (Math.abs(d[k]) < 1e-9) {
+      if (o[k] < min[k] || o[k] > max[k]) return null;
+      continue;
+    }
+    let a = (min[k] - o[k]) / d[k];
+    let b = (max[k] - o[k]) / d[k];
+    if (a > b) [a, b] = [b, a];
+    t0 = Math.max(t0, a);
+    t1 = Math.min(t1, b);
+    if (t0 > t1) return null;
+  }
+  return t0;
+}
+
+/**
+ * Raio (origem `o`, direção unitária `d`, em {x, y, z}) contra um colisor
+ * girado — a câmera usa pra não atravessar parede, porta fechada ou objeto.
+ */
+export function raioContraColisor(o, d, s) {
+  const dx = o.x - s.cx;
+  const dz = o.z - s.cz;
+  return raioContraLimites(
+    [dx * s.cos - dz * s.sin, o.y, dx * s.sin + dz * s.cos],
+    [d.x * s.cos - d.z * s.sin, d.y, d.x * s.sin + d.z * s.cos],
+    [-s.hx, s.yMin, -s.hz],
+    [s.hx, s.yMax, s.hz],
+  );
+}
+
+/**
  * Empurra um corpo (círculo no plano, de `pos.y` até `pos.y + altura`) pra
  * fora do colisor. Muda `pos` e devolve se empurrou.
  */

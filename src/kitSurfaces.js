@@ -12,6 +12,8 @@
 //
 // Sem three.js: o World mede a caixa do modelo e passa pra cá.
 
+import { raioContraLimites } from './objectCollision.js';
+
 export const PASSO = 0.6;           // igual ao STEP_UP do interior
 const FOLGA_DE_CABECA = 0.5;         // igual ao interior: teto só acima disso
 
@@ -92,6 +94,16 @@ export function apoioEm(superficies, x, z, pesY, tol = PASSO) {
     if (y <= limite && y > melhor) melhor = y;
   }
   return melhor;
+}
+
+/** Raio contra a laje de um piso — a câmera não atravessa o piso de cima. */
+export function raioContraPiso(o, d, piso) {
+  return raioContraLimites(
+    [o.x, o.y, o.z],
+    [d.x, d.y, d.z],
+    [piso.minX, piso.yBase, piso.minZ],
+    [piso.maxX, piso.y, piso.maxZ],
+  );
 }
 
 /** Base do piso mais baixo acima da cabeça, ou Infinity. */

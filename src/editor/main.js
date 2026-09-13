@@ -5,6 +5,9 @@ import { SCENE as GAME_SCENE } from '../data/scene.js';
 
 const GRID_SIZE = 60;
 const CELL = 1;
+// Altura de um andar de trabalho: a parede do Building Kit tem 2,4 m, e o
+// piso do andar de cima assenta em cima dela.
+const ALTURA_ANDAR = 2.4;
 
 // Papel de uma peça de kit pelo nome do arquivo: `papeis` no índice mapeia
 // expressão regular → papel (piso, escada, porta).
@@ -169,6 +172,9 @@ class EditorApp {
     const grid = new THREE.GridHelper(GRID_SIZE, GRID_SIZE / CELL, 0x223322, 0x2f4f2f);
     grid.position.y = 0.01;
     this.scene.add(grid);
+    // O grid acompanha o andar de trabalho (ver _mudarAndar).
+    this.grid = grid;
+    this.andar = 0;
   }
 
   _generateThumbnail(item) {
@@ -264,6 +270,7 @@ class EditorApp {
   _bindInput() {
     this.mouse = new THREE.Vector2(0, 0);
     this.isDraggingCamera = false;
+    this._criarIndicadorAndar();
 
     document.getElementById('btn-tool-select').onclick = () => this._setToolMode('select');
     document.getElementById('btn-tool-demolish').onclick = () => this._setToolMode('demolish');
@@ -277,6 +284,8 @@ class EditorApp {
       if (e.code === 'KeyR') this._rotateSelectedOrGhost();
       if (e.code === 'Delete' || e.code === 'Backspace') this._deleteSelected();
       if (e.code === 'Tab') { e.preventDefault(); this._toggleScenePanel(); }
+      if (e.code === 'PageUp') { e.preventDefault(); this._mudarAndar(1); }
+      if (e.code === 'PageDown') { e.preventDefault(); this._mudarAndar(-1); }
     });
     window.addEventListener('keyup', e => this.keys.delete(e.code));
 
@@ -382,6 +391,48 @@ class EditorApp {
     return false;
   }
 
+  // Andar de trabalho: Page Up / Page Down sobem e descem de ALTURA_ANDAR. O
+  // plano onde o mouse aponta, o grid e a câmera vão junto — dá pra colocar
+  // o piso do andar de cima em qualquer lugar, com ou sem parede embaixo.
+  _mudarAndar(delta) {
+    const novo = Math.max(0, Math.min(20, this.andar + delta));
+    if (novo === this.andar) return;
+    const subida = (novo - this.andar) * ALTURA_ANDAR;
+    this.andar = novo;
+    const altura = novo * ALTURA_ANDAR;
+    this.groundPlane.constant = -altura;
+    this.grid.position.y = altura + 0.01;
+    this.camera.position.y = Math.max(1, this.camera.position.y + subida);
+    this._atualizarIndicadorAndar();
+  }
+
+  _criarIndicadorAndar() {
+    const barra = document.getElementById('top-toolbar');
+    if (!barra || document.getElementById('andar-label')) return;
+    const el = document.createElement('span');
+    el.id = 'andar-label';
+    el.title = 'Page Up / Page Down mudam o andar em que as peças são colocadas';
+    el.style.cssText = 'align-self:center;margin-left:16px;padding:6px 10px;border-radius:6px;'
+      + 'background:rgba(255,217,138,0.15);color:#ffd98a;font-size:0.85em;white-space:nowrap;';
+    barra.appendChild(el);
+    this._atualizarIndicadorAndar();
+  }
+
+  _atualizarIndicadorAndar() {
+    const el = document.getElementById('andar-label');
+    if (el) el.textContent = `Andar ${this.andar} · ${(this.andar * ALTURA_ANDAR).toFixed(1).replace('.', ',')} m (PgUp/PgDn)`;
+  }
+
+  // Altura onde a peça armada vai: peça de kit sempre na altura do andar (pra
+  // parede e piso ficarem alinhados); o resto empilha no que estiver embaixo
+  // do mouse, mas nunca abaixo do andar de trabalho.
+  _alturaDaColocacao(hit) {
+    const doAndar = this.andar * ALTURA_ANDAR;
+    if (hit.type !== 'item' || paletteById(this.armedType)?.sobreposicaoLivre) return doAndar;
+    const topo = new THREE.Box3().setFromObject(hit.object).max.y;
+    return Math.max(doAndar, topo);
+  }
+
   // Trava de lugar ocupado na hora de colocar. Peça de kit encaixa sem trava;
   // segurando Shift, qualquer item também.
   _ocupadoParaColocar() {
@@ -437,11 +488,7 @@ class EditorApp {
       const sx = this._snap(hit.point.x);
       const sz = this._snap(hit.point.z);
       
-      let sy = 0;
-      if (hit.type === 'item') {
-        const box = new THREE.Box3().setFromObject(hit.object);
-        sy = box.max.y;
-      }
+      const sy = this._alturaDaColocacao(hit);
       
       if (this.ghost) {
         this.ghost.position.set(sx, sy, sz);
@@ -805,11 +852,7 @@ class EditorApp {
       if (hit) {
         const sx = this._snap(hit.point.x);
         const sz = this._snap(hit.point.z);
-        let sy = 0;
-        if (hit.type === 'item') {
-          const box = new THREE.Box3().setFromObject(hit.object);
-          sy = box.max.y;
-        }
+        const sy = this._alturaDaColocacao(hit);
         
         this.ghost.position.set(sx, sy, sz);
         const occupied = this._ocupadoParaColocar();

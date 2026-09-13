@@ -1,6 +1,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { FAIXA, pegadaNaFaixa, colisorDoObjeto, empurrarParaFora } from '../../src/objectCollision.js';
+import {
+  FAIXA, pegadaNaFaixa, colisorDoObjeto, empurrarParaFora, raioContraColisor,
+} from '../../src/objectCollision.js';
 import { CONFIG } from '../../src/data.js';
 
 test('VAO_MINIMO acompanha o corpo do jogador', () => {
@@ -100,6 +102,32 @@ describe('colisorDoObjeto', () => {
     assert.equal(s.hz, 0.25);
     assert.equal(s.yMin, FAIXA.MIN);
     assert.equal(s.yMax, 2);
+  });
+});
+
+describe('raioContraColisor (câmera)', () => {
+  // Parede de 2 m ao longo de x, 0,1 de espessura, em z = 0, até 2,4 m.
+  const parede = colisorDoObjeto({ x0: -1, x1: 1, z0: -0.05, z1: 0.05, altura: 2.4 }, { x: 0, y: 0, z: 0 });
+
+  test('raio de frente para na face da parede', () => {
+    const t = raioContraColisor({ x: 0, y: 1.4, z: -5 }, { x: 0, y: 0, z: 1 }, parede);
+    assert.ok(Math.abs(t - 4.95) < 1e-9);
+  });
+
+  test('raio que passa por cima, ao lado ou pra trás não bate', () => {
+    assert.equal(raioContraColisor({ x: 0, y: 3, z: -5 }, { x: 0, y: 0, z: 1 }, parede), null);
+    assert.equal(raioContraColisor({ x: 2, y: 1.4, z: -5 }, { x: 0, y: 0, z: 1 }, parede), null);
+    assert.equal(raioContraColisor({ x: 0, y: 1.4, z: -5 }, { x: 0, y: 0, z: -1 }, parede), null);
+  });
+
+  test('colisor girado: a mesma parede a 90° é atravessada pelo lado estreito', () => {
+    const girada = colisorDoObjeto({ x0: -1, x1: 1, z0: -0.05, z1: 0.05, altura: 2.4 }, { x: 0, y: 0, z: 0, rotY: Math.PI / 2 });
+    // Agora ela corre ao longo de z: um raio em +x bate na face dela em x = −0,05.
+    const t = raioContraColisor({ x: -5, y: 1.4, z: 0.5 }, { x: 1, y: 0, z: 0 }, girada);
+    assert.ok(Math.abs(t - 4.95) < 1e-9);
+    // E um raio em +z no mesmo x corre por dentro dela até sair — origem fora
+    // da faixa de x, nada.
+    assert.equal(raioContraColisor({ x: 0.5, y: 1.4, z: -5 }, { x: 0, y: 0, z: 1 }, girada), null);
   });
 });
 

@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  PASSO, retanguloNoMundo, pisoDoKit, escadaDoKit, alturaDaEscada, apoioEm, tetoEm,
+  PASSO, retanguloNoMundo, pisoDoKit, escadaDoKit, alturaDaEscada, apoioEm, tetoEm, raioContraPiso,
 } from '../../src/kitSurfaces.js';
 
 const perto = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
@@ -35,6 +35,13 @@ describe('pisos', () => {
   test('fora do retângulo não sustenta', () => {
     const chao = pisoDoKit(PISO, { x: 0, y: 0, z: 0 });
     assert.equal(apoioEm([chao], 1.5, 0, 0), -Infinity);
+  });
+
+  test('câmera subindo bate na base do piso de cima', () => {
+    const andar = pisoDoKit(PISO, { x: 0, y: 2.4, z: 0 });
+    const t = raioContraPiso({ x: 0, y: 1.4, z: 0 }, { x: 0, y: 1, z: 0 }, andar);
+    assert.ok(perto(t, 1.0));
+    assert.equal(raioContraPiso({ x: 3, y: 1.4, z: 0 }, { x: 0, y: 1, z: 0 }, andar), null);
   });
 
   test('a base do piso de cima é teto pra quem está embaixo', () => {
