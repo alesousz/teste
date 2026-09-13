@@ -6,6 +6,7 @@ import { buildApartmentProps, apartmentBoxes } from './apartmentProps.js';
 import { carregarModelosMoveis } from './propModels.js';
 import { loadGLTF } from './assets.js';
 import { SCENE } from './data/scene.js';
+import { criarAsfalto, criarChaoDaRua } from './streetGround.js';
 
 function makeWindowTexture(seed, w, h, lit) {
   const canvas = document.createElement('canvas');
@@ -29,28 +30,6 @@ function makeWindowTexture(seed, w, h, lit) {
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
-  return tex;
-}
-
-function makeAsphaltTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256; canvas.height = 256;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#2b2d31';
-  ctx.fillRect(0, 0, 256, 256);
-  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-  ctx.lineWidth = 4;
-  ctx.setLineDash([18, 14]);
-  ctx.beginPath();
-  ctx.moveTo(128, 0); ctx.lineTo(128, 256);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(0, 128); ctx.lineTo(256, 128);
-  ctx.stroke();
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(CONFIG.GRID_SIZE * 3, CONFIG.GRID_SIZE * 3);
   return tex;
 }
 
@@ -78,12 +57,9 @@ export class World {
 
   _buildGround() {
     const size = CONFIG.GRID_SIZE * CONFIG.CELL + 40;
-    const geo = new THREE.PlaneGeometry(size, size);
-    const mat = new THREE.MeshStandardMaterial({ map: makeAsphaltTexture(), roughness: 1 });
-    const ground = new THREE.Mesh(geo, mat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    this.scene.add(ground);
+    this.scene.add(criarAsfalto(size));
+    // Calçadas, meio-fio, faixas e a praça: traçado em data/streets.js.
+    this.scene.add(criarChaoDaRua());
   }
 
   _buildBlocks() {
@@ -101,18 +77,19 @@ export class World {
     grassTex.repeat.set(6, 6);
 
     for (const block of CITY.blocks) {
-      const isGrass = block.type === 'park' || block.type.startsWith('home_');
-      const lotMat = new THREE.MeshStandardMaterial(
-        isGrass
-          ? { map: grassTex, roughness: 1 }
-          : { color: block.type === 'plaza' ? 0xb9b0a0 : 0x8d8f92, roughness: 0.95 }
-      );
-      const lotGeo = new THREE.PlaneGeometry(CONFIG.BLOCK_SIZE, CONFIG.BLOCK_SIZE);
-      const lot = new THREE.Mesh(lotGeo, lotMat);
-      lot.rotation.x = -Math.PI / 2;
-      lot.position.set(block.cx, 0.02, block.cz);
-      lot.receiveShadow = true;
-      this.scene.add(lot);
+      // O piso da praça é a pedra portuguesa de streetGround.js.
+      if (block.type !== 'plaza') {
+        const isGrass = block.type === 'park' || block.type.startsWith('home_');
+        const lotMat = new THREE.MeshStandardMaterial(
+          isGrass ? { map: grassTex, roughness: 1 } : { color: 0x8d8f92, roughness: 0.95 }
+        );
+        const lotGeo = new THREE.PlaneGeometry(CONFIG.BLOCK_SIZE, CONFIG.BLOCK_SIZE);
+        const lot = new THREE.Mesh(lotGeo, lotMat);
+        lot.rotation.x = -Math.PI / 2;
+        lot.position.set(block.cx, 0.02, block.cz);
+        lot.receiveShadow = true;
+        this.scene.add(lot);
+      }
 
       for (const b of block.lots) {
         if (b.kind) this._addLandmark(b);
