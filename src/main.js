@@ -646,11 +646,13 @@ class Game {
     // Sombra e ambiente acompanham o jogador e o horário. O ambiente só é
     // refeito quando o céu muda de verdade — é um render + convolução.
     this.render.focusShadows(this.world.sun, this.player.position);
-    if (this.world.skyColor
-        && this.render.updateEnvironment(this.world.skyColor, this.world.groundColor, this.world.dayFactor)
-        && this.world.homeBuilding) {
-      // Reaplicado a cada troca de ambiente porque materiais criados depois
-      // (ou clonados) voltariam ao padrao 1.0 e lavariam o interior.
+    const ambienteMudou = this.world.skyColor
+      && this.render.updateEnvironment(this.world.skyColor, this.world.groundColor, this.world.dayFactor);
+    if ((ambienteMudou || this.world.homeMaterialsDirty) && this.world.homeBuilding) {
+      this.world.homeMaterialsDirty = false;
+      // Reaplicado a cada troca de ambiente e quando um modelo de móvel
+      // chega, porque materiais criados depois (ou clonados) voltariam ao
+      // padrao 1.0 e lavariam o interior.
       // Ordem importa: a cena inteira primeiro, o prédio depois — o segundo
       // passe sobrescreve os materiais do interior. O asfalto e as fachadas da
       // cidade são rugosos, e com ambiente cheio devolviam o azul do céu como

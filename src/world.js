@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { CONFIG, CITY, BUILDING_COLOR_PALETTE, LANDMARK_SPECS , HOME_ORIGIN } from './data.js';
 import { Interior } from './interior.js';
 import { buildBuilding, updateDoors } from './building.js';
-import { buildApartmentProps } from './apartmentProps.js';
+import { buildApartmentProps, apartmentBoxes } from './apartmentProps.js';
+import { carregarModelosMoveis } from './propModels.js';
+import { loadGLTF } from './assets.js';
 import { SCENE } from './data/scene.js';
 
 function makeWindowTexture(seed, w, h, lit) {
@@ -513,6 +515,11 @@ export class World {
     const props = buildApartmentProps(THREE);
     group.add(props.group);
     this.interior.addSolids(props.solids);
+    // Móveis com modelo do Blender chegam depois; até lá (ou se falharem)
+    // ficam as caixas. Os materiais novos nascem com o ambiente cheio, então
+    // o loop precisa redosar o interior quando eles entram.
+    carregarModelosMoveis(props.group, apartmentBoxes(), loadGLTF)
+      .then(n => { if (n > 0) this.homeMaterialsDirty = true; });
     this.homeAnchors = props.anchors.map(a => ({
       ...a,
       x: a.x + this.interior.origin.x,
