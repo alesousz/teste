@@ -7,6 +7,7 @@ import { carregarModelosMoveis } from './propModels.js';
 import { loadGLTF } from './assets.js';
 import { SCENE } from './data/scene.js';
 import { modelosDaCena } from './sceneModels.js';
+import { pegadaNaFaixa, colisorDoObjeto, empurrarParaFora } from './objectCollision.js';
 import { clone as clonarComEsqueleto } from '../vendor/jsm/utils/SkeletonUtils.js';
 import { criarAsfalto, criarChaoDaRua } from './streetGround.js';
 
@@ -46,6 +47,10 @@ export class World {
     this.windowTexturesLit = [];
     this.windowTexturesDark = [];
     this.streetLamps = [];
+    // Colisores dos objetos do catálogo (ver objectCollision.js) e a pegada
+    // medida de cada modelo, reaproveitada por todas as cópias dele.
+    this.objetosSolidos = [];
+    this._pegadas = new Map();
     this._buildGround();
     this._buildBlocks();
     this._buildProps();
@@ -383,11 +388,49 @@ export class World {
           obj.scale.copy(origem.scale).multiplyScalar(c.escala);
           obj.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
           this.scene.add(obj);
+          const colisor = this._colisorDe(obj, url, c);
+          if (colisor) this.objetosSolidos.push({ ...colisor, nome: c.typeId });
         }
         // Materiais novos nascem com o ambiente cheio; o loop redosa.
         this.homeMaterialsDirty = true;
       }, err => console.warn(`[cena] ${url} não carregou; ${copias.length} objeto(s) ficam de fora.`, err));
     }
+  }
+
+  // Colisor de uma cópia. A pegada é medida uma vez por modelo, no
+  // referencial dele (sem giro e na origem), e reaproveitada pelas cópias.
+  _colisorDe(obj, url, c) {
+    const chave = `${url}|${c.no ?? ''}|${c.escala}|${c.colisao ?? ''}`;
+    let pegada = this._pegadas.get(chave);
+    if (pegada === undefined) {
+      const posicao = obj.position.clone();
+      const giro = obj.rotation.y;
+      obj.position.set(0, 0, 0);
+      obj.rotation.y = 0;
+      obj.updateMatrixWorld(true);
+      const a = new THREE.Vector3();
+      const b = new THREE.Vector3();
+      const d = new THREE.Vector3();
+      pegada = pegadaNaFaixa(cb => obj.traverse(o => {
+        if (!o.isMesh) return;
+        const p = o.geometry.attributes.position;
+        const indice = o.geometry.index;
+        const n = indice ? indice.count : p.count;
+        const vertice = i => (indice ? indice.getX(i) : i);
+        for (let i = 0; i + 2 < n; i += 3) {
+          a.fromBufferAttribute(p, vertice(i)).applyMatrix4(o.matrixWorld);
+          b.fromBufferAttribute(p, vertice(i + 1)).applyMatrix4(o.matrixWorld);
+          d.fromBufferAttribute(p, vertice(i + 2)).applyMatrix4(o.matrixWorld);
+          cb(a.x, a.y, a.z, b.x, b.y, b.z, d.x, d.y, d.z);
+        }
+      }), { colisao: c.colisao });
+      obj.position.copy(posicao);
+      obj.rotation.y = giro;
+      obj.updateMatrixWorld(true);
+      this._pegadas.set(chave, pegada);
+    }
+    if (!pegada) return null;
+    return colisorDoObjeto(pegada, { x: c.position[0], y: c.position[1], z: c.position[2], rotY: c.rotY });
   }
 
   _addLamp(x, z) {
@@ -649,6 +692,7 @@ export class World {
         pos.z += (dz / dist) * overlap;
       }
     }
+    for (const s of this.objetosSolidos) empurrarParaFora(pos, radius, height, s);
     this.interior.resolve(pos, radius, height);
     const half = CONFIG.WORLD_HALF - 2;
     pos.x = THREE.MathUtils.clamp(pos.x, -half, half);

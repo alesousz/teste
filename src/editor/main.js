@@ -74,6 +74,7 @@ class EditorApp {
       if (m.escala !== 1) pecas.children.forEach(c => c.scale.multiplyScalar(m.escala));
       addDynamicProps(pecas, {
         categoria: m.categoria, url: m.url, escala: m.escala, variasPecas: m.variasPecas || m.variacoes,
+        colisao: m.colisao,
       });
     }
 
@@ -119,6 +120,9 @@ class EditorApp {
           escala: indice.escalas?.[arquivo] ?? indice.escala ?? 1,
           categoria: indice.categoria ?? null, variasPecas: false,
           variacoes: !!indice.variacoes,
+          // Exceção à colisão automática: `colisoes` por arquivo ou `colisao`
+          // pro pacote inteiro (true força, false desliga).
+          colisao: indice.colisoes?.[arquivo] ?? indice.colisao,
         }));
       } catch (e) {
         console.warn(`Sem índice em assets/props/${pasta} (${e.message}): pasta ignorada.`);

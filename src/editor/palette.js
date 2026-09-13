@@ -190,7 +190,7 @@ export const PALETTE = [
 // `url`, `escala` e `variasPecas` descrevem de onde o item veio: o editor
 // grava isso na cena exportada, e o jogo carrega o mesmo nó do mesmo arquivo
 // (src/sceneModels.js).
-export function addDynamicProps(gltfScene, { categoria = null, url = null, escala = 1, variasPecas = false } = {}) {
+export function addDynamicProps(gltfScene, { categoria = null, url = null, escala = 1, variasPecas = false, colisao } = {}) {
   gltfScene.children.forEach((child, index) => {
     if (child) {
       const box = new THREE.Box3().setFromObject(child);
@@ -242,7 +242,9 @@ export function addDynamicProps(gltfScene, { categoria = null, url = null, escal
         category: category,
         name: nomeLimpo,
         footprint: { w: Math.max(1, Math.ceil(w)), d: Math.max(1, Math.ceil(d)) },
-        modelo: url ? { url, no: variasPecas ? child.name : null, escala } : null,
+        modelo: url
+          ? { url, no: variasPecas ? child.name : null, escala, ...(typeof colisao === 'boolean' ? { colisao } : {}) }
+          : null,
         build: () => {
           let clone;
           try {

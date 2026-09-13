@@ -43,6 +43,15 @@ describe('modelosDaCena', () => {
     assert.equal(copia.rotY, 0);
   });
 
+  test('repassa colisao só quando o pacote forçou', () => {
+    const { porArquivo } = modelosDaCena([
+      item({ modelo: { url: 'assets/props/a.glb', no: null, escala: 1, colisao: false } }),
+      item({ modelo: { url: 'assets/props/b.glb', no: null, escala: 1 } }),
+    ]);
+    assert.equal(porArquivo.get('assets/props/a.glb')[0].colisao, false);
+    assert.ok(!('colisao' in porArquivo.get('assets/props/b.glb')[0]));
+  });
+
   test('recusa origem fora de assets/props, subida de pasta e valores inválidos', () => {
     const ruins = [
       item({ modelo: { url: 'https://exemplo.com/x.glb', escala: 1 } }),
@@ -51,6 +60,7 @@ describe('modelosDaCena', () => {
       item({ modelo: { url: 'assets/props/a.glb', escala: 0 } }),
       item({ modelo: { url: 'assets/props/a.glb', escala: Number.NaN } }),
       item({ modelo: { url: 'assets/props/a.glb', no: 42 } }),
+      item({ modelo: { url: 'assets/props/a.glb', colisao: 'sim' } }),
       item({ position: [1, 0] }),
       item({ position: [1, Number.POSITIVE_INFINITY, 0] }),
     ];
