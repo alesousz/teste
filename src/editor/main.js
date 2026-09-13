@@ -9,6 +9,10 @@ import {
 import {
   fotografar, comandoColocar, comandoRemover, comandoTransformar, comandoAlterarProps,
 } from './comandos.js';
+import {
+  LIMITES_ORBITA, posicaoDaCamera, direcoesNoChao, aplicarZoom, limitarInclinacao,
+} from './orbita.js';
+import { MODOS_PAREDE, ESCALA_PAREDE_BAIXA, ehParede, paredeRebaixada } from './paredes.js';
 
 const GRID_SIZE = 60;
 // Altura de um andar de trabalho: a parede do Building Kit tem 2,4 m, e o
@@ -37,7 +41,11 @@ class EditorApp {
     this.scene.background = new THREE.Color(0x6f8fae);
     this.scene.fog = new THREE.Fog(0x6f8fae, 40, 140);
     this.camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 500);
-    this.camera.position.set(0, 15, 10);
+    // Câmera orbital (ver orbita.js). O começo fica parecido com a câmera de
+    // voo livre de antes: uns 15 m acima, olhando pro centro.
+    this.orbita = { alvo: [0, 0, 0], yaw: 0, pitch: 0.95, distancia: 18 };
+    this._pitchAntesDaVistaDeCima = null;
+    this.modoParede = 'inteiras';
 
     // Grid e giro ajustáveis na barra (ver grade.js).
     this.passoGrade = 1;
@@ -58,8 +66,6 @@ class EditorApp {
     this._caixa = null;
 
     this.keys = new Set();
-    this.yaw = 0;
-    this.pitch = -1.0;
     this.toolMode = 'select';
     // Exposto pra depuração e pros testes, como window.__game no jogo.
     window.__editor = this;
@@ -305,6 +311,7 @@ class EditorApp {
     this.mouse = new THREE.Vector2(0, 0);
     this.isDraggingCamera = false;
     this._criarControlesDeEdicao();
+    this._criarControlesDeVisao();
     this._criarIndicadorAndar();
 
     document.getElementById('btn-tool-select').onclick = () => this._setToolMode('select');
@@ -337,6 +344,9 @@ class EditorApp {
         this._setToolMode('select');
       }
       if (e.code === 'KeyR') this._girar(e.shiftKey ? -1 : 1);
+      if (e.code === 'KeyT') this._alternarVistaDeCima();
+      if (e.code === 'KeyF') this._focarSelecao();
+      if (e.code === 'KeyV') this._proximoModoParede();
       if (e.code === 'Delete' || e.code === 'Backspace') this._apagarSelecionados();
       if (e.code === 'Tab') { e.preventDefault(); this._toggleScenePanel(); }
       if (e.code === 'PageUp') { e.preventDefault(); this._mudarAndar(1); }
@@ -352,6 +362,7 @@ class EditorApp {
     this.canvas.addEventListener('mousedown', e => {
       this._atualizarMouse(e);
       if (e.button === 2) { this.isDraggingCamera = true; return; }
+      if (e.button === 1) { e.preventDefault(); this._arrastandoVista = true; return; }
       if (e.button !== 0 || this.armedType || this._colando || this.toolMode !== 'select') return;
       const item = this._raycastItems();
       const aditivo = e.ctrlKey || e.metaKey;
@@ -370,6 +381,7 @@ class EditorApp {
     });
     window.addEventListener('mouseup', e => {
       if (e.button === 2) this.isDraggingCamera = false;
+      if (e.button === 1) this._arrastandoVista = false;
       if (e.button !== 0) return;
       if (this._arrasto) this._finalizarArrasto();
       if (this._caixa) this._finalizarCaixa();
@@ -380,12 +392,26 @@ class EditorApp {
 
     this.canvas.addEventListener('mousemove', e => {
       this._atualizarMouse(e);
+      // Botão direito: gira em volta do alvo e inclina.
       if (this.isDraggingCamera) {
-        this.yaw -= e.movementX * 0.0022;
-        this.pitch -= e.movementY * 0.0022;
-        this.pitch = THREE.MathUtils.clamp(this.pitch, -1.3, 1.3);
+        this.orbita.yaw -= e.movementX * 0.005;
+        this.orbita.pitch = limitarInclinacao(this.orbita.pitch + e.movementY * 0.005);
+        if (this._pitchAntesDaVistaDeCima !== null) {
+          this._pitchAntesDaVistaDeCima = null;
+          this._atualizarBotoesDeVisao();
+        }
+      }
+      // Botão do meio: agarra o chão e arrasta a vista.
+      if (this._arrastandoVista) {
+        const escala = this.orbita.distancia * 0.0018;
+        this._moverAlvo(-e.movementX * escala, e.movementY * escala);
       }
     });
+    // Roda: aproxima e afasta.
+    this.canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      this.orbita.distancia = aplicarZoom(this.orbita.distancia, Math.sign(e.deltaY));
+    }, { passive: false });
     // Arrastar peça e caixa de seleção seguem o mouse mesmo por cima dos painéis.
     window.addEventListener('mousemove', e => {
       if (!this._arrasto && !this._caixa) return;
@@ -451,6 +477,72 @@ class EditorApp {
     );
     barra.appendChild(grupo);
     this._atualizarBotoesHistorico();
+  }
+
+  // Vista de cima (T) e modo das paredes (V).
+  _criarControlesDeVisao() {
+    const barra = document.getElementById('top-toolbar');
+    if (!barra || document.getElementById('btn-vista-cima')) return;
+    const grupo = document.createElement('div');
+    grupo.style.cssText = 'display:flex;align-items:center;gap:4px;margin-left:16px;';
+    grupo.append(
+      this._criarBotao('btn-vista-cima', 'De cima', 'Alternar a vista de cima (T)', () => this._alternarVistaDeCima()),
+      this._criarBotao('btn-modo-parede', 'Paredes: inteiras',
+        'Paredes inteiras, cortadas do lado da câmera ou baixas (V)', () => this._proximoModoParede()),
+    );
+    barra.appendChild(grupo);
+    this._atualizarBotoesDeVisao();
+  }
+
+  _atualizarBotoesDeVisao() {
+    const cima = document.getElementById('btn-vista-cima');
+    if (cima) cima.classList.toggle('active', this._pitchAntesDaVistaDeCima !== null);
+    const paredes = document.getElementById('btn-modo-parede');
+    if (paredes) paredes.textContent = `Paredes: ${this.modoParede}`;
+  }
+
+  _alternarVistaDeCima() {
+    if (this._pitchAntesDaVistaDeCima === null) {
+      this._pitchAntesDaVistaDeCima = this.orbita.pitch;
+      this.orbita.pitch = LIMITES_ORBITA.PITCH_MAX;
+    } else {
+      this.orbita.pitch = this._pitchAntesDaVistaDeCima;
+      this._pitchAntesDaVistaDeCima = null;
+    }
+    this._atualizarBotoesDeVisao();
+  }
+
+  // F: a câmera passa a olhar pro centro da seleção.
+  _focarSelecao() {
+    const itens = [...this.selecionados];
+    if (!itens.length) return;
+    const [x, , z] = centroide(itens.map(it => it.position));
+    this.orbita.alvo = [x, this.andar * ALTURA_ANDAR, z];
+  }
+
+  _proximoModoParede() {
+    const i = MODOS_PAREDE.indexOf(this.modoParede);
+    this.modoParede = MODOS_PAREDE[(i + 1) % MODOS_PAREDE.length];
+    this._atualizarBotoesDeVisao();
+  }
+
+  // Aplica o modo das paredes a cada quadro (a câmera muda o que fica "na
+  // frente"). Mexe só na escala vertical da malha, que não vai pra cena.
+  _aplicarModoParede() {
+    const camera = this.camera.position.toArray();
+    for (const it of this.items) {
+      if (!ehParede(it.typeId)) continue;
+      const m = it.mesh;
+      if (m.userData.escalaY === undefined) m.userData.escalaY = m.scale.y;
+      const baixa = paredeRebaixada(this.modoParede, {
+        posicao: it.position,
+        andarDaParede: this._andarDoY(it.position[1]),
+        andarAtual: this.andar,
+        camera,
+        alvo: this.orbita.alvo,
+      });
+      m.scale.y = m.userData.escalaY * (baixa ? ESCALA_PAREDE_BAIXA : 1);
+    }
   }
 
   _atualizarBotoesHistorico() {
@@ -537,12 +629,12 @@ class EditorApp {
   _mudarAndar(delta) {
     const novo = Math.max(0, Math.min(20, this.andar + delta));
     if (novo === this.andar) return;
-    const subida = (novo - this.andar) * ALTURA_ANDAR;
     this.andar = novo;
     const altura = novo * ALTURA_ANDAR;
     this.groundPlane.constant = -altura;
     this.grid.position.y = altura + 0.01;
-    this.camera.position.y = Math.max(1, this.camera.position.y + subida);
+    // A câmera acompanha: o ponto que ela olha sobe junto com o andar.
+    this.orbita.alvo[1] = altura;
     this._atualizarIndicadorAndar();
     this._aplicarVisibilidadeDosAndares();
   }
@@ -1117,9 +1209,7 @@ class EditorApp {
     }
 
     document.getElementById('scene-name').value = 'Casa Completa';
-    this.camera.position.set(0, 5, 8);
-    this.pitch = -0.5;
-    this.yaw = 0;
+    Object.assign(this.orbita, { alvo: [0, 0, 0], yaw: 0, pitch: 0.6, distancia: 12 });
   }
 
   _toggleScenePanel() {
@@ -1263,33 +1353,39 @@ class EditorApp {
 
   // --- Câmera e laço --------------------------------------------------------------------
 
+  // WASD (ou setas, quando nada está selecionado) move o alvo pelo mapa, numa
+  // velocidade proporcional à distância; Q/E giram em volta dele.
   _updateCamera(dt) {
-    const forward = new THREE.Vector3(Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(this.yaw) * Math.cos(this.pitch));
-    const right = new THREE.Vector3(Math.sin(this.yaw + Math.PI / 2), 0, Math.cos(this.yaw + Math.PI / 2));
     // Ctrl segurado é atalho (Ctrl+D, Ctrl+A...), não movimento.
     const ctrl = this.keys.has('ControlLeft') || this.keys.has('ControlRight') || this.keys.has('MetaLeft');
-    const move = new THREE.Vector3();
     if (!ctrl) {
-      const speed = (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? 18 : 8) * dt;
-      if (this.keys.has('KeyW')) move.addScaledVector(forward, 1);
-      if (this.keys.has('KeyS')) move.addScaledVector(forward, -1);
-      if (this.keys.has('KeyA')) move.addScaledVector(right, -1);
-      if (this.keys.has('KeyD')) move.addScaledVector(right, 1);
-      if (this.keys.has('KeyE')) move.y += 1;
-      if (this.keys.has('KeyQ')) move.y -= 1;
-      if (move.lengthSq() > 0) move.normalize().multiplyScalar(speed);
+      const rapido = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? 2.5 : 1;
+      const passo = this.orbita.distancia * 0.9 * rapido * dt;
+      const setas = this.selecionados.size === 0;   // com seleção, as setas empurram peças
+      const tem = (tecla, seta) => this.keys.has(tecla) || (setas && this.keys.has(seta));
+      const frente = (tem('KeyW', 'ArrowUp') ? 1 : 0) - (tem('KeyS', 'ArrowDown') ? 1 : 0);
+      const lado = (tem('KeyD', 'ArrowRight') ? 1 : 0) - (tem('KeyA', 'ArrowLeft') ? 1 : 0);
+      if (frente || lado) this._moverAlvo(lado * passo, frente * passo);
+      if (this.keys.has('KeyQ')) this.orbita.yaw += 1.6 * dt;
+      if (this.keys.has('KeyE')) this.orbita.yaw -= 1.6 * dt;
     }
-    this.camera.position.add(move);
-    this.camera.position.y = Math.max(1, this.camera.position.y);
+    const [x, y, z] = posicaoDaCamera(this.orbita);
+    this.camera.position.set(x, y, z);
+    this.camera.lookAt(this.orbita.alvo[0], this.orbita.alvo[1], this.orbita.alvo[2]);
+  }
 
-    const lookDir = new THREE.Vector3(Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(this.yaw) * Math.cos(this.pitch));
-    this.camera.lookAt(this.camera.position.clone().add(lookDir));
+  // Move o alvo no chão: `lado` pra direita da tela, `frente` pra onde a câmera olha.
+  _moverAlvo(lado, frente) {
+    const { frente: f, direita: d } = direcoesNoChao(this.orbita.yaw);
+    this.orbita.alvo[0] += d[0] * lado + f[0] * frente;
+    this.orbita.alvo[2] += d[1] * lado + f[1] * frente;
   }
 
   _loop() {
     requestAnimationFrame(() => this._loop());
     const dt = Math.min(this.clock.getDelta(), 0.1);
     this._updateCamera(dt);
+    this._aplicarModoParede();
 
     if (this._colando) {
       this._atualizarColagem();
