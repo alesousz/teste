@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Editor de Cenas — Ferramenta Interna</title>
-  <link rel="stylesheet" href="editor-style.css" />
+  <link rel="stylesheet" href="editor-style.css?v=4" />
   <script type="importmap">
     {
       "imports": {
@@ -18,16 +18,31 @@
 
   <div id="editor-ui">
     <div id="palette-panel">
-      <h3>Paleta <span class="hint">(teclas 1-9, 0)</span></h3>
-      <div id="palette-list"></div>
-      <div class="hint">Esc — soltar item</div>
+      <div id="palette-sidebar">
+        <h3>Catálogo</h3>
+        <button class="cat-btn active">Tudo</button>
+        <div style="flex-grow: 1;"></div>
+        <div class="hint">Teclas 1-9, 0 para atalhos</div>
+        <div class="hint">Esc — soltar item</div>
+      </div>
+      <div id="palette-content">
+        <div id="palette-header">
+          <input type="text" id="palette-search" placeholder="Pesquisar..." autocomplete="off" />
+        </div>
+        <div id="palette-list"></div>
+      </div>
     </div>
 
     <div id="props-panel" class="hidden"></div>
 
     <div id="hud-hint">
       <div id="crosshair"></div>
-      <div id="mode-label">Selecionar (clique na tela p/ travar o cursor)</div>
+    </div>
+    
+    <div id="top-toolbar">
+      <button class="tool-btn active" id="btn-tool-select" title="Selecionar (Esc)">🖐️ Selecionar</button>
+      <button class="tool-btn" id="btn-tool-demolish" title="Marreta (Del)">🔨 Demolir</button>
+      <button class="tool-btn" id="btn-demo-room" style="background:#4CAF50;color:white;font-weight:bold;margin-left:20px;">✨ Construir Casa AAA</button>
     </div>
 
     <div id="controls-hint">
@@ -50,6 +65,6 @@
     </div>
   </div>
 
-  <script type="module" src="src/editor/main.js"></script>
+  <script type="module" src="src/editor/main.js?v=13"></script>
 </body>
 </html>

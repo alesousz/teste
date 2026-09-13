@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { PALETTE, paletteById } from './palette.js';
+import { GLTFLoader } from '../../vendor/jsm/loaders/GLTFLoader.js';
+import { PALETTE, paletteById, addDynamicProps, TIPOS_QUE_O_JOGO_LE } from './palette.js?v=10';
 import { SCENE as GAME_SCENE } from '../data/scene.js';
 
 const GRID_SIZE = 60;
@@ -16,7 +17,7 @@ class EditorApp {
     this.scene.background = new THREE.Color(0x6f8fae);
     this.scene.fog = new THREE.Fog(0x6f8fae, 40, 140);
     this.camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 500);
-    this.camera.position.set(0, 12, 20);
+    this.camera.position.set(0, 15, 10);
 
     this._buildLights();
     this._buildGround();
@@ -29,16 +30,13 @@ class EditorApp {
     this.keys = new Set();
     this.pointerLocked = false;
     this.yaw = 0;
-    this.pitch = -0.35;
+    this.pitch = -1.0;
+    this.toolMode = 'select';
 
     this._bindInput();
-    this._buildPaletteUI();
     this._bindSceneUI();
 
-    this._loadLastOrEmpty();
-
     this.clock = new THREE.Clock();
-    this._loop();
 
     window.addEventListener('resize', () => {
       this.camera.aspect = innerWidth / innerHeight;
@@ -46,6 +44,80 @@ class EditorApp {
       this.renderer.setSize(innerWidth, innerHeight);
     });
     this.renderer.setSize(innerWidth, innerHeight);
+
+    this._init();
+  }
+
+  async _init() {
+    const modelos = await this._listarModelos();
+    const loader = new GLTFLoader();
+    // Em paralelo: com ~100 arquivos, baixar um de cada vez deixava o editor
+    // parado antes de mostrar qualquer coisa. O catálogo mantém a ordem da
+    // lista, não a ordem de chegada.
+    const carregados = await Promise.all(modelos.map(m =>
+      loader.loadAsync(m.url).then(
+        gltf => ({ m, gltf }),
+        () => { console.warn(`Não carregou ${m.url}: ignorando.`); return null; },
+      )));
+    for (const item of carregados) {
+      if (!item) continue;
+      const { m, gltf } = item;
+      // Arquivo de um objeto só: o nome do arquivo vira o nome do item, porque
+      // o nó raiz costuma ser genérico ("RootNode" nos pacotes da Quaternius).
+      // Arquivos com várias peças (móveis, itens) mantêm o nome de cada nó.
+      if (gltf.scene.children.length === 1 && !m.variasPecas) gltf.scene.children[0].name = m.nome;
+      if (m.escala !== 1) gltf.scene.children.forEach(c => c.scale.multiplyScalar(m.escala));
+      addDynamicProps(gltf.scene, { categoria: m.categoria });
+    }
+
+    this._buildPaletteUI();
+    this._loadLastOrEmpty();
+    this._loop();
+  }
+
+
+  // Modelos do projeto (soltos em assets/props) e pacotes de terceiros (uma
+  // subpasta cada, com indice.json). pacotes.json e os índices são gerados por
+  // tools/gerar-indices-props.mjs — copiou modelos, roda o script.
+  async _listarModelos() {
+    const soltos = [
+      { arquivo: 'moveis.glb', variasPecas: true },
+      { arquivo: 'itens.glb', variasPecas: true },
+      { arquivo: 'fusca.glb', variasPecas: false },
+      { arquivo: 'velhinho.glb', variasPecas: false },
+    ].map(s => ({
+      url: `assets/props/${s.arquivo}`, nome: s.arquivo.replace(/\.glb$/, ''),
+      escala: 1, categoria: null, variasPecas: s.variasPecas,
+    }));
+
+    const lerJson = async url => {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      return resp.json();
+    };
+    let pastas = [];
+    try {
+      pastas = await lerJson('assets/props/pacotes.json');
+    } catch (e) {
+      console.warn(`Sem assets/props/pacotes.json (${e.message}): só os modelos do projeto entram no catálogo.`);
+    }
+    const pacotes = await Promise.all(pastas.map(async pasta => {
+      try {
+        const indice = await lerJson(`assets/props/${pasta}/indice.json`);
+        return indice.modelos.map(arquivo => ({
+          url: `assets/props/${pasta}/${arquivo}`, nome: arquivo.replace(/\.glb$/, ''),
+          // `escalas` corrige um arquivo específico quando o pacote não tem
+          // proporção uniforme (os animais da Quaternius vêm todos do mesmo
+          // tamanho, da raposa à vaca).
+          escala: indice.escalas?.[arquivo] ?? indice.escala ?? 1,
+          categoria: indice.categoria ?? null, variasPecas: false,
+        }));
+      } catch (e) {
+        console.warn(`Sem índice em assets/props/${pasta} (${e.message}): pasta ignorada.`);
+        return [];
+      }
+    }));
+    return [...soltos, ...pacotes.flat()];
   }
 
   _buildLights() {
@@ -74,69 +146,191 @@ class EditorApp {
     this.scene.add(grid);
   }
 
+  _generateThumbnail(item) {
+    if (!this.thumbRenderer) {
+      this.thumbRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
+      this.thumbRenderer.setSize(128, 128);
+      this.thumbScene = new THREE.Scene();
+      const light = new THREE.DirectionalLight(0xffffff, 1.2);
+      light.position.set(5, 10, 5);
+      this.thumbScene.add(light, new THREE.AmbientLight(0xffffff, 0.8));
+      this.thumbCamera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+    }
+    const obj = item.build();
+    const box = new THREE.Box3().setFromObject(obj);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z, 0.1);
+    
+    obj.position.sub(center);
+    this.thumbScene.add(obj);
+    
+    this.thumbCamera.position.set(maxDim * 1.5, maxDim * 1.5, maxDim * 1.5);
+    this.thumbCamera.lookAt(0, 0, 0);
+    this.thumbRenderer.render(this.thumbScene, this.thumbCamera);
+    
+    const dataUrl = this.thumbRenderer.domElement.toDataURL();
+    this.thumbScene.remove(obj);
+    return dataUrl;
+  }
+
   _buildPaletteUI() {
     const list = document.getElementById('palette-list');
-    list.innerHTML = PALETTE.map(p => `
-      <div class="palette-item" data-id="${p.id}">
-        <span class="palette-key">${p.key}</span><span>${p.name}</span>
-      </div>
-    `).join('');
-    this.paletteEls = {};
-    list.querySelectorAll('.palette-item').forEach(el => {
-      this.paletteEls[el.dataset.id] = el;
-      el.addEventListener('click', () => this._arm(el.dataset.id));
-    });
+    const searchInput = document.getElementById('palette-search');
+    const sidebar = document.getElementById('palette-sidebar');
+    
+    let activeCategory = 'Tudo';
+    const categories = ['Tudo', ...new Set(PALETTE.map(p => p.category))];
+    
+    // Constrói abas laterais dinâmicas
+    if (sidebar) {
+      const catHtml = categories.map(c => `<button class="cat-btn ${c === activeCategory ? 'active' : ''}" data-cat="${c}">${c}</button>`).join('');
+      sidebar.innerHTML = `<h3>Catálogo</h3>${catHtml}<div style="flex-grow: 1;"></div><div class="hint">Teclas 1-9, 0 para atalhos</div><div class="hint">Esc — soltar item</div>`;
+      
+      sidebar.querySelectorAll('.cat-btn').forEach(btn => {
+        btn.onclick = () => {
+          activeCategory = btn.dataset.cat;
+          sidebar.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === activeCategory));
+          renderList(searchInput ? searchInput.value : '');
+        };
+      });
+    }
+
+    const renderList = (filter = '') => {
+      const lowerFilter = filter.toLowerCase();
+      const filtered = PALETTE.filter(p => {
+        if (activeCategory !== 'Tudo' && p.category !== activeCategory) return false;
+        return p.name.toLowerCase().includes(lowerFilter);
+      });
+      
+      list.innerHTML = filtered.map(p => {
+        if (!p._thumb) p._thumb = this._generateThumbnail(p);
+        return `
+        <div class="palette-item ${this.armedType === p.id ? 'active' : ''}" data-id="${p.id}" title="${p.name}">
+          ${p.key && p.key !== '-' ? `<span class="palette-key">${p.key}</span>` : ''}
+          ${TIPOS_QUE_O_JOGO_LE.has(p.id) ? '' : '<span title="O jogo ainda não carrega este item: ele só aparece na cena do editor." style="position: absolute; top: 6px; right: 6px; font-size: 0.55em; padding: 1px 4px; border-radius: 3px; background: #b0342a; color: #fff; pointer-events: none;">só editor</span>'}
+          <img src="${p._thumb}" style="width: 60px; height: 60px; object-fit: contain; pointer-events: none;" />
+          <span style="position: absolute; bottom: 4px; font-size: 0.65em; opacity: 0.7; pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90%;">${p.name}</span>
+        </div>
+        `;
+      }).join('');
+      
+      this.paletteEls = {};
+      list.querySelectorAll('.palette-item').forEach(el => {
+        this.paletteEls[el.dataset.id] = el;
+        el.addEventListener('click', () => {
+          this._arm(el.dataset.id);
+        });
+      });
+    };
+
+    if (searchInput) searchInput.addEventListener('input', (e) => renderList(e.target.value));
+    renderList();
+  }
+
+  _setToolMode(mode) {
+    this.toolMode = mode;
+    if (mode !== 'build') this._arm(null);
+    
+    document.getElementById('btn-tool-select').classList.toggle('active', mode === 'select');
+    document.getElementById('btn-tool-demolish').classList.toggle('active', mode === 'demolish');
   }
 
   _bindInput() {
+    this.mouse = new THREE.Vector2(0, 0);
+    this.isDraggingCamera = false;
+
+    document.getElementById('btn-tool-select').onclick = () => this._setToolMode('select');
+    document.getElementById('btn-tool-demolish').onclick = () => this._setToolMode('demolish');
+
     window.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT') return;
       this.keys.add(e.code);
       const item = PALETTE.find(p => p.key === e.key);
       if (item) this._arm(item.id);
-      if (e.code === 'Escape') this._arm(null);
+      if (e.code === 'Escape') this._setToolMode('select');
       if (e.code === 'KeyR') this._rotateSelectedOrGhost();
       if (e.code === 'Delete' || e.code === 'Backspace') this._deleteSelected();
       if (e.code === 'Tab') { e.preventDefault(); this._toggleScenePanel(); }
     });
     window.addEventListener('keyup', e => this.keys.delete(e.code));
 
-    this.canvas.addEventListener('click', () => {
-      if (document.pointerLockElement !== this.canvas) {
-        this.canvas.requestPointerLock();
-        return;
+    this.canvas.addEventListener('mousedown', e => {
+      if (e.button === 2) this.isDraggingCamera = true;
+    });
+    window.addEventListener('mouseup', e => {
+      if (e.button === 2) this.isDraggingCamera = false;
+    });
+    
+    // Evita o menu de contexto nativo ao girar a câmera
+    this.canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+    this.canvas.addEventListener('mousemove', e => {
+      const rect = this.canvas.getBoundingClientRect();
+      this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      
+      if (this.isDraggingCamera) {
+        this.yaw -= e.movementX * 0.0022;
+        this.pitch -= e.movementY * 0.0022;
+        this.pitch = THREE.MathUtils.clamp(this.pitch, -1.3, 1.3);
       }
-      this._onConfirmClick();
     });
-    document.addEventListener('pointerlockchange', () => {
-      this.pointerLocked = document.pointerLockElement === this.canvas;
-      document.getElementById('mode-label').textContent = this.pointerLocked
-        ? (this.armedType ? `Colocando: ${paletteById(this.armedType).name}` : 'Selecionar (clique para colocar/selecionar)')
-        : 'Clique na tela para travar o cursor';
+
+    this.canvas.addEventListener('click', (e) => {
+      if (e.button === 0) this._onConfirmClick();
     });
-    document.addEventListener('mousemove', e => {
-      if (!this.pointerLocked) return;
-      this.yaw -= e.movementX * 0.0022;
-      this.pitch -= e.movementY * 0.0022;
-      this.pitch = THREE.MathUtils.clamp(this.pitch, -1.3, 1.3);
+  }
+
+  _updateGhostMaterial(mesh, isRed = false) {
+    if (!mesh) return;
+    mesh.traverse(o => {
+      if (o.isMesh && o.material) {
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        if (!o.userData.origColors) {
+          o.material = Array.isArray(o.material) ? mats.map(m => m.clone()) : mats[0].clone();
+          const newMats = Array.isArray(o.material) ? o.material : [o.material];
+          o.userData.origColors = newMats.map(m => m.color ? m.color.getHex() : 0xffffff);
+        }
+        const activeMats = Array.isArray(o.material) ? o.material : [o.material];
+        activeMats.forEach((m, i) => {
+          m.transparent = true;
+          m.opacity = 0.65;
+          if (m.color) {
+            const orig = o.userData.origColors[i] ?? 0xffffff;
+            m.color.setHex(isRed ? 0xff4444 : orig);
+          }
+        });
+      }
     });
   }
 
   _arm(typeId) {
     this.armedType = typeId;
     this._armedProps = null;
-    Object.entries(this.paletteEls).forEach(([id, el]) => el.classList.toggle('active', id === typeId));
+    if (this.paletteEls) {
+      Object.entries(this.paletteEls).forEach(([id, el]) => el.classList.toggle('active', id === typeId));
+    }
+    
+    if (typeId && this.toolMode !== 'build') {
+      this.toolMode = 'build';
+      document.getElementById('btn-tool-select').classList.remove('active');
+      document.getElementById('btn-tool-demolish').classList.remove('active');
+      const crosshair = document.getElementById('crosshair');
+      crosshair.style.background = '#fff';
+      crosshair.style.boxShadow = '0 0 4px rgba(0,0,0,0.6)';
+    }
+
     if (this.ghost) { this.scene.remove(this.ghost); this.ghost = null; }
     if (typeId) {
       const def = paletteById(typeId);
       this.ghost = def.build(def.defaultProps ? def.defaultProps() : undefined);
-      this.ghost.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.55; } });
+      this._updateGhostMaterial(this.ghost, false);
       this.scene.add(this.ghost);
       this.selected = null;
       this._updateSelectionHighlight();
       this._renderPropsPanel();
     }
-    const label = document.getElementById('mode-label');
-    if (label) label.textContent = typeId ? `Colocando: ${paletteById(typeId).name}` : 'Selecionar (clique para colocar/selecionar)';
     this._renderPropsPanel();
   }
 
@@ -144,30 +338,91 @@ class EditorApp {
     return Math.round(v / CELL) * CELL;
   }
 
+  _isOccupied3D(ghostMesh) {
+    ghostMesh.updateMatrixWorld(true);
+    const box1 = new THREE.Box3().setFromObject(ghostMesh);
+    box1.expandByScalar(-0.05);
+
+    for (const it of this.items) {
+      if (it.mesh === ghostMesh) continue;
+      const box2 = new THREE.Box3().setFromObject(it.mesh);
+      box2.expandByScalar(-0.05);
+      if (box1.intersectsBox(box2)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   _raycastGround() {
     const ray = new THREE.Raycaster();
-    ray.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+    ray.setFromCamera(this.mouse || new THREE.Vector2(0, 0), this.camera);
     const hit = new THREE.Vector3();
     if (ray.ray.intersectPlane(this.groundPlane, hit)) return hit;
     return null;
   }
 
-  _raycastItems() {
+  _raycastAll() {
     const ray = new THREE.Raycaster();
-    ray.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+    ray.setFromCamera(this.mouse || new THREE.Vector2(0, 0), this.camera);
+    
+    const hitGround = new THREE.Vector3();
+    let hitsGround = [];
+    if (ray.ray.intersectPlane(this.groundPlane, hitGround)) {
+      hitsGround.push({ point: hitGround.clone(), distance: ray.ray.origin.distanceTo(hitGround) });
+    }
+    
     const meshes = this.items.map(it => it.mesh);
-    const hits = ray.intersectObjects(meshes, true);
-    if (!hits.length) return null;
-    let obj = hits[0].object;
-    while (obj && !this.items.find(it => it.mesh === obj)) obj = obj.parent;
-    return this.items.find(it => it.mesh === obj) || null;
+    const hitsItems = ray.intersectObjects(meshes, true);
+    
+    const allHits = [];
+    if (hitsGround.length) allHits.push({ type: 'ground', point: hitsGround[0].point, distance: hitsGround[0].distance });
+    if (hitsItems.length) {
+      let obj = hitsItems[0].object;
+      while (obj && !this.items.find(it => it.mesh === obj)) obj = obj.parent;
+      if (obj) allHits.push({ type: 'item', point: hitsItems[0].point, distance: hitsItems[0].distance, object: obj });
+    }
+    allHits.sort((a, b) => a.distance - b.distance);
+    return allHits.length ? allHits[0] : null;
+  }
+
+  _raycastItems() {
+    const hit = this._raycastAll();
+    if (hit && hit.type === 'item') {
+      return this.items.find(it => it.mesh === hit.object) || null;
+    }
+    return null;
   }
 
   _onConfirmClick() {
     if (this.armedType) {
-      const hit = this._raycastGround();
+      const hit = this._raycastAll();
       if (!hit) return;
-      this._place(this.armedType, this._snap(hit.x), this._snap(hit.z), this._armedProps);
+      const sx = this._snap(hit.point.x);
+      const sz = this._snap(hit.point.z);
+      
+      let sy = 0;
+      if (hit.type === 'item') {
+        const box = new THREE.Box3().setFromObject(hit.object);
+        sy = box.max.y;
+      }
+      
+      if (this.ghost) {
+        this.ghost.position.set(sx, sy, sz);
+        if (this._isOccupied3D(this.ghost)) return;
+      }
+      
+      const placed = this._place(this.armedType, sx, sy, sz, this._armedProps);
+      if (this.ghost) {
+        placed.rotY = this.ghost.rotation.y;
+        placed.mesh.rotation.y = placed.rotY;
+      }
+    } else if (this.toolMode === 'demolish') {
+      const hitItem = this._raycastItems();
+      if (hitItem) {
+        this.selected = hitItem;
+        this._deleteSelected();
+      }
     } else {
       const hitItem = this._raycastItems();
       this.selected = hitItem;
@@ -176,14 +431,14 @@ class EditorApp {
     }
   }
 
-  _place(typeId, x, z, props) {
+  _place(typeId, x, y, z, props) {
     const def = paletteById(typeId);
     const itemProps = props ? { ...props } : (def.defaultProps ? def.defaultProps() : undefined);
     const mesh = def.build(itemProps);
-    mesh.position.set(x, 0, z);
+    mesh.position.set(x, y, z);
     mesh.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     this.scene.add(mesh);
-    const item = { uuid: crypto.randomUUID(), typeId, position: [x, 0, z], rotY: 0, props: itemProps, mesh };
+    const item = { uuid: crypto.randomUUID(), typeId, position: [x, y, z], rotY: 0, props: itemProps, mesh };
     this.items.push(item);
     return item;
   }
@@ -237,7 +492,14 @@ class EditorApp {
           this._armedProps[key] = val;
           if (this.ghost) { this.scene.remove(this.ghost); }
           this.ghost = paletteById(this.armedType).build(this._armedProps);
-          this.ghost.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.55; } });
+          this.ghost.traverse(o => { 
+            if (o.isMesh) { 
+              o.material = o.material.clone(); 
+              o.material.transparent = true; 
+              o.material.opacity = 0.65; 
+              o.userData.origColor = o.material.color.getHex();
+            } 
+          });
           this.scene.add(this.ghost);
         }
       });
@@ -276,7 +538,66 @@ class EditorApp {
     document.getElementById('btn-new-scene').onclick = () => this._newScene();
     document.getElementById('btn-load-game-scene').onclick = () => this._loadGameScene();
     document.getElementById('btn-export-scene').onclick = () => this._exportScene();
+    const btnDemo = document.getElementById('btn-demo-room');
+    if (btnDemo) btnDemo.onclick = () => this._buildDemoRoom();
     this._renderSceneList();
+  }
+
+  _buildDemoRoom() {
+    this._newScene();
+    
+    // Coordenadas: X (largura), Y (altura), Z (profundidade). Tudo em blocos CELL.
+    const items = [
+      // Cozinha
+      { id: 'bancada', x: -1, y: 0, z: -2, rot: 0 },
+      { id: 'bancada', x: 0, y: 0, z: -2, rot: 0 },
+      { id: 'pia_banheiro', x: 0, y: 0, z: -2, rot: 0 }, // Fake sink
+      { id: 'geladeira', x: -2.5, y: 0, z: -2, rot: 0 },
+      { id: 'armario_aereo', x: -1, y: 1.2, z: -2, rot: 0 },
+      { id: 'armario_aereo', x: 0, y: 1.2, z: -2, rot: 0 },
+      
+      // Jantar
+      { id: 'mesa_jantar', x: 2.5, y: 0, z: -1.5, rot: 0 },
+      { id: 'cadeira_leste', x: 1.5, y: 0, z: -1.5, rot: 0 },
+      { id: 'cadeira_oeste', x: 3.5, y: 0, z: -1.5, rot: 0 },
+      
+      // Sala
+      { id: 'tapete', x: -1, y: 0.01, z: 2, rot: 0 },
+      { id: 'sofa', x: -1, y: 0, z: 2, rot: Math.PI },
+      { id: 'mesinha_centro', x: -1, y: 0, z: 1, rot: 0 },
+      { id: 'rack_tv', x: -1, y: 0, z: 0, rot: 0 },
+      { id: 'monitor', x: -1, y: 0.5, z: 0, rot: Math.PI }, 
+      { id: 'vaso', x: -2.5, y: 0, z: 0, rot: 0 },
+      { id: 'abajur', x: -2.5, y: 0, z: 3, rot: 0 },
+      
+      // Pequenos detalhes
+      { id: 'celular', x: -1, y: 0.45, z: 1, rot: Math.PI / 4 },
+      { id: 'dinheiro', x: -0.8, y: 0.45, z: 1, rot: 0 },
+      { id: 'porta_retratos', x: -1, y: 0.8, z: 0, rot: 0 },
+      
+      // Quarto (visão do lado)
+      { id: 'cama', x: 4, y: 0, z: 2, rot: -Math.PI / 2 },
+      { id: 'criado_mudo', x: 4, y: 0, z: 1, rot: -Math.PI / 2 },
+      { id: 'guarda_roupa', x: 5, y: 0, z: 3, rot: -Math.PI },
+      
+      // Fusca na Garagem
+      { id: 'fusca', x: -5, y: 0, z: -1, rot: Math.PI / 4 }
+    ];
+    
+    for (const item of items) {
+      if (paletteById(item.id)) {
+        const placed = this._place(item.id, item.x, item.y, item.z, {});
+        if (placed) {
+          placed.rotY = item.rot;
+          placed.mesh.rotation.y = item.rot;
+        }
+      }
+    }
+    
+    document.getElementById('scene-name').value = 'Casa Completa';
+    this.camera.position.set(0, 5, 8);
+    this.pitch = -0.5;
+    this.yaw = 0;
   }
 
   _toggleScenePanel() {
@@ -327,7 +648,7 @@ class EditorApp {
   _loadSceneData(data) {
     this._newScene();
     for (const it of data.items) {
-      const placed = this._place(it.typeId, it.position[0], it.position[2], it.props);
+      const placed = this._place(it.typeId, it.position[0], it.position[1], it.position[2], it.props);
       placed.rotY = it.rotY || 0;
       placed.mesh.rotation.y = placed.rotY;
     }
@@ -351,6 +672,8 @@ class EditorApp {
   _loadLastOrEmpty() {
     const last = localStorage.getItem('editor-last-scene');
     const map = this._loadScenesMap();
+    // Sem cena salva, parte da cena que está no jogo: começar vazio e exportar
+    // sobrescreveria src/data/scene.js sem os marcos, NPCs e fragmentos.
     if (last && map[last]) this._loadScene(last);
     else this._loadSceneData(GAME_SCENE);
   }
@@ -380,8 +703,35 @@ class EditorApp {
     const out = document.getElementById('export-output');
     out.classList.remove('hidden');
     out.value = JSON.stringify(this._serializeScene(), null, 2);
+    this._avisarItensIgnorados(out);
     out.focus();
     out.select();
+  }
+
+  // O jogo só entende parte do catálogo (TIPOS_QUE_O_JOGO_LE) e põe tudo no
+  // chão: avisa antes de a cena ir pra src/data/scene.js e os objetos
+  // "sumirem" no jogo sem nenhum erro.
+  _avisarItensIgnorados(out) {
+    const ignorados = {};
+    let foraDoChao = 0;
+    for (const it of this.items) {
+      if (!TIPOS_QUE_O_JOGO_LE.has(it.typeId)) ignorados[it.typeId] = (ignorados[it.typeId] || 0) + 1;
+      else if (Math.abs(it.position[1]) > 1e-6) foraDoChao++;
+    }
+    let aviso = document.getElementById('export-aviso');
+    if (!aviso) {
+      aviso = document.createElement('p');
+      aviso.id = 'export-aviso';
+      aviso.className = 'hint';
+      aviso.style.color = '#ffb4a8';
+      out.parentNode.insertBefore(aviso, out);
+    }
+    const partes = [];
+    const lista = Object.entries(ignorados).map(([tipo, n]) => `${tipo} (${n})`).join(', ');
+    if (lista) partes.push(`O jogo ainda ignora estes itens: ${lista}.`);
+    if (foraDoChao) partes.push(`${foraDoChao} item(ns) do jogo estão acima do chão; lá eles vão pro chão.`);
+    aviso.textContent = partes.join(' ');
+    aviso.hidden = partes.length === 0;
   }
 
   _updateCamera(dt) {
@@ -409,8 +759,21 @@ class EditorApp {
     this._updateCamera(dt);
 
     if (this.ghost && this.armedType) {
-      const hit = this._raycastGround();
-      if (hit) this.ghost.position.set(this._snap(hit.x), 0, this._snap(hit.z));
+      const hit = this._raycastAll();
+      if (hit) {
+        const sx = this._snap(hit.point.x);
+        const sz = this._snap(hit.point.z);
+        let sy = 0;
+        if (hit.type === 'item') {
+          const box = new THREE.Box3().setFromObject(hit.object);
+          sy = box.max.y;
+        }
+        
+        this.ghost.position.set(sx, sy, sz);
+        const occupied = this._isOccupied3D(this.ghost);
+        
+        this._updateGhostMaterial(this.ghost, occupied);
+      }
     }
     if (this._highlightBox) this._highlightBox.update();
 
