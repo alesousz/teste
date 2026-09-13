@@ -12,7 +12,9 @@ export const CONFIG = {
   PLAYER_SPEED_WALK: 3.2,
   PLAYER_SPEED_RUN: 6.5,
   PLAYER_SPEED_CROUCH: 1.8,
-  PLAYER_RADIUS: 0.45,
+  // 0,76 m de diâmetro: passa nos vãos de porta de 0,88–0,90 m do Building
+  // Kit (decisão de 13/09/2026; era 0,45).
+  PLAYER_RADIUS: 0.38,
   PLAYER_HEIGHT: 1.7,          // altura do corpo usada na colisão
   CAM_DIST_OUTDOOR: 6.5,       // câmera na rua
   CAM_DIST_INDOOR: 2.5,        // câmera dentro do prédio: 6,5 m não cabe num quarto

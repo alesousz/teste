@@ -11,6 +11,14 @@
 
 const PREFIXO = 'assets/props/';
 
+/**
+ * Papel de uma peça de kit de construção, vindo do índice do pacote:
+ *   piso   — sustenta o jogador e é teto pra quem está embaixo;
+ *   escada — rampa do chão ao topo, sem colisão lateral;
+ *   porta  — abre e fecha com a tecla de interagir.
+ */
+export const PAPEIS = ['piso', 'escada', 'porta'];
+
 function modeloValido(item) {
   const m = item.modelo;
   const escala = m.escala ?? 1;
@@ -18,6 +26,7 @@ function modeloValido(item) {
     && m.url.startsWith(PREFIXO) && m.url.endsWith('.glb') && !m.url.includes('..')
     && (m.no === null || m.no === undefined || typeof m.no === 'string')
     && (m.colisao === undefined || typeof m.colisao === 'boolean')
+    && (m.papel === undefined || PAPEIS.includes(m.papel))
     && Number.isFinite(escala) && escala > 0
     && Array.isArray(item.position) && item.position.length === 3 && item.position.every(Number.isFinite);
 }
@@ -36,7 +45,7 @@ export function modelosDaCena(itens) {
       invalidos.push(item);
       continue;
     }
-    const { url, no = null, escala = 1, colisao } = item.modelo;
+    const { url, no = null, escala = 1, colisao, papel } = item.modelo;
     if (!porArquivo.has(url)) porArquivo.set(url, []);
     porArquivo.get(url).push({
       typeId: item.typeId,
@@ -46,6 +55,7 @@ export function modelosDaCena(itens) {
       rotY: Number.isFinite(item.rotY) ? item.rotY : 0,
       // Só quando o pacote forçou: sem isso vale a regra automática.
       ...(typeof colisao === 'boolean' ? { colisao } : {}),
+      ...(papel ? { papel } : {}),
     });
   }
   return { porArquivo, invalidos };

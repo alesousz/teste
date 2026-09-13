@@ -13,7 +13,53 @@
 //
 // Sem three.js: o World percorre os vértices e aplica o resultado.
 
-export const FAIXA = { MIN: 0.1, MAX: 1.7, ALTURA_MINIMA: 0.7 };
+// VAO_MINIMO: um vão ao longo da peça mais estreito que o corpo do jogador
+// (diâmetro 0,76 m = 2 × CONFIG.PLAYER_RADIUS, conferido no teste) é fechado —
+// ele não passaria mesmo, e colisores soltos (pernas de mesa) só o fariam
+// enroscar. Vãos maiores, como o de uma porta numa parede, ficam livres.
+export const FAIXA = { MIN: 0.1, MAX: 1.7, ALTURA_MINIMA: 0.7, VAO_MINIMO: 0.76 };
+
+const novoRetangulo = () => ({ x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity });
+
+function incluir(r, x, z) {
+  if (x < r.x0) r.x0 = x;
+  if (x > r.x1) r.x1 = x;
+  if (z < r.z0) r.z0 = z;
+  if (z > r.z1) r.z1 = z;
+}
+
+function juntar(a, b) {
+  a.x0 = Math.min(a.x0, b.x0);
+  a.x1 = Math.max(a.x1, b.x1);
+  a.z0 = Math.min(a.z0, b.z0);
+  a.z1 = Math.max(a.z1, b.z1);
+}
+
+// Separa a pegada em partes onde há vão ao longo do eixo mais comprido da
+// peça. Cada pedaço é o recorte de um triângulo pela faixa; pedaços que se
+// sobrepõem ou ficam a menos de VAO_MINIMO um do outro viram uma parte só.
+function agruparPorVaos(pedacos) {
+  const uniao = novoRetangulo();
+  for (const p of pedacos) juntar(uniao, p);
+  const aoLongoDeX = uniao.x1 - uniao.x0 >= uniao.z1 - uniao.z0;
+  const ini = p => (aoLongoDeX ? p.x0 : p.z0);
+  const fim = p => (aoLongoDeX ? p.x1 : p.z1);
+
+  const partes = [];
+  let parte = null;
+  let fimDaParte = -Infinity;
+  for (const p of [...pedacos].sort((a, b) => ini(a) - ini(b))) {
+    if (parte && ini(p) - fimDaParte < FAIXA.VAO_MINIMO) {
+      juntar(parte, p);
+      fimDaParte = Math.max(fimDaParte, fim(p));
+    } else {
+      parte = { ...p };
+      partes.push(parte);
+      fimDaParte = fim(p);
+    }
+  }
+  return partes;
+}
 
 /**
  * Pegada de um modelo no referencial dele (sem giro, base em y = 0).
@@ -28,27 +74,23 @@ export const FAIXA = { MIN: 0.1, MAX: 1.7, ALTURA_MINIMA: 0.7 };
  *   cx: number, cy: number, cz: number) => void) => void} percorrer
  *   chama `cb` pra cada triângulo, já com a escala do objeto aplicada;
  * @param {{ colisao?: boolean }} [opcoes]
- * @returns {{ x0: number, x1: number, z0: number, z1: number, altura: number } | null}
+ * @returns {{ altura: number, partes: { x0: number, x1: number, z0: number, z1: number }[] } | null}
+ *   uma parte por trecho sólido — uma parede com porta dá duas.
  */
 export function pegadaNaFaixa(percorrer, { colisao } = {}) {
   if (colisao === false) return null;
   let altura = -Infinity;
-  const faixa = { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity };
-  const total = { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity };
-  const incluir = (r, x, z) => {
-    if (x < r.x0) r.x0 = x;
-    if (x > r.x1) r.x1 = x;
-    if (z < r.z0) r.z0 = z;
-    if (z > r.z1) r.z1 = z;
-  };
+  const total = novoRetangulo();
+  const pedacos = [];
+  let recorte = null;
   const cruzar = (h, x1, y1, z1, x2, y2, z2) => {
     if ((y1 - h) * (y2 - h) < 0) {
       const t = (h - y1) / (y2 - y1);
-      incluir(faixa, x1 + (x2 - x1) * t, z1 + (z2 - z1) * t);
+      incluir(recorte, x1 + (x2 - x1) * t, z1 + (z2 - z1) * t);
     }
   };
   const aresta = (x1, y1, z1, x2, y2, z2) => {
-    if (y1 >= FAIXA.MIN && y1 <= FAIXA.MAX) incluir(faixa, x1, z1);
+    if (y1 >= FAIXA.MIN && y1 <= FAIXA.MAX) incluir(recorte, x1, z1);
     cruzar(FAIXA.MIN, x1, y1, z1, x2, y2, z2);
     cruzar(FAIXA.MAX, x1, y1, z1, x2, y2, z2);
   };
@@ -57,19 +99,20 @@ export function pegadaNaFaixa(percorrer, { colisao } = {}) {
     incluir(total, ax, az);
     incluir(total, bx, bz);
     incluir(total, cx, cz);
+    recorte = novoRetangulo();
     aresta(ax, ay, az, bx, by, bz);
     aresta(bx, by, bz, cx, cy, cz);
     aresta(cx, cy, cz, ax, ay, az);
+    if (recorte.x0 <= recorte.x1) pedacos.push(recorte);
   });
   if (altura === -Infinity) return null;
 
-  const temFaixa = faixa.x0 <= faixa.x1;
-  if (colisao === true) {
-    // Forçado: usa a faixa se houver, senão a pegada inteira.
-    return { ...(temFaixa ? faixa : total), altura };
+  if (pedacos.length === 0) {
+    // Forçado e sem nada na faixa (ex.: peça suspensa): usa a pegada inteira.
+    return colisao === true ? { altura, partes: [total] } : null;
   }
-  if (!temFaixa || altura < FAIXA.ALTURA_MINIMA) return null;
-  return { ...faixa, altura };
+  if (colisao !== true && altura < FAIXA.ALTURA_MINIMA) return null;
+  return { altura, partes: agruparPorVaos(pedacos) };
 }
 
 /**

@@ -52,6 +52,15 @@ describe('modelosDaCena', () => {
     assert.ok(!('colisao' in porArquivo.get('assets/props/b.glb')[0]));
   });
 
+  test('repassa o papel de peça de kit (piso, escada, porta)', () => {
+    const { porArquivo } = modelosDaCena([
+      item({ modelo: { url: 'assets/props/kit/Floor.glb', no: null, escala: 1, papel: 'piso' } }),
+      item({ modelo: { url: 'assets/props/kit/Wall.glb', no: null, escala: 1 } }),
+    ]);
+    assert.equal(porArquivo.get('assets/props/kit/Floor.glb')[0].papel, 'piso');
+    assert.ok(!('papel' in porArquivo.get('assets/props/kit/Wall.glb')[0]));
+  });
+
   test('recusa origem fora de assets/props, subida de pasta e valores inválidos', () => {
     const ruins = [
       item({ modelo: { url: 'https://exemplo.com/x.glb', escala: 1 } }),
@@ -61,6 +70,7 @@ describe('modelosDaCena', () => {
       item({ modelo: { url: 'assets/props/a.glb', escala: Number.NaN } }),
       item({ modelo: { url: 'assets/props/a.glb', no: 42 } }),
       item({ modelo: { url: 'assets/props/a.glb', colisao: 'sim' } }),
+      item({ modelo: { url: 'assets/props/a.glb', papel: 'trampolim' } }),
       item({ position: [1, 0] }),
       item({ position: [1, Number.POSITIVE_INFINITY, 0] }),
     ];

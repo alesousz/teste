@@ -1,6 +1,11 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { FAIXA, pegadaNaFaixa, colisorDoObjeto, empurrarParaFora } from '../../src/objectCollision.js';
+import { CONFIG } from '../../src/data.js';
+
+test('VAO_MINIMO acompanha o corpo do jogador', () => {
+  assert.equal(FAIXA.VAO_MINIMO, 2 * CONFIG.PLAYER_RADIUS);
+});
 
 const EPS = 1e-9;
 
@@ -28,8 +33,33 @@ describe('pegadaNaFaixa', () => {
     const tronco = caixa(-0.2, 0.2, 0, 3, -0.2, 0.2);
     const copa = caixa(-2.5, 2.5, 2.5, 7, -2.5, 2.5);
     const p = pegadaNaFaixa(percorrer(tronco, copa));
-    assert.deepEqual({ x0: p.x0, x1: p.x1, z0: p.z0, z1: p.z1 }, { x0: -0.2, x1: 0.2, z0: -0.2, z1: 0.2 });
+    assert.equal(p.partes.length, 1);
+    assert.deepEqual(p.partes[0], { x0: -0.2, x1: 0.2, z0: -0.2, z1: 0.2 });
     assert.equal(p.altura, 7);
+  });
+
+  test('parede com vão de porta vira duas partes, com o vão livre', () => {
+    // Parede de 2 m ao longo de z, porta de 1 m no meio; a verga fica acima
+    // da faixa do corpo.
+    const esquerda = caixa(-0.05, 0.05, 0, 2.4, -1, -0.5);
+    const direita = caixa(-0.05, 0.05, 0, 2.4, 0.5, 1);
+    const verga = caixa(-0.05, 0.05, 2.1, 2.4, -0.5, 0.5);
+    const p = pegadaNaFaixa(percorrer(esquerda, direita, verga));
+    assert.equal(p.partes.length, 2);
+    const [a, b] = p.partes.sort((m, n) => m.z0 - n.z0);
+    assert.deepEqual([a.z0, a.z1, b.z0, b.z1], [-1, -0.5, 0.5, 1]);
+  });
+
+  test('vão mais estreito que o corpo do jogador é fechado (pernas de mesa)', () => {
+    const pernas = [-0.35, 0.3].map(x => caixa(x, x + 0.05, 0, 1.0, -0.02, 0.02));
+    const p = pegadaNaFaixa(percorrer(...pernas));
+    assert.equal(p.partes.length, 1);
+    assert.deepEqual([p.partes[0].x0, p.partes[0].x1], [-0.35, 0.35]);
+  });
+
+  test('vão mais largo que VAO_MINIMO fica aberto', () => {
+    const blocos = [0, FAIXA.VAO_MINIMO + 0.5].map(x => caixa(x, x + 0.2, 0, 1.0, -0.1, 0.1));
+    assert.equal(pegadaNaFaixa(percorrer(...blocos)).partes.length, 2);
   });
 
   test('objeto baixo não bloqueia (grama, flores, tapete)', () => {
@@ -51,7 +81,7 @@ describe('pegadaNaFaixa', () => {
 
     // Forçado e sem vértice na faixa: usa a pegada inteira.
     const suspenso = pegadaNaFaixa(percorrer(caixa(-1, 1, 2, 3, -0.5, 0.5)), { colisao: true });
-    assert.deepEqual({ x0: suspenso.x0, x1: suspenso.x1 }, { x0: -1, x1: 1 });
+    assert.deepEqual([suspenso.partes[0].x0, suspenso.partes[0].x1], [-1, 1]);
   });
 
   test('modelo sem vértice nenhum não quebra', () => {

@@ -483,7 +483,9 @@ class Game {
         this.ui.showPrompt(`${rotulo} — trancada`);
       } else {
         this.ui.showPrompt(`${interactLabel} — ${porta.aberta ? 'Fechar' : 'Abrir'}: ${rotulo}`);
-        if (this.input.wasPressed(interactKey) && abrirPorta(porta)) {
+        // Porta de kit (World.portasKit) sabe se abrir; a do prédio inicial
+        // passa por abrirPorta.
+        if (this.input.wasPressed(interactKey) && (porta.alternar ? porta.alternar() : abrirPorta(porta))) {
           this.phone.advanceTutorial('interagiu');
           if (porta.def.id === 'ap201') this.phone.advanceTutorial('saiu_do_apartamento');
           if (porta.def.id === 'entrada') this.phone.advanceTutorial('saiu_do_predio');

@@ -8,6 +8,7 @@ import { loadGLTF } from './assets.js';
 import { SCENE } from './data/scene.js';
 import { modelosDaCena } from './sceneModels.js';
 import { pegadaNaFaixa, colisorDoObjeto, empurrarParaFora } from './objectCollision.js';
+import { pisoDoKit, escadaDoKit, apoioEm, tetoEm } from './kitSurfaces.js';
 import { clone as clonarComEsqueleto } from '../vendor/jsm/utils/SkeletonUtils.js';
 import { criarAsfalto, criarChaoDaRua } from './streetGround.js';
 
@@ -51,6 +52,10 @@ export class World {
     // medida de cada modelo, reaproveitada por todas as cópias dele.
     this.objetosSolidos = [];
     this._pegadas = new Map();
+    // Peças de kit de construção com papel (ver sceneModels.PAPEIS): pisos e
+    // escadas que sustentam o jogador, portas que abrem com E.
+    this.superficiesKit = [];
+    this.portasKit = [];
     this._buildGround();
     this._buildBlocks();
     this._buildProps();
@@ -388,8 +393,16 @@ export class World {
           obj.scale.copy(origem.scale).multiplyScalar(c.escala);
           obj.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
           this.scene.add(obj);
-          const colisor = this._colisorDe(obj, url, c);
-          if (colisor) this.objetosSolidos.push({ ...colisor, nome: c.typeId });
+          // Escada não colide pelas laterais: quem manda nela é a rampa.
+          const colisores = c.papel === 'escada' ? [] : this._colisoresDe(obj, url, c).map(s => ({ ...s, nome: c.typeId }));
+          this.objetosSolidos.push(...colisores);
+          const onde = { x: c.position[0], y: c.position[1], z: c.position[2], rotY: c.rotY };
+          if (c.papel === 'piso' || c.papel === 'escada') {
+            const caixa = this._caixaLocal(obj, url, c);
+            if (caixa) this.superficiesKit.push(c.papel === 'piso' ? pisoDoKit(caixa, onde) : escadaDoKit(caixa, onde));
+          } else if (c.papel === 'porta') {
+            this._registrarPortaKit(obj, gltf, url, c, colisores);
+          }
         }
         // Materiais novos nascem com o ambiente cheio; o loop redosa.
         this.homeMaterialsDirty = true;
@@ -397,9 +410,10 @@ export class World {
     }
   }
 
-  // Colisor de uma cópia. A pegada é medida uma vez por modelo, no
-  // referencial dele (sem giro e na origem), e reaproveitada pelas cópias.
-  _colisorDe(obj, url, c) {
+  // Colisores de uma cópia — um por parte sólida (parede com porta dá dois).
+  // A pegada é medida uma vez por modelo, no referencial dele (sem giro e na
+  // origem), e reaproveitada pelas cópias.
+  _colisoresDe(obj, url, c) {
     const chave = `${url}|${c.no ?? ''}|${c.escala}|${c.colisao ?? ''}`;
     let pegada = this._pegadas.get(chave);
     if (pegada === undefined) {
@@ -429,8 +443,95 @@ export class World {
       obj.updateMatrixWorld(true);
       this._pegadas.set(chave, pegada);
     }
-    if (!pegada) return null;
-    return colisorDoObjeto(pegada, { x: c.position[0], y: c.position[1], z: c.position[2], rotY: c.rotY });
+    if (!pegada) return [];
+    const onde = { x: c.position[0], y: c.position[1], z: c.position[2], rotY: c.rotY };
+    return pegada.partes.map(parte => colisorDoObjeto({ ...parte, altura: pegada.altura }, onde));
+  }
+
+  // Caixa do modelo no referencial dele (sem giro, base na origem), mais
+  // `zTopo`: o menor z local que já está no alto — onde a escada termina de
+  // subir e começa o patamar. Medida uma vez por modelo.
+  _caixaLocal(obj, url, c) {
+    const chave = `caixa|${url}|${c.no ?? ''}|${c.escala}`;
+    if (this._pegadas.has(chave)) return this._pegadas.get(chave);
+    const posicao = obj.position.clone();
+    const giro = obj.rotation.y;
+    obj.position.set(0, 0, 0);
+    obj.rotation.y = 0;
+    obj.updateMatrixWorld(true);
+    const v = new THREE.Vector3();
+    const pontos = [];
+    obj.traverse(o => {
+      if (!o.isMesh) return;
+      const p = o.geometry.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld);
+        pontos.push(v.x, v.y, v.z);
+      }
+    });
+    obj.position.copy(posicao);
+    obj.rotation.y = giro;
+    obj.updateMatrixWorld(true);
+
+    let caixa = null;
+    if (pontos.length) {
+      caixa = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity, z0: Infinity, z1: -Infinity, zTopo: Infinity };
+      for (let i = 0; i < pontos.length; i += 3) {
+        caixa.x0 = Math.min(caixa.x0, pontos[i]);
+        caixa.x1 = Math.max(caixa.x1, pontos[i]);
+        caixa.y0 = Math.min(caixa.y0, pontos[i + 1]);
+        caixa.y1 = Math.max(caixa.y1, pontos[i + 1]);
+        caixa.z0 = Math.min(caixa.z0, pontos[i + 2]);
+        caixa.z1 = Math.max(caixa.z1, pontos[i + 2]);
+      }
+      for (let i = 0; i < pontos.length; i += 3) {
+        if (pontos[i + 1] > caixa.y1 - 0.05) caixa.zTopo = Math.min(caixa.zTopo, pontos[i + 2]);
+      }
+    }
+    this._pegadas.set(chave, caixa);
+    return caixa;
+  }
+
+  // Porta de kit: abre e fecha com a tecla de interagir, tocando as animações
+  // que vêm no modelo (`door|door|open` / `door|door|close` e as da maçaneta,
+  // no Building Kit da Kenney). Aberta, a folha deixa de colidir.
+  _registrarPortaKit(obj, gltf, url, c, colisores) {
+    const mixer = new THREE.AnimationMixer(obj);
+    // Os clipes vêm com sufixo de camada ("door|door|open|Animation Base
+    // Layer"): vale o nome exato ou o nome seguido de "|".
+    const acoes = nomes => nomes
+      .map(nome => gltf.animations.find(a => a.name === nome || a.name.startsWith(`${nome}|`)))
+      .filter(Boolean)
+      .map(clipe => {
+        const acao = mixer.clipAction(clipe);
+        acao.setLoop(THREE.LoopOnce, 1);
+        acao.clampWhenFinished = true;
+        return acao;
+      });
+    const abrir = acoes(['door|door|open', 'handle|door|open']);
+    const fechar = acoes(['door|door|close', 'handle|door|close']);
+    if (!abrir.length) console.warn(`[cena] ${url} não tem animação de abrir; a porta só libera a passagem.`);
+
+    // Ponto de interação no meio da folha.
+    const caixa = this._caixaLocal(obj, url, c);
+    const lx = caixa ? (caixa.x0 + caixa.x1) / 2 : 0;
+    const lz = caixa ? (caixa.z0 + caixa.z1) / 2 : 0;
+    const cos = Math.cos(c.rotY);
+    const sin = Math.sin(c.rotY);
+    const porta = {
+      def: { id: `kit-porta-${this.portasKit.length}`, label: 'Porta', locked: false },
+      aberta: false,
+      mundo: { x: c.position[0] + lx * cos + lz * sin, y: c.position[1], z: c.position[2] - lx * sin + lz * cos },
+      mixer,
+      alternar: () => {
+        porta.aberta = !porta.aberta;
+        for (const a of porta.aberta ? fechar : abrir) a.stop();
+        for (const a of porta.aberta ? abrir : fechar) a.reset().play();
+        return true;
+      },
+    };
+    for (const s of colisores) s.porta = porta;
+    this.portasKit.push(porta);
   }
 
   _addLamp(x, z) {
@@ -622,16 +723,18 @@ export class World {
   /** Move as folhas das portas. Chamado pelo loop do jogo. */
   updateBuilding(dt) {
     if (this.doors) updateDoors(this.doors, dt);
+    for (const p of this.portasKit) p.mixer.update(dt);
   }
 
   /** Altura do chão sob o jogador — rua, laje ou degrau da escada. */
   supportAt(x, z, feetY) {
-    return this.interior.supportAt(x, z, feetY);
+    // Pisos e escadas de kit somam-se ao prédio inicial; fora de tudo, a rua.
+    return Math.max(this.interior.supportAt(x, z, feetY), apoioEm(this.superficiesKit, x, z, feetY));
   }
 
-  /** Altura livre acima da cabeça (laje ou cobertura). */
+  /** Altura livre acima da cabeça (laje, cobertura ou piso de kit). */
   ceilingAt(x, z, feetY) {
-    return this.interior.ceilingAt(x, z, feetY);
+    return Math.min(this.interior.ceilingAt(x, z, feetY), tetoEm(this.superficiesKit, x, z, feetY));
   }
 
   /**
@@ -640,16 +743,21 @@ export class World {
    * está no corredor logo acima dela.
    */
   nearestDoor(pos, maxDist = 2.2) {
-    if (!this.doors) return null;
     let melhor = null;
     let menor = maxDist;
-    for (const p of this.doors.values()) {
+    for (const p of this.doors?.values() ?? []) {
       const alvoY = p.level * 3.2;
       if (Math.abs(pos.y - alvoY) > 1.6) continue;
       const d = Math.hypot(
         pos.x - (p.ponto.x + this.interior.origin.x),
         pos.z - (p.ponto.z + this.interior.origin.z),
       );
+      if (d < menor) { menor = d; melhor = p; }
+    }
+    // Portas de kit: mesmo filtro de pavimento, pela altura da base da porta.
+    for (const p of this.portasKit) {
+      if (Math.abs(pos.y - p.mundo.y) > 1.6) continue;
+      const d = Math.hypot(pos.x - p.mundo.x, pos.z - p.mundo.z);
       if (d < menor) { menor = d; melhor = p; }
     }
     return melhor;
@@ -692,7 +800,10 @@ export class World {
         pos.z += (dz / dist) * overlap;
       }
     }
-    for (const s of this.objetosSolidos) empurrarParaFora(pos, radius, height, s);
+    for (const s of this.objetosSolidos) {
+      if (s.porta?.aberta) continue;   // folha de porta de kit aberta
+      empurrarParaFora(pos, radius, height, s);
+    }
     this.interior.resolve(pos, radius, height);
     const half = CONFIG.WORLD_HALF - 2;
     pos.x = THREE.MathUtils.clamp(pos.x, -half, half);
