@@ -1,17 +1,28 @@
-// Modelos .glb de móveis, gerados no Blender pelos scripts de tools/blender/.
+// Modelos .glb dos móveis, gerados no Blender por tools/blender/moveis.py.
 //
 // O modelo só troca a APARÊNCIA: a colisão e os pontos de interação
-// continuam vindo da tabela de src/apartmentProps.js, e cada script do
-// Blender falha se a peça sair do AABB declarado lá. As caixas montadas por
+// continuam vindo da tabela de src/apartmentProps.js, e o script do Blender
+// falha se uma peça sair do AABB declarado lá. As caixas montadas por
 // buildApartmentProps ficam no lugar até o arquivo chegar — e pra sempre,
-// se ele não carregar.
+// pra qualquer peça que ele não trouxer ou se ele não carregar.
 //
 // Sem import de three nem do GLTFLoader aqui: quem chama injeta o
-// carregador, então isto roda nos testes em Node.
+// carregador, então isto roda nos testes em Node (e o script do Blender lê
+// ALTURA_EXTRA daqui pelo Node também).
 
-export const MODELOS_MOVEIS = [
-  { tag: 'sofa', url: 'assets/props/sofa.glb' },
-];
+/** Um arquivo pra todas as peças: uma requisição, materiais compartilhados. */
+export const ARQUIVO_MOVEIS = 'assets/props/moveis.glb';
+
+/**
+ * Quanto a aparência de cada peça pode subir acima da altura de colisão.
+ * Só pra partes encostadas na parede, onde o jogador nunca passa por cima:
+ * a cabeceira e o travesseiro da cama, as torneiras.
+ */
+export const ALTURA_EXTRA = {
+  cama: 0.20,
+  pia_banheiro: 0.25,
+  bancada: 0.30,
+};
 
 /**
  * Põe `modelo` no lugar das peças do grupo do móvel. A origem do modelo é o
@@ -31,25 +42,27 @@ export function encaixarModelo(grupoMovel, modelo, caixa) {
 }
 
 /**
- * Carrega os modelos e troca os que chegarem. Devolve quantos foram trocados.
+ * Carrega o arquivo e troca cada peça que ele trouxer. Devolve quantas trocou.
  *   grupoMoveis — grupo de buildApartmentProps (subgrupos nomeados por tag);
  *   caixas      — apartmentBoxes();
  *   carregar    — url → Promise<{ scene }> (ex.: GLTFLoader).
  */
-export async function carregarModelosMoveis(grupoMoveis, caixas, carregar, modelos = MODELOS_MOVEIS) {
-  const porTag = new Map(caixas.map(c => [c.tag, c]));
-  const trocados = await Promise.all(modelos.map(async ({ tag, url }) => {
-    const grupo = grupoMoveis.getObjectByName(tag);
-    const caixa = porTag.get(tag);
-    if (!grupo || !caixa) return false;
-    try {
-      const gltf = await carregar(url);
-      encaixarModelo(grupo, gltf.scene, caixa);
-      return true;
-    } catch (err) {
-      console.warn(`[móveis] ${url} não carregou; mantendo a versão em caixas.`, err);
-      return false;
-    }
-  }));
-  return trocados.filter(Boolean).length;
+export async function carregarModelosMoveis(grupoMoveis, caixas, carregar, url = ARQUIVO_MOVEIS) {
+  let gltf;
+  try {
+    gltf = await carregar(url);
+  } catch (err) {
+    console.warn(`[móveis] ${url} não carregou; mantendo a versão em caixas.`, err);
+    return 0;
+  }
+  // Procura tudo antes de mexer: encaixar tira o nó de dentro de gltf.scene.
+  const pares = caixas
+    .map(caixa => ({
+      caixa,
+      grupo: grupoMoveis.getObjectByName(caixa.tag),
+      modelo: gltf.scene.getObjectByName(caixa.tag),
+    }))
+    .filter(p => p.grupo && p.modelo);
+  for (const { caixa, grupo, modelo } of pares) encaixarModelo(grupo, modelo, caixa);
+  return pares.length;
 }
