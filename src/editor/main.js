@@ -2,9 +2,15 @@ import * as THREE from 'three';
 import { GLTFLoader } from '../../vendor/jsm/loaders/GLTFLoader.js';
 import { PALETTE, paletteById, addDynamicProps, TIPOS_QUE_O_JOGO_LE } from './palette.js?v=10';
 import { SCENE as GAME_SCENE } from '../data/scene.js';
+import { Historico } from './historico.js';
+import {
+  PASSOS_DE_GRADE, PASSOS_DE_GIRO, ajustar, normalizarAngulo, girarPasso, centroide, deslocar,
+} from './grade.js';
+import {
+  fotografar, comandoColocar, comandoRemover, comandoTransformar, comandoAlterarProps,
+} from './comandos.js';
 
 const GRID_SIZE = 60;
-const CELL = 1;
 // Altura de um andar de trabalho: a parede do Building Kit tem 2,4 m, e o
 // piso do andar de cima assenta em cima dela.
 const ALTURA_ANDAR = 2.4;
@@ -17,6 +23,8 @@ function papelDoArquivo(papeis, arquivo) {
   }
   return null;
 }
+
+const plural = (n, um, varios) => (n === 1 ? um : `${n} ${varios}`);
 
 class EditorApp {
   constructor() {
@@ -31,16 +39,25 @@ class EditorApp {
     this.camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 500);
     this.camera.position.set(0, 15, 10);
 
+    // Grid e giro ajustáveis na barra (ver grade.js).
+    this.passoGrade = 1;
+    this.passoGiro = 90;
+
     this._buildLights();
     this._buildGround();
 
-    this.items = []; // {uuid, typeId, position:[x,y,z], rotY, mesh}
-    this.selected = null;
+    this.items = []; // {uuid, typeId, position:[x,y,z], rotY, props, mesh}
+    this.selecionados = new Set();
     this.armedType = null;
     this.ghost = null;
+    // Toda mudança na cena passa pelo histórico (ver comandos.js).
+    this.historico = new Historico({ aoMudar: () => this._atualizarBotoesHistorico() });
+    this._areaDeTransferencia = null;
+    this._colando = null;
+    this._arrasto = null;
+    this._caixa = null;
 
     this.keys = new Set();
-    this.pointerLocked = false;
     this.yaw = 0;
     this.pitch = -1.0;
     this.toolMode = 'select';
@@ -60,6 +77,11 @@ class EditorApp {
     this.renderer.setSize(innerWidth, innerHeight);
 
     this._init();
+  }
+
+  /** A peça selecionada, quando há exatamente uma (painel de propriedades). */
+  get selected() {
+    return this.selecionados.size === 1 ? [...this.selecionados][0] : null;
   }
 
   async _init() {
@@ -170,13 +192,21 @@ class EditorApp {
     ground.receiveShadow = true;
     this.scene.add(ground);
     this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-
-    const grid = new THREE.GridHelper(GRID_SIZE, GRID_SIZE / CELL, 0x223322, 0x2f4f2f);
-    grid.position.y = 0.01;
-    this.scene.add(grid);
-    // O grid acompanha o andar de trabalho (ver _mudarAndar).
-    this.grid = grid;
     this.andar = 0;
+    this._reconstruirGrid();
+  }
+
+  // Grid visual no passo atual e na altura do andar de trabalho.
+  _reconstruirGrid() {
+    if (this.grid) {
+      this.scene.remove(this.grid);
+      this.grid.geometry.dispose();
+      this.grid.material.dispose();
+    }
+    const grid = new THREE.GridHelper(GRID_SIZE, Math.round(GRID_SIZE / this.passoGrade), 0x223322, 0x2f4f2f);
+    grid.position.y = this.andar * ALTURA_ANDAR + 0.01;
+    this.scene.add(grid);
+    this.grid = grid;
   }
 
   _generateThumbnail(item) {
@@ -194,14 +224,14 @@ class EditorApp {
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z, 0.1);
-    
+
     obj.position.sub(center);
     this.thumbScene.add(obj);
-    
+
     this.thumbCamera.position.set(maxDim * 1.5, maxDim * 1.5, maxDim * 1.5);
     this.thumbCamera.lookAt(0, 0, 0);
     this.thumbRenderer.render(this.thumbScene, this.thumbCamera);
-    
+
     const dataUrl = this.thumbRenderer.domElement.toDataURL();
     this.thumbScene.remove(obj);
     return dataUrl;
@@ -211,15 +241,15 @@ class EditorApp {
     const list = document.getElementById('palette-list');
     const searchInput = document.getElementById('palette-search');
     const sidebar = document.getElementById('palette-sidebar');
-    
+
     let activeCategory = 'Tudo';
     const categories = ['Tudo', ...new Set(PALETTE.map(p => p.category))];
-    
+
     // Constrói abas laterais dinâmicas
     if (sidebar) {
       const catHtml = categories.map(c => `<button class="cat-btn ${c === activeCategory ? 'active' : ''}" data-cat="${c}">${c}</button>`).join('');
       sidebar.innerHTML = `<h3>Catálogo</h3>${catHtml}<div style="flex-grow: 1;"></div><div class="hint">Teclas 1-9, 0 para atalhos</div><div class="hint">Esc — soltar item</div>`;
-      
+
       sidebar.querySelectorAll('.cat-btn').forEach(btn => {
         btn.onclick = () => {
           activeCategory = btn.dataset.cat;
@@ -235,7 +265,7 @@ class EditorApp {
         if (activeCategory !== 'Tudo' && p.category !== activeCategory) return false;
         return p.name.toLowerCase().includes(lowerFilter);
       });
-      
+
       list.innerHTML = filtered.map(p => {
         if (!p._thumb) p._thumb = this._generateThumbnail(p);
         return `
@@ -247,7 +277,7 @@ class EditorApp {
         </div>
         `;
       }).join('');
-      
+
       this.paletteEls = {};
       list.querySelectorAll('.palette-item').forEach(el => {
         this.paletteEls[el.dataset.id] = el;
@@ -264,59 +294,307 @@ class EditorApp {
   _setToolMode(mode) {
     this.toolMode = mode;
     if (mode !== 'build') this._arm(null);
-    
+
     document.getElementById('btn-tool-select').classList.toggle('active', mode === 'select');
     document.getElementById('btn-tool-demolish').classList.toggle('active', mode === 'demolish');
   }
 
+  // --- Entrada ------------------------------------------------------------------
+
   _bindInput() {
     this.mouse = new THREE.Vector2(0, 0);
     this.isDraggingCamera = false;
+    this._criarControlesDeEdicao();
     this._criarIndicadorAndar();
 
     document.getElementById('btn-tool-select').onclick = () => this._setToolMode('select');
     document.getElementById('btn-tool-demolish').onclick = () => this._setToolMode('demolish');
 
     window.addEventListener('keydown', e => {
-      if (e.target.tagName === 'INPUT') return;
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
       this.keys.add(e.code);
+
+      if (e.ctrlKey || e.metaKey) {
+        const atalho = {
+          KeyZ: () => (e.shiftKey ? this._refazer() : this._desfazer()),
+          KeyY: () => this._refazer(),
+          KeyC: () => this._copiar(),
+          KeyV: () => this._iniciarColagem(),
+          KeyD: () => this._duplicar(),
+          KeyA: () => this._selecionarTudo(),
+        }[e.code];
+        if (atalho) {
+          e.preventDefault();
+          atalho();
+        }
+        return;
+      }
+
       const item = PALETTE.find(p => p.key === e.key);
       if (item) this._arm(item.id);
-      if (e.code === 'Escape') this._setToolMode('select');
-      if (e.code === 'KeyR') this._rotateSelectedOrGhost();
-      if (e.code === 'Delete' || e.code === 'Backspace') this._deleteSelected();
+      if (e.code === 'Escape') {
+        this._cancelarColagem();
+        this._setToolMode('select');
+      }
+      if (e.code === 'KeyR') this._girar(e.shiftKey ? -1 : 1);
+      if (e.code === 'Delete' || e.code === 'Backspace') this._apagarSelecionados();
       if (e.code === 'Tab') { e.preventDefault(); this._toggleScenePanel(); }
       if (e.code === 'PageUp') { e.preventDefault(); this._mudarAndar(1); }
       if (e.code === 'PageDown') { e.preventDefault(); this._mudarAndar(-1); }
+      const seta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.code];
+      if (seta && this.selecionados.size) {
+        e.preventDefault();
+        this._empurrar(seta);
+      }
     });
     window.addEventListener('keyup', e => this.keys.delete(e.code));
 
     this.canvas.addEventListener('mousedown', e => {
-      if (e.button === 2) this.isDraggingCamera = true;
+      this._atualizarMouse(e);
+      if (e.button === 2) { this.isDraggingCamera = true; return; }
+      if (e.button !== 0 || this.armedType || this._colando || this.toolMode !== 'select') return;
+      const item = this._raycastItems();
+      const aditivo = e.ctrlKey || e.metaKey;
+      if (item) {
+        if (aditivo) {
+          if (this.selecionados.has(item)) this.selecionados.delete(item);
+          else this.selecionados.add(item);
+          this._aoMudarSelecao();
+        } else {
+          if (!this.selecionados.has(item)) this._selecionar([item]);
+          this._iniciarArrasto(item);
+        }
+      } else {
+        this._caixa = { x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY, aditivo };
+      }
     });
     window.addEventListener('mouseup', e => {
       if (e.button === 2) this.isDraggingCamera = false;
+      if (e.button !== 0) return;
+      if (this._arrasto) this._finalizarArrasto();
+      if (this._caixa) this._finalizarCaixa();
     });
-    
+
     // Evita o menu de contexto nativo ao girar a câmera
     this.canvas.addEventListener('contextmenu', e => e.preventDefault());
 
     this.canvas.addEventListener('mousemove', e => {
-      const rect = this.canvas.getBoundingClientRect();
-      this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      
+      this._atualizarMouse(e);
       if (this.isDraggingCamera) {
         this.yaw -= e.movementX * 0.0022;
         this.pitch -= e.movementY * 0.0022;
         this.pitch = THREE.MathUtils.clamp(this.pitch, -1.3, 1.3);
       }
     });
+    // Arrastar peça e caixa de seleção seguem o mouse mesmo por cima dos painéis.
+    window.addEventListener('mousemove', e => {
+      if (!this._arrasto && !this._caixa) return;
+      this._atualizarMouse(e);
+      if (this._arrasto) this._atualizarArrasto();
+      if (this._caixa) this._atualizarCaixa(e);
+    });
 
-    this.canvas.addEventListener('click', (e) => {
-      if (e.button === 0) this._onConfirmClick();
+    this.canvas.addEventListener('click', e => {
+      if (e.button !== 0) return;
+      if (this.armedType || this._colando || this.toolMode === 'demolish') this._onConfirmClick();
     });
   }
+
+  _atualizarMouse(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  }
+
+  // --- Barra: desfazer, refazer, grid, giro e andar --------------------------------
+
+  _criarBotao(id, texto, titulo, acao) {
+    const b = document.createElement('button');
+    b.id = id;
+    b.className = 'tool-btn';
+    b.textContent = texto;
+    b.title = titulo;
+    b.style.padding = '8px 12px';
+    b.onclick = acao;
+    return b;
+  }
+
+  _criarControlesDeEdicao() {
+    const barra = document.getElementById('top-toolbar');
+    if (!barra || document.getElementById('btn-desfazer')) return;
+    const grupo = document.createElement('div');
+    grupo.style.cssText = 'display:flex;align-items:center;gap:4px;margin-left:16px;';
+    const seletor = (id, titulo, opcoes, valor, aoMudar) => {
+      const s = document.createElement('select');
+      s.id = id;
+      s.title = titulo;
+      s.style.cssText = 'background:rgba(255,255,255,0.05);color:#cfd3da;border:1px solid rgba(255,255,255,0.15);'
+        + 'border-radius:6px;padding:6px;font-size:0.85em;cursor:pointer;';
+      for (const [v, rotulo] of opcoes) {
+        const o = document.createElement('option');
+        o.value = String(v);
+        o.textContent = rotulo;
+        o.style.color = '#1a1206';
+        if (v === valor) o.selected = true;
+        s.appendChild(o);
+      }
+      s.onchange = () => { aoMudar(Number(s.value)); s.blur(); };
+      return s;
+    };
+    grupo.append(
+      this._criarBotao('btn-desfazer', '↶', 'Desfazer (Ctrl+Z)', () => this._desfazer()),
+      this._criarBotao('btn-refazer', '↷', 'Refazer (Ctrl+Y)', () => this._refazer()),
+      seletor('sel-grade', 'Passo do grid: onde as peças encaixam', PASSOS_DE_GRADE.map(p => [p, `Grid ${String(p).replace('.', ',')} m`]),
+        this.passoGrade, v => { this.passoGrade = v; this._reconstruirGrid(); }),
+      seletor('sel-giro', 'Passo do giro (R gira, Shift+R volta)', PASSOS_DE_GIRO.map(g => [g, `Giro ${g}°`]),
+        this.passoGiro, v => { this.passoGiro = v; }),
+    );
+    barra.appendChild(grupo);
+    this._atualizarBotoesHistorico();
+  }
+
+  _atualizarBotoesHistorico() {
+    const h = this.historico;
+    if (!h) return;
+    const botoes = [
+      ['btn-desfazer', h.podeDesfazer, h.proximoDesfazer, 'Desfazer', 'Ctrl+Z'],
+      ['btn-refazer', h.podeRefazer, h.proximoRefazer, 'Refazer', 'Ctrl+Y'],
+    ];
+    for (const [id, pode, proximo, nome, tecla] of botoes) {
+      const b = document.getElementById(id);
+      if (!b) continue;
+      b.disabled = !pode;
+      b.style.opacity = pode ? '1' : '0.4';
+      b.title = pode ? `${nome}: ${proximo} (${tecla})` : `${nome} (${tecla})`;
+    }
+  }
+
+  _desfazer() {
+    this._cancelarColagem();
+    this.historico.desfazer();
+  }
+
+  _refazer() {
+    this._cancelarColagem();
+    this.historico.refazer();
+  }
+
+  // --- Operações que os comandos usam (ver comandos.js) ----------------------------
+
+  itemPorUuid(uuid) {
+    return this.items.find(it => it.uuid === uuid) ?? null;
+  }
+
+  criarItem(foto) {
+    const def = paletteById(foto.typeId);
+    if (!def) {
+      console.warn(`"${foto.typeId}" não está no catálogo; peça ignorada.`);
+      return null;
+    }
+    const mesh = def.build(foto.props);
+    mesh.position.fromArray(foto.position);
+    mesh.rotation.y = foto.rotY ?? 0;
+    mesh.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    mesh.visible = this._andarDoY(foto.position[1]) <= this.andar;
+    this.scene.add(mesh);
+    const item = {
+      uuid: foto.uuid, typeId: foto.typeId, position: [...foto.position], rotY: foto.rotY ?? 0, props: foto.props, mesh,
+    };
+    this.items.push(item);
+    return item;
+  }
+
+  removerItem(uuid) {
+    const item = this.itemPorUuid(uuid);
+    if (!item) return;
+    this.scene.remove(item.mesh);
+    this.items = this.items.filter(it => it !== item);
+    if (this.selecionados.delete(item)) this._aoMudarSelecao();
+  }
+
+  transformarItem(uuid, { position, rotY }) {
+    const item = this.itemPorUuid(uuid);
+    if (!item) return;
+    item.position = [...position];
+    item.rotY = rotY;
+    item.mesh.position.fromArray(position);
+    item.mesh.rotation.y = rotY;
+    item.mesh.visible = this._andarDoY(position[1]) <= this.andar;
+  }
+
+  alterarProps(uuid, props) {
+    const item = this.itemPorUuid(uuid);
+    if (!item) return;
+    item.props = props;
+    this._rebuildItemMesh(item);
+  }
+
+  // --- Andar de trabalho -------------------------------------------------------------
+
+  // Page Up / Page Down (ou os botões ▼ ▲) sobem e descem de ALTURA_ANDAR. O
+  // plano onde o mouse aponta, o grid e a câmera vão junto — dá pra colocar
+  // o piso do andar de cima em qualquer lugar, com ou sem parede embaixo.
+  _mudarAndar(delta) {
+    const novo = Math.max(0, Math.min(20, this.andar + delta));
+    if (novo === this.andar) return;
+    const subida = (novo - this.andar) * ALTURA_ANDAR;
+    this.andar = novo;
+    const altura = novo * ALTURA_ANDAR;
+    this.groundPlane.constant = -altura;
+    this.grid.position.y = altura + 0.01;
+    this.camera.position.y = Math.max(1, this.camera.position.y + subida);
+    this._atualizarIndicadorAndar();
+    this._aplicarVisibilidadeDosAndares();
+  }
+
+  // Andar a que uma altura pertence (uma peça em 2,5 m, em cima do piso do
+  // andar 1, é do andar 1).
+  _andarDoY(y) {
+    return Math.floor((y + 0.01) / ALTURA_ANDAR);
+  }
+
+  // Como no The Sims: o que está acima do andar de trabalho some, pra dar pra
+  // ver e mexer embaixo. Escondido também não é clicável nem ocupa lugar.
+  _aplicarVisibilidadeDosAndares() {
+    for (const it of this.items) it.mesh.visible = this._andarDoY(it.position[1]) <= this.andar;
+    const escondidos = [...this.selecionados].filter(it => !it.mesh.visible);
+    if (escondidos.length) {
+      for (const it of escondidos) this.selecionados.delete(it);
+      this._aoMudarSelecao();
+    }
+  }
+
+  // Botões ▼ Andar N ▲ na barra de cima; Page Up / Page Down fazem o mesmo.
+  _criarIndicadorAndar() {
+    const barra = document.getElementById('top-toolbar');
+    if (!barra || document.getElementById('andar-label')) return;
+    const grupo = document.createElement('div');
+    grupo.style.cssText = 'display:flex;align-items:center;gap:4px;margin-left:16px;';
+    const rotulo = document.createElement('span');
+    rotulo.id = 'andar-label';
+    rotulo.title = 'Andar em que as peças são colocadas. O que está acima dele fica escondido.';
+    rotulo.style.cssText = 'padding:6px 10px;border-radius:6px;background:rgba(255,217,138,0.15);'
+      + 'color:#ffd98a;font-size:0.85em;white-space:nowrap;';
+    grupo.append(
+      this._criarBotao('btn-andar-descer', '▼', 'Descer um andar (Page Down)', () => this._mudarAndar(-1)),
+      rotulo,
+      this._criarBotao('btn-andar-subir', '▲', 'Subir um andar (Page Up)', () => this._mudarAndar(1)),
+    );
+    barra.appendChild(grupo);
+    this._atualizarIndicadorAndar();
+  }
+
+  _atualizarIndicadorAndar() {
+    const el = document.getElementById('andar-label');
+    if (el) el.textContent = `Andar ${this.andar} · ${(this.andar * ALTURA_ANDAR).toFixed(1).replace('.', ',')} m`;
+    const descer = document.getElementById('btn-andar-descer');
+    if (descer) {
+      descer.disabled = this.andar === 0;
+      descer.style.opacity = this.andar === 0 ? '0.4' : '1';
+    }
+  }
+
+  // --- Colocar ---------------------------------------------------------------------------
 
   _updateGhostMaterial(mesh, isRed = false) {
     if (!mesh) return;
@@ -347,7 +625,7 @@ class EditorApp {
     if (this.paletteEls) {
       Object.entries(this.paletteEls).forEach(([id, el]) => el.classList.toggle('active', id === typeId));
     }
-    
+
     if (typeId && this.toolMode !== 'build') {
       this.toolMode = 'build';
       document.getElementById('btn-tool-select').classList.remove('active');
@@ -359,19 +637,14 @@ class EditorApp {
 
     if (this.ghost) { this.scene.remove(this.ghost); this.ghost = null; }
     if (typeId) {
+      this._cancelarColagem();
       const def = paletteById(typeId);
       this.ghost = def.build(def.defaultProps ? def.defaultProps() : undefined);
       this._updateGhostMaterial(this.ghost, false);
       this.scene.add(this.ghost);
-      this.selected = null;
-      this._updateSelectionHighlight();
-      this._renderPropsPanel();
+      this._selecionar([]);
     }
     this._renderPropsPanel();
-  }
-
-  _snap(v) {
-    return Math.round(v / CELL) * CELL;
   }
 
   _isOccupied3D(ghostMesh) {
@@ -393,74 +666,6 @@ class EditorApp {
     return false;
   }
 
-  // Andar de trabalho: Page Up / Page Down sobem e descem de ALTURA_ANDAR. O
-  // plano onde o mouse aponta, o grid e a câmera vão junto — dá pra colocar
-  // o piso do andar de cima em qualquer lugar, com ou sem parede embaixo.
-  _mudarAndar(delta) {
-    const novo = Math.max(0, Math.min(20, this.andar + delta));
-    if (novo === this.andar) return;
-    const subida = (novo - this.andar) * ALTURA_ANDAR;
-    this.andar = novo;
-    const altura = novo * ALTURA_ANDAR;
-    this.groundPlane.constant = -altura;
-    this.grid.position.y = altura + 0.01;
-    this.camera.position.y = Math.max(1, this.camera.position.y + subida);
-    this._atualizarIndicadorAndar();
-    this._aplicarVisibilidadeDosAndares();
-  }
-
-  // Andar a que uma altura pertence (uma peça em 2,5 m, em cima do piso do
-  // andar 1, é do andar 1).
-  _andarDoY(y) {
-    return Math.floor((y + 0.01) / ALTURA_ANDAR);
-  }
-
-  // Como no The Sims: o que está acima do andar de trabalho some, pra dar pra
-  // ver e mexer embaixo. Escondido também não é clicável nem ocupa lugar.
-  _aplicarVisibilidadeDosAndares() {
-    for (const it of this.items) it.mesh.visible = this._andarDoY(it.position[1]) <= this.andar;
-  }
-
-  // Botões ▼ Andar N ▲ na barra de cima; Page Up / Page Down fazem o mesmo.
-  _criarIndicadorAndar() {
-    const barra = document.getElementById('top-toolbar');
-    if (!barra || document.getElementById('andar-label')) return;
-    const grupo = document.createElement('div');
-    grupo.style.cssText = 'display:flex;align-items:center;gap:4px;margin-left:16px;';
-    const botao = (id, texto, titulo, delta) => {
-      const b = document.createElement('button');
-      b.id = id;
-      b.className = 'tool-btn';
-      b.textContent = texto;
-      b.title = titulo;
-      b.style.padding = '8px 12px';
-      b.onclick = () => this._mudarAndar(delta);
-      return b;
-    };
-    const rotulo = document.createElement('span');
-    rotulo.id = 'andar-label';
-    rotulo.title = 'Andar em que as peças são colocadas. O que está acima dele fica escondido.';
-    rotulo.style.cssText = 'padding:6px 10px;border-radius:6px;background:rgba(255,217,138,0.15);'
-      + 'color:#ffd98a;font-size:0.85em;white-space:nowrap;';
-    grupo.append(
-      botao('btn-andar-descer', '▼', 'Descer um andar (Page Down)', -1),
-      rotulo,
-      botao('btn-andar-subir', '▲', 'Subir um andar (Page Up)', 1),
-    );
-    barra.appendChild(grupo);
-    this._atualizarIndicadorAndar();
-  }
-
-  _atualizarIndicadorAndar() {
-    const el = document.getElementById('andar-label');
-    if (el) el.textContent = `Andar ${this.andar} · ${(this.andar * ALTURA_ANDAR).toFixed(1).replace('.', ',')} m`;
-    const descer = document.getElementById('btn-andar-descer');
-    if (descer) {
-      descer.disabled = this.andar === 0;
-      descer.style.opacity = this.andar === 0 ? '0.4' : '1';
-    }
-  }
-
   // Altura onde a peça armada vai: peça de kit sempre na altura do andar (pra
   // parede e piso ficarem alinhados); o resto empilha no que estiver embaixo
   // do mouse, mas nunca abaixo do andar de trabalho.
@@ -479,28 +684,20 @@ class EditorApp {
     return this._isOccupied3D(this.ghost);
   }
 
-  _raycastGround() {
-    const ray = new THREE.Raycaster();
-    ray.setFromCamera(this.mouse || new THREE.Vector2(0, 0), this.camera);
-    const hit = new THREE.Vector3();
-    if (ray.ray.intersectPlane(this.groundPlane, hit)) return hit;
-    return null;
-  }
-
   _raycastAll() {
     const ray = new THREE.Raycaster();
     ray.setFromCamera(this.mouse || new THREE.Vector2(0, 0), this.camera);
-    
+
     const hitGround = new THREE.Vector3();
-    let hitsGround = [];
+    const hitsGround = [];
     if (ray.ray.intersectPlane(this.groundPlane, hitGround)) {
       hitsGround.push({ point: hitGround.clone(), distance: ray.ray.origin.distanceTo(hitGround) });
     }
-    
+
     // Só o que está à mostra: andar escondido não é clicável.
     const meshes = this.items.filter(it => it.mesh.visible).map(it => it.mesh);
     const hitsItems = ray.intersectObjects(meshes, true);
-    
+
     const allHits = [];
     if (hitsGround.length) allHits.push({ type: 'ground', point: hitsGround[0].point, distance: hitsGround[0].distance });
     if (hitsItems.length) {
@@ -520,50 +717,53 @@ class EditorApp {
     return null;
   }
 
+  // Ponto onde o mouse aponta num plano horizontal na altura dada.
+  _pontoNoPlano(altura) {
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(this.mouse, this.camera);
+    const p = new THREE.Vector3();
+    return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -altura), p) ? p : null;
+  }
+
   _onConfirmClick() {
+    if (this._colando) {
+      this._confirmarColagem();
+      return;
+    }
     if (this.armedType) {
       const hit = this._raycastAll();
       if (!hit) return;
-      const sx = this._snap(hit.point.x);
-      const sz = this._snap(hit.point.z);
-      
+      const sx = ajustar(hit.point.x, this.passoGrade);
+      const sz = ajustar(hit.point.z, this.passoGrade);
       const sy = this._alturaDaColocacao(hit);
-      
+
       if (this.ghost) {
         this.ghost.position.set(sx, sy, sz);
         if (this._ocupadoParaColocar()) return;
       }
-      
-      const placed = this._place(this.armedType, sx, sy, sz, this._armedProps);
-      if (this.ghost) {
-        placed.rotY = this.ghost.rotation.y;
-        placed.mesh.rotation.y = placed.rotY;
-      }
+
+      const def = paletteById(this.armedType);
+      const props = this._armedProps ? { ...this._armedProps } : (def.defaultProps ? def.defaultProps() : undefined);
+      this.historico.executar(comandoColocar(this, [{
+        uuid: crypto.randomUUID(), typeId: this.armedType, position: [sx, sy, sz],
+        rotY: this.ghost ? normalizarAngulo(this.ghost.rotation.y) : 0, props,
+      }], `Colocar ${def.name}`));
     } else if (this.toolMode === 'demolish') {
-      const hitItem = this._raycastItems();
-      if (hitItem) {
-        this.selected = hitItem;
-        this._deleteSelected();
-      }
-    } else {
-      const hitItem = this._raycastItems();
-      this.selected = hitItem;
-      this._updateSelectionHighlight();
-      this._renderPropsPanel();
+      const item = this._raycastItems();
+      if (item) this.historico.executar(comandoRemover(this, [fotografar(item)], `Demolir ${paletteById(item.typeId)?.name ?? 'peça'}`));
     }
   }
 
-  _place(typeId, x, y, z, props) {
+  // Usado ao carregar cena e na casa de demonstração: entra direto, sem
+  // histórico (carregar outra cena não se desfaz).
+  _place(typeId, x, y, z, props, rotY = 0) {
     const def = paletteById(typeId);
+    if (!def) {
+      console.warn(`"${typeId}" não está no catálogo; peça ignorada.`);
+      return null;
+    }
     const itemProps = props ? { ...props } : (def.defaultProps ? def.defaultProps() : undefined);
-    const mesh = def.build(itemProps);
-    mesh.position.set(x, y, z);
-    mesh.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    mesh.visible = this._andarDoY(y) <= this.andar;
-    this.scene.add(mesh);
-    const item = { uuid: crypto.randomUUID(), typeId, position: [x, y, z], rotY: 0, props: itemProps, mesh };
-    this.items.push(item);
-    return item;
+    return this.criarItem({ uuid: crypto.randomUUID(), typeId, position: [x, y, z], rotY, props: itemProps });
   }
 
   _rebuildItemMesh(item) {
@@ -573,11 +773,233 @@ class EditorApp {
     newMesh.position.fromArray(item.position);
     newMesh.rotation.y = item.rotY;
     newMesh.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    newMesh.visible = oldMesh.visible;
     this.scene.remove(oldMesh);
     this.scene.add(newMesh);
     item.mesh = newMesh;
     this._updateSelectionHighlight();
   }
+
+  // --- Seleção -----------------------------------------------------------------------------
+
+  _selecionar(itens) {
+    this.selecionados = new Set(itens.filter(Boolean));
+    this._aoMudarSelecao();
+  }
+
+  _selecionarTudo() {
+    this._selecionar(this.items.filter(it => it.mesh.visible));
+  }
+
+  _aoMudarSelecao() {
+    this._updateSelectionHighlight();
+    this._renderPropsPanel();
+  }
+
+  _updateSelectionHighlight() {
+    for (const b of this._destaques ?? []) this.scene.remove(b);
+    this._destaques = [...this.selecionados].map(it => {
+      const b = new THREE.BoxHelper(it.mesh, 0xffd98a);
+      this.scene.add(b);
+      return b;
+    });
+  }
+
+  // Caixa de seleção: arrastar num espaço vazio no modo Selecionar.
+  _atualizarCaixa(e) {
+    Object.assign(this._caixa, { x1: e.clientX, y1: e.clientY });
+    if (!this._divCaixa) {
+      const d = document.createElement('div');
+      d.id = 'caixa-selecao';
+      d.style.cssText = 'position:fixed;border:1px dashed #ffd98a;background:rgba(255,217,138,0.12);pointer-events:none;z-index:20;';
+      document.body.appendChild(d);
+      this._divCaixa = d;
+    }
+    const { x0, y0, x1, y1 } = this._caixa;
+    Object.assign(this._divCaixa.style, {
+      display: 'block',
+      left: `${Math.min(x0, x1)}px`, top: `${Math.min(y0, y1)}px`,
+      width: `${Math.abs(x1 - x0)}px`, height: `${Math.abs(y1 - y0)}px`,
+    });
+  }
+
+  _finalizarCaixa() {
+    const { x0, y0, x1, y1, aditivo } = this._caixa;
+    this._caixa = null;
+    if (this._divCaixa) this._divCaixa.style.display = 'none';
+    // Clique sem arrastar num espaço vazio: limpa a seleção.
+    if (Math.abs(x1 - x0) < 4 && Math.abs(y1 - y0) < 4) {
+      if (!aditivo) this._selecionar([]);
+      return;
+    }
+    const rect = this.canvas.getBoundingClientRect();
+    const [xa, xb] = [Math.min(x0, x1), Math.max(x0, x1)];
+    const [ya, yb] = [Math.min(y0, y1), Math.max(y0, y1)];
+    const v = new THREE.Vector3();
+    const dentro = this.items.filter(it => {
+      if (!it.mesh.visible) return false;
+      v.fromArray(it.position).project(this.camera);
+      if (v.z > 1) return false;   // atrás da câmera
+      const sx = rect.left + ((v.x + 1) / 2) * rect.width;
+      const sy = rect.top + ((1 - v.y) / 2) * rect.height;
+      return sx >= xa && sx <= xb && sy >= ya && sy <= yb;
+    });
+    this._selecionar(aditivo ? [...this.selecionados, ...dentro] : dentro);
+  }
+
+  // --- Mover, girar, apagar -----------------------------------------------------------
+
+  // Arrastar a seleção com o botão esquerdo: anda no passo do grid, num plano
+  // na altura da peça agarrada, e vira UM passo do histórico ao soltar.
+  _iniciarArrasto(item) {
+    const inicio = this._pontoNoPlano(item.position[1]);
+    if (!inicio) return;
+    this._arrasto = { altura: item.position[1], inicio, antes: [...this.selecionados].map(fotografar), delta: [0, 0, 0] };
+  }
+
+  _atualizarArrasto() {
+    const a = this._arrasto;
+    const p = this._pontoNoPlano(a.altura);
+    if (!p) return;
+    const delta = [ajustar(p.x - a.inicio.x, this.passoGrade), 0, ajustar(p.z - a.inicio.z, this.passoGrade)];
+    if (delta[0] === a.delta[0] && delta[2] === a.delta[2]) return;
+    a.delta = delta;
+    for (const f of a.antes) this.transformarItem(f.uuid, { position: deslocar(f.position, delta), rotY: f.rotY });
+  }
+
+  _finalizarArrasto() {
+    const a = this._arrasto;
+    this._arrasto = null;
+    if (a.delta[0] === 0 && a.delta[2] === 0) return;
+    this.historico.registrar(comandoTransformar(this, a.antes.map(f => ({
+      uuid: f.uuid,
+      antes: { position: f.position, rotY: f.rotY },
+      depois: { position: deslocar(f.position, a.delta), rotY: f.rotY },
+    }))));
+  }
+
+  // Setas empurram a seleção um passo do grid.
+  _empurrar([dx, dz]) {
+    const passo = this.passoGrade;
+    this.historico.executar(comandoTransformar(this, [...this.selecionados].map(it => ({
+      uuid: it.uuid,
+      antes: { position: [...it.position], rotY: it.rotY },
+      depois: { position: deslocar(it.position, [dx * passo, 0, dz * passo]), rotY: it.rotY },
+    }))));
+  }
+
+  // R gira um passo (Shift+R volta). Uma peça gira no lugar; um grupo gira em
+  // volta do próprio centro, levando as posições junto — uma casa inteira
+  // gira como uma peça só.
+  _girar(sentido) {
+    if (this.armedType && this.ghost) {
+      this.ghost.rotation.y = girarPasso(this.ghost.rotation.y, this.passoGiro, sentido);
+      return;
+    }
+    const itens = [...this.selecionados];
+    if (!itens.length) return;
+    if (itens.length === 1) {
+      const it = itens[0];
+      this.historico.executar(comandoTransformar(this, [{
+        uuid: it.uuid,
+        antes: { position: [...it.position], rotY: it.rotY },
+        depois: { position: [...it.position], rotY: girarPasso(it.rotY, this.passoGiro, sentido) },
+      }], 'Girar peça'));
+      return;
+    }
+    const delta = (sentido * this.passoGiro * Math.PI) / 180;
+    const cos = Math.cos(delta);
+    const sin = Math.sin(delta);
+    const [cx, , cz] = centroide(itens.map(it => it.position));
+    this.historico.executar(comandoTransformar(this, itens.map(it => {
+      const lx = it.position[0] - cx;
+      const lz = it.position[2] - cz;
+      return {
+        uuid: it.uuid,
+        antes: { position: [...it.position], rotY: it.rotY },
+        depois: {
+          position: deslocar([cx + lx * cos + lz * sin, it.position[1], cz - lx * sin + lz * cos], [0, 0, 0]),
+          rotY: normalizarAngulo(it.rotY + delta),
+        },
+      };
+    }), `Girar ${itens.length} peças`));
+  }
+
+  _apagarSelecionados() {
+    if (!this.selecionados.size) return;
+    this.historico.executar(comandoRemover(this, [...this.selecionados].map(fotografar)));
+  }
+
+  // --- Copiar, colar, duplicar -------------------------------------------------------
+
+  _copiar() {
+    if (!this.selecionados.size) return;
+    this._areaDeTransferencia = [...this.selecionados].map(fotografar);
+  }
+
+  // Ctrl+V: a cópia segue o mouse no andar de trabalho e entra no clique. O
+  // andar relativo é mantido: um grupo do térreo colado no andar 1 sobe inteiro.
+  _iniciarColagem() {
+    const fotos = this._areaDeTransferencia?.filter(f => paletteById(f.typeId));
+    if (!fotos?.length) return;
+    this._arm(null);
+    this._cancelarColagem();
+    const ref = fotos[0].position;
+    const andarRef = this._andarDoY(Math.min(...fotos.map(f => f.position[1])));
+    const grupo = new THREE.Group();
+    for (const f of fotos) {
+      const m = paletteById(f.typeId).build(f.props);
+      m.position.set(f.position[0] - ref[0], f.position[1] - andarRef * ALTURA_ANDAR, f.position[2] - ref[2]);
+      m.rotation.y = f.rotY;
+      this._updateGhostMaterial(m, false);
+      grupo.add(m);
+    }
+    this.scene.add(grupo);
+    this._colando = { grupo, fotos, ref, andarRef };
+    this._atualizarColagem();
+  }
+
+  _atualizarColagem() {
+    const c = this._colando;
+    const altura = this.andar * ALTURA_ANDAR;
+    const p = this._pontoNoPlano(altura);
+    if (!p) return;
+    c.grupo.position.set(ajustar(p.x, this.passoGrade), altura, ajustar(p.z, this.passoGrade));
+  }
+
+  _confirmarColagem() {
+    const c = this._colando;
+    const deslocamento = [
+      c.grupo.position.x - c.ref[0],
+      (this.andar - c.andarRef) * ALTURA_ANDAR,
+      c.grupo.position.z - c.ref[2],
+    ];
+    const novas = c.fotos.map(f => ({ ...f, uuid: crypto.randomUUID(), position: deslocar(f.position, deslocamento) }));
+    this.historico.executar(comandoColocar(this, novas, `Colar ${plural(novas.length, 'peça', 'peças')}`));
+    this._cancelarColagem();
+    this._selecionar(novas.map(f => this.itemPorUuid(f.uuid)));
+  }
+
+  _cancelarColagem() {
+    if (!this._colando) return;
+    this.scene.remove(this._colando.grupo);
+    this._colando = null;
+  }
+
+  // Ctrl+D: cópia da seleção logo ao lado (deslocada da largura dela, no grid).
+  _duplicar() {
+    const itens = [...this.selecionados];
+    if (!itens.length) return;
+    const caixa = new THREE.Box3();
+    for (const it of itens) caixa.expandByObject(it.mesh);
+    const largura = caixa.isEmpty() ? 0 : caixa.max.x - caixa.min.x;
+    const passo = Math.max(this.passoGrade, ajustar(largura, this.passoGrade));
+    const novas = itens.map(it => ({ ...fotografar(it), uuid: crypto.randomUUID(), position: deslocar(it.position, [passo, 0, 0]) }));
+    this.historico.executar(comandoColocar(this, novas, `Duplicar ${plural(novas.length, 'peça', 'peças')}`));
+    this._selecionar(novas.map(f => this.itemPorUuid(f.uuid)));
+  }
+
+  // --- Painel de propriedades ----------------------------------------------------------
 
   _renderPropsPanel() {
     const panel = document.getElementById('props-panel');
@@ -604,57 +1026,40 @@ class EditorApp {
     }).join('');
 
     panel.querySelectorAll('[data-key]').forEach(input => {
+      // Na peça selecionada: muda ao vivo enquanto digita e vira um passo do
+      // histórico quando o campo é confirmado.
+      let antes = null;
+      input.addEventListener('focus', () => {
+        if (this.selected) antes = fotografar(this.selected).props;
+      });
       input.addEventListener('input', () => {
         const key = input.dataset.key;
         const val = input.type === 'number' ? Number(input.value) : input.value;
         if (this.selected) {
-          this.selected.props = { ...this.selected.props, [key]: val };
-          this._rebuildItemMesh(this.selected);
+          if (antes === null) antes = fotografar(this.selected).props;
+          this.alterarProps(this.selected.uuid, { ...this.selected.props, [key]: val });
         } else if (this.armedType) {
           if (!this._armedProps) this._armedProps = paletteById(this.armedType).defaultProps?.() ?? {};
           this._armedProps[key] = val;
-          if (this.ghost) { this.scene.remove(this.ghost); }
+          if (this.ghost) this.scene.remove(this.ghost);
           this.ghost = paletteById(this.armedType).build(this._armedProps);
-          this.ghost.traverse(o => { 
-            if (o.isMesh) { 
-              o.material = o.material.clone(); 
-              o.material.transparent = true; 
-              o.material.opacity = 0.65; 
-              o.userData.origColor = o.material.color.getHex();
-            } 
-          });
+          this._updateGhostMaterial(this.ghost, false);
           this.scene.add(this.ghost);
         }
+      });
+      input.addEventListener('change', () => {
+        const alvo = this.selected;
+        if (!alvo || antes === null) return;
+        const depois = fotografar(alvo).props;
+        if (JSON.stringify(antes) !== JSON.stringify(depois)) {
+          this.historico.registrar(comandoAlterarProps(this, alvo.uuid, antes, depois, `Alterar ${def.name}`));
+        }
+        antes = depois;
       });
     });
   }
 
-  _deleteSelected() {
-    if (!this.selected) return;
-    this.scene.remove(this.selected.mesh);
-    this.items = this.items.filter(it => it !== this.selected);
-    this.selected = null;
-    this._updateSelectionHighlight();
-    this._renderPropsPanel();
-  }
-
-  _rotateSelectedOrGhost() {
-    if (this.armedType && this.ghost) {
-      this.ghost.rotation.y += Math.PI / 2;
-    } else if (this.selected) {
-      this.selected.rotY += Math.PI / 2;
-      this.selected.mesh.rotation.y = this.selected.rotY;
-    }
-  }
-
-  _updateSelectionHighlight() {
-    if (this._highlightBox) { this.scene.remove(this._highlightBox); this._highlightBox = null; }
-    if (this.selected) {
-      const box = new THREE.BoxHelper(this.selected.mesh, 0xffd98a);
-      this.scene.add(box);
-      this._highlightBox = box;
-    }
-  }
+  // --- Cenas -------------------------------------------------------------------------------
 
   _bindSceneUI() {
     document.getElementById('btn-save-scene').onclick = () => this._saveScene();
@@ -668,8 +1073,8 @@ class EditorApp {
 
   _buildDemoRoom() {
     this._newScene();
-    
-    // Coordenadas: X (largura), Y (altura), Z (profundidade). Tudo em blocos CELL.
+
+    // Coordenadas: X (largura), Y (altura), Z (profundidade), em metros.
     const items = [
       // Cozinha
       { id: 'bancada', x: -1, y: 0, z: -2, rot: 0 },
@@ -678,45 +1083,39 @@ class EditorApp {
       { id: 'geladeira', x: -2.5, y: 0, z: -2, rot: 0 },
       { id: 'armario_aereo', x: -1, y: 1.2, z: -2, rot: 0 },
       { id: 'armario_aereo', x: 0, y: 1.2, z: -2, rot: 0 },
-      
+
       // Jantar
       { id: 'mesa_jantar', x: 2.5, y: 0, z: -1.5, rot: 0 },
       { id: 'cadeira_leste', x: 1.5, y: 0, z: -1.5, rot: 0 },
       { id: 'cadeira_oeste', x: 3.5, y: 0, z: -1.5, rot: 0 },
-      
+
       // Sala
       { id: 'tapete', x: -1, y: 0.01, z: 2, rot: 0 },
       { id: 'sofa', x: -1, y: 0, z: 2, rot: Math.PI },
       { id: 'mesinha_centro', x: -1, y: 0, z: 1, rot: 0 },
       { id: 'rack_tv', x: -1, y: 0, z: 0, rot: 0 },
-      { id: 'monitor', x: -1, y: 0.5, z: 0, rot: Math.PI }, 
+      { id: 'monitor', x: -1, y: 0.5, z: 0, rot: Math.PI },
       { id: 'vaso', x: -2.5, y: 0, z: 0, rot: 0 },
       { id: 'abajur', x: -2.5, y: 0, z: 3, rot: 0 },
-      
+
       // Pequenos detalhes
       { id: 'celular', x: -1, y: 0.45, z: 1, rot: Math.PI / 4 },
       { id: 'dinheiro', x: -0.8, y: 0.45, z: 1, rot: 0 },
       { id: 'porta_retratos', x: -1, y: 0.8, z: 0, rot: 0 },
-      
+
       // Quarto (visão do lado)
       { id: 'cama', x: 4, y: 0, z: 2, rot: -Math.PI / 2 },
       { id: 'criado_mudo', x: 4, y: 0, z: 1, rot: -Math.PI / 2 },
       { id: 'guarda_roupa', x: 5, y: 0, z: 3, rot: -Math.PI },
-      
+
       // Fusca na Garagem
-      { id: 'fusca', x: -5, y: 0, z: -1, rot: Math.PI / 4 }
+      { id: 'fusca', x: -5, y: 0, z: -1, rot: Math.PI / 4 },
     ];
-    
+
     for (const item of items) {
-      if (paletteById(item.id)) {
-        const placed = this._place(item.id, item.x, item.y, item.z, {});
-        if (placed) {
-          placed.rotY = item.rot;
-          placed.mesh.rotation.y = item.rot;
-        }
-      }
+      if (paletteById(item.id)) this._place(item.id, item.x, item.y, item.z, {}, item.rot);
     }
-    
+
     document.getElementById('scene-name').value = 'Casa Completa';
     this.camera.position.set(0, 5, 8);
     this.pitch = -0.5;
@@ -726,7 +1125,6 @@ class EditorApp {
   _toggleScenePanel() {
     const panel = document.getElementById('scene-panel');
     panel.classList.toggle('hidden');
-    if (!panel.classList.contains('hidden') && document.pointerLockElement) document.exitPointerLock();
   }
 
   _serializeScene() {
@@ -757,10 +1155,12 @@ class EditorApp {
   }
 
   _newScene() {
+    this._cancelarColagem();
     for (const it of this.items) this.scene.remove(it.mesh);
     this.items = [];
-    this.selected = null;
-    this._updateSelectionHighlight();
+    this._selecionar([]);
+    // Trocar de cena não se desfaz: o histórico começa de novo.
+    this.historico.limpar();
     document.getElementById('scene-name').value = '';
   }
 
@@ -776,9 +1176,7 @@ class EditorApp {
   _loadSceneData(data) {
     this._newScene();
     for (const it of data.items) {
-      const placed = this._place(it.typeId, it.position[0], it.position[1], it.position[2], it.props);
-      placed.rotY = it.rotY || 0;
-      placed.mesh.rotation.y = placed.rotY;
+      this._place(it.typeId, it.position[0], it.position[1], it.position[2], it.props, it.rotY || 0);
     }
   }
 
@@ -863,18 +1261,24 @@ class EditorApp {
     aviso.hidden = partes.length === 0;
   }
 
+  // --- Câmera e laço --------------------------------------------------------------------
+
   _updateCamera(dt) {
     const forward = new THREE.Vector3(Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(this.yaw) * Math.cos(this.pitch));
     const right = new THREE.Vector3(Math.sin(this.yaw + Math.PI / 2), 0, Math.cos(this.yaw + Math.PI / 2));
-    const speed = (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? 18 : 8) * dt;
+    // Ctrl segurado é atalho (Ctrl+D, Ctrl+A...), não movimento.
+    const ctrl = this.keys.has('ControlLeft') || this.keys.has('ControlRight') || this.keys.has('MetaLeft');
     const move = new THREE.Vector3();
-    if (this.keys.has('KeyW')) move.addScaledVector(forward, 1);
-    if (this.keys.has('KeyS')) move.addScaledVector(forward, -1);
-    if (this.keys.has('KeyA')) move.addScaledVector(right, -1);
-    if (this.keys.has('KeyD')) move.addScaledVector(right, 1);
-    if (this.keys.has('KeyE')) move.y += 1;
-    if (this.keys.has('KeyQ')) move.y -= 1;
-    if (move.lengthSq() > 0) move.normalize().multiplyScalar(speed);
+    if (!ctrl) {
+      const speed = (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? 18 : 8) * dt;
+      if (this.keys.has('KeyW')) move.addScaledVector(forward, 1);
+      if (this.keys.has('KeyS')) move.addScaledVector(forward, -1);
+      if (this.keys.has('KeyA')) move.addScaledVector(right, -1);
+      if (this.keys.has('KeyD')) move.addScaledVector(right, 1);
+      if (this.keys.has('KeyE')) move.y += 1;
+      if (this.keys.has('KeyQ')) move.y -= 1;
+      if (move.lengthSq() > 0) move.normalize().multiplyScalar(speed);
+    }
     this.camera.position.add(move);
     this.camera.position.y = Math.max(1, this.camera.position.y);
 
@@ -887,20 +1291,19 @@ class EditorApp {
     const dt = Math.min(this.clock.getDelta(), 0.1);
     this._updateCamera(dt);
 
-    if (this.ghost && this.armedType) {
+    if (this._colando) {
+      this._atualizarColagem();
+    } else if (this.ghost && this.armedType) {
       const hit = this._raycastAll();
       if (hit) {
-        const sx = this._snap(hit.point.x);
-        const sz = this._snap(hit.point.z);
+        const sx = ajustar(hit.point.x, this.passoGrade);
+        const sz = ajustar(hit.point.z, this.passoGrade);
         const sy = this._alturaDaColocacao(hit);
-        
         this.ghost.position.set(sx, sy, sz);
-        const occupied = this._ocupadoParaColocar();
-        
-        this._updateGhostMaterial(this.ghost, occupied);
+        this._updateGhostMaterial(this.ghost, this._ocupadoParaColocar());
       }
     }
-    if (this._highlightBox) this._highlightBox.update();
+    for (const b of this._destaques ?? []) b.update();
 
     this.renderer.render(this.scene, this.camera);
   }
