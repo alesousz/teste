@@ -44,6 +44,8 @@ class EditorApp {
     this.yaw = 0;
     this.pitch = -1.0;
     this.toolMode = 'select';
+    // Exposto pra depuração e pros testes, como window.__game no jogo.
+    window.__editor = this;
 
     this._bindInput();
     this._bindSceneUI();
@@ -380,8 +382,8 @@ class EditorApp {
     for (const it of this.items) {
       if (it.mesh === ghostMesh) continue;
       // Peça de kit já colocada não impede nada: móvel em cima do piso,
-      // quadro na parede.
-      if (paletteById(it.typeId)?.sobreposicaoLivre) continue;
+      // quadro na parede. Andar escondido também não.
+      if (paletteById(it.typeId)?.sobreposicaoLivre || !it.mesh.visible) continue;
       const box2 = new THREE.Box3().setFromObject(it.mesh);
       box2.expandByScalar(-0.05);
       if (box1.intersectsBox(box2)) {
@@ -404,23 +406,59 @@ class EditorApp {
     this.grid.position.y = altura + 0.01;
     this.camera.position.y = Math.max(1, this.camera.position.y + subida);
     this._atualizarIndicadorAndar();
+    this._aplicarVisibilidadeDosAndares();
   }
 
+  // Andar a que uma altura pertence (uma peça em 2,5 m, em cima do piso do
+  // andar 1, é do andar 1).
+  _andarDoY(y) {
+    return Math.floor((y + 0.01) / ALTURA_ANDAR);
+  }
+
+  // Como no The Sims: o que está acima do andar de trabalho some, pra dar pra
+  // ver e mexer embaixo. Escondido também não é clicável nem ocupa lugar.
+  _aplicarVisibilidadeDosAndares() {
+    for (const it of this.items) it.mesh.visible = this._andarDoY(it.position[1]) <= this.andar;
+  }
+
+  // Botões ▼ Andar N ▲ na barra de cima; Page Up / Page Down fazem o mesmo.
   _criarIndicadorAndar() {
     const barra = document.getElementById('top-toolbar');
     if (!barra || document.getElementById('andar-label')) return;
-    const el = document.createElement('span');
-    el.id = 'andar-label';
-    el.title = 'Page Up / Page Down mudam o andar em que as peças são colocadas';
-    el.style.cssText = 'align-self:center;margin-left:16px;padding:6px 10px;border-radius:6px;'
-      + 'background:rgba(255,217,138,0.15);color:#ffd98a;font-size:0.85em;white-space:nowrap;';
-    barra.appendChild(el);
+    const grupo = document.createElement('div');
+    grupo.style.cssText = 'display:flex;align-items:center;gap:4px;margin-left:16px;';
+    const botao = (id, texto, titulo, delta) => {
+      const b = document.createElement('button');
+      b.id = id;
+      b.className = 'tool-btn';
+      b.textContent = texto;
+      b.title = titulo;
+      b.style.padding = '8px 12px';
+      b.onclick = () => this._mudarAndar(delta);
+      return b;
+    };
+    const rotulo = document.createElement('span');
+    rotulo.id = 'andar-label';
+    rotulo.title = 'Andar em que as peças são colocadas. O que está acima dele fica escondido.';
+    rotulo.style.cssText = 'padding:6px 10px;border-radius:6px;background:rgba(255,217,138,0.15);'
+      + 'color:#ffd98a;font-size:0.85em;white-space:nowrap;';
+    grupo.append(
+      botao('btn-andar-descer', '▼', 'Descer um andar (Page Down)', -1),
+      rotulo,
+      botao('btn-andar-subir', '▲', 'Subir um andar (Page Up)', 1),
+    );
+    barra.appendChild(grupo);
     this._atualizarIndicadorAndar();
   }
 
   _atualizarIndicadorAndar() {
     const el = document.getElementById('andar-label');
-    if (el) el.textContent = `Andar ${this.andar} · ${(this.andar * ALTURA_ANDAR).toFixed(1).replace('.', ',')} m (PgUp/PgDn)`;
+    if (el) el.textContent = `Andar ${this.andar} · ${(this.andar * ALTURA_ANDAR).toFixed(1).replace('.', ',')} m`;
+    const descer = document.getElementById('btn-andar-descer');
+    if (descer) {
+      descer.disabled = this.andar === 0;
+      descer.style.opacity = this.andar === 0 ? '0.4' : '1';
+    }
   }
 
   // Altura onde a peça armada vai: peça de kit sempre na altura do andar (pra
@@ -459,7 +497,8 @@ class EditorApp {
       hitsGround.push({ point: hitGround.clone(), distance: ray.ray.origin.distanceTo(hitGround) });
     }
     
-    const meshes = this.items.map(it => it.mesh);
+    // Só o que está à mostra: andar escondido não é clicável.
+    const meshes = this.items.filter(it => it.mesh.visible).map(it => it.mesh);
     const hitsItems = ray.intersectObjects(meshes, true);
     
     const allHits = [];
@@ -520,6 +559,7 @@ class EditorApp {
     const mesh = def.build(itemProps);
     mesh.position.set(x, y, z);
     mesh.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    mesh.visible = this._andarDoY(y) <= this.andar;
     this.scene.add(mesh);
     const item = { uuid: crypto.randomUUID(), typeId, position: [x, y, z], rotY: 0, props: itemProps, mesh };
     this.items.push(item);
