@@ -91,6 +91,12 @@ class Game {
     // CPU, e o passe visual dobrava o tempo de um teste E2E.
     const ehSoftware = rendererEhSoftware(this.renderer);
     this.render = new RenderPipeline(this.renderer, this.scene, { software: ehSoftware });
+    // Sem GPU, quase todo o custo de um quadro é resolução: medido em
+    // 13/09/2026 com SwiftShader, 1280x720 levava 6,5 s por quadro e 640x360
+    // levava 2,1 s — tirar as sombras mudava menos de 10%. Metade da
+    // resolução nesse modo é o que separa "lento" de "travado" (e os testes
+    // E2E de estourar o tempo esperando quadro).
+    if (ehSoftware) this.renderer.setPixelRatio(0.5);
 
     // `?postfx=0` / `?postfx=1` força qualquer um dos dois — é assim que a
     // cadeia é inspecionada em ambiente sem GPU, já que é justamente lá que

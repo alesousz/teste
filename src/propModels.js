@@ -48,13 +48,6 @@ export function encaixarModelo(grupoMovel, modelo, caixa) {
  *   carregar    — url → Promise<{ scene }> (ex.: GLTFLoader).
  */
 export async function carregarModelosMoveis(grupoMoveis, caixas, carregar, url = ARQUIVO_MOVEIS) {
-  // Pula o carregamento no CI: o E2E roda via software rendering (SwiftShader)
-  // e as texturas procedurais/malhas complexas causam timeout (56m+).
-  if (typeof navigator !== 'undefined' && navigator.webdriver) {
-    console.log(`[móveis] Teste detectado (webdriver); mantendo caixas para ${url}.`);
-    return 0;
-  }
-
   let gltf;
   try {
     gltf = await carregar(url);
