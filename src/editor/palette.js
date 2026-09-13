@@ -40,10 +40,11 @@ function buildLandmark(w, d, h, color, roofColor, label) {
   return g;
 }
 
-// Tipos que o jogo sabe carregar de src/data/scene.js: marcos, prédio, NPC e
-// fragmento em data.js; árvore, banco e poste em World._buildProps. O resto
-// do catálogo (móveis, veículos, animais, itens) só existe no editor por
-// enquanto — o jogo ignora esses itens sem erro, e também ignora a altura.
+// Tipos embutidos que o jogo sabe carregar de src/data/scene.js: marcos,
+// prédio, NPC e fragmento em data.js; árvore, banco e poste em
+// World._buildProps (esses vão pro chão, a altura é ignorada). Itens vindos
+// de .glb não estão aqui: eles levam `modelo` na cena e o jogo os carrega
+// por World._buildSceneModels, com altura e giro.
 export const TIPOS_QUE_O_JOGO_LE = new Set([
   'landmark_home_operario', 'landmark_home_nobre', 'landmark_job_mercado', 'landmark_school',
   'building', 'npc', 'fragment', 'tree', 'bench', 'lamp',
@@ -186,7 +187,10 @@ export const PALETTE = [
   },
 ];
 
-export function addDynamicProps(gltfScene, { categoria = null } = {}) {
+// `url`, `escala` e `variasPecas` descrevem de onde o item veio: o editor
+// grava isso na cena exportada, e o jogo carrega o mesmo nó do mesmo arquivo
+// (src/sceneModels.js).
+export function addDynamicProps(gltfScene, { categoria = null, url = null, escala = 1, variasPecas = false } = {}) {
   gltfScene.children.forEach((child, index) => {
     if (child) {
       const box = new THREE.Box3().setFromObject(child);
@@ -234,6 +238,7 @@ export function addDynamicProps(gltfScene, { categoria = null } = {}) {
         category: category,
         name: nomeLimpo,
         footprint: { w: Math.max(1, Math.ceil(w)), d: Math.max(1, Math.ceil(d)) },
+        modelo: url ? { url, no: variasPecas ? child.name : null, escala } : null,
         build: () => {
           let clone;
           try {

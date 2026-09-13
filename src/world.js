@@ -6,6 +6,8 @@ import { buildApartmentProps, apartmentBoxes } from './apartmentProps.js';
 import { carregarModelosMoveis } from './propModels.js';
 import { loadGLTF } from './assets.js';
 import { SCENE } from './data/scene.js';
+import { modelosDaCena } from './sceneModels.js';
+import { clone as clonarComEsqueleto } from '../vendor/jsm/utils/SkeletonUtils.js';
 import { criarAsfalto, criarChaoDaRua } from './streetGround.js';
 
 function makeWindowTexture(seed, w, h, lit) {
@@ -47,6 +49,7 @@ export class World {
     this._buildGround();
     this._buildBlocks();
     this._buildProps();
+    this._buildSceneModels();
     this._buildSky();
     this._buildLights();
     this._buildStreetLamps();
@@ -351,6 +354,39 @@ export class World {
       if (item.typeId === 'tree') this._addTree(x, z);
       else if (item.typeId === 'bench') this._addBench(x, z, item.rotY || 0);
       else if (item.typeId === 'lamp') this._addLamp(x, z);
+    }
+  }
+
+  // Objetos do catálogo do editor (móveis, veículos, animais, pacotes): cada
+  // item da cena diz de que arquivo e nó veio (ver sceneModels.js). Só
+  // visual por enquanto: sem colisão e sem animação.
+  _buildSceneModels() {
+    const { porArquivo, invalidos } = modelosDaCena(SCENE.items);
+    for (const item of invalidos) console.warn('[cena] item com modelo inválido, ignorado:', item.typeId, item.modelo);
+    for (const [url, copias] of porArquivo) {
+      loadGLTF(url).then(gltf => {
+        for (const c of copias) {
+          const origem = c.no ? gltf.scene.getObjectByName(c.no) : gltf.scene.children[0];
+          if (!origem) {
+            console.warn(`[cena] "${c.no}" não existe em ${url}; ${c.typeId} ignorado.`);
+            continue;
+          }
+          // SkeletonUtils: um clone comum de modelo com esqueleto (animais)
+          // divide os ossos com o original e deforma errado.
+          const obj = clonarComEsqueleto(origem);
+          obj.name = c.typeId;
+          obj.userData.modeloDaCena = url;
+          obj.position.set(c.position[0], c.position[1], c.position[2]);
+          // Igual ao editor: troca só o giro vertical e preserva a inclinação
+          // que o nó já traz do arquivo.
+          obj.rotation.y = c.rotY;
+          obj.scale.copy(origem.scale).multiplyScalar(c.escala);
+          obj.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+          this.scene.add(obj);
+        }
+        // Materiais novos nascem com o ambiente cheio; o loop redosa.
+        this.homeMaterialsDirty = true;
+      }, err => console.warn(`[cena] ${url} não carregou; ${copias.length} objeto(s) ficam de fora.`, err));
     }
   }
 

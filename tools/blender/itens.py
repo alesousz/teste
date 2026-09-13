@@ -30,7 +30,7 @@ def gerar_itens():
     print("Modelando o Dinheiro...")
     p_dinheiro = [
         caixa('papel', M['fotoC'], -0.033, 0.033, 0.0, 0.015, -0.078, 0.078, raio=0.002), # Nota verde
-        caixa('cinta', M['papel'], -0.034, 0.034, -0.001, 0.016, -0.01, 0.01),
+        caixa('cinta', M['papel'], -0.034, 0.034, 0.0, 0.016, -0.01, 0.01),
     ]
     objetos['dinheiro'] = unir(p_dinheiro, 'dinheiro')
 
@@ -56,16 +56,17 @@ def gerar_itens():
 
     print("Modelando o Fone de Ouvido...")
     p_fone = [
+        # Em pé, apoiado nas conchas: a base delas fica em y = 0.
         # Arco
-        caixa('arco_topo', M['plastico'], -0.09, 0.09, 0.17, 0.19, -0.02, 0.02, raio=0.005),
-        caixa('arco_esq', M['plastico'], -0.09, -0.07, 0.06, 0.18, -0.02, 0.02, raio=0.005),
-        caixa('arco_dir', M['plastico'], 0.07, 0.09, 0.06, 0.18, -0.02, 0.02, raio=0.005),
+        caixa('arco_topo', M['plastico'], -0.09, 0.09, 0.15, 0.17, -0.02, 0.02, raio=0.005),
+        caixa('arco_esq', M['plastico'], -0.09, -0.07, 0.04, 0.16, -0.02, 0.02, raio=0.005),
+        caixa('arco_dir', M['plastico'], 0.07, 0.09, 0.04, 0.16, -0.02, 0.02, raio=0.005),
         # Conchas externas
-        caixa('concha_esq', M['metal'], -0.09, -0.06, 0.02, 0.08, -0.03, 0.03, raio=0.008),
-        caixa('concha_dir', M['metal'], 0.06, 0.09, 0.02, 0.08, -0.03, 0.03, raio=0.008),
+        caixa('concha_esq', M['metal'], -0.09, -0.06, 0.0, 0.06, -0.03, 0.03, raio=0.008),
+        caixa('concha_dir', M['metal'], 0.06, 0.09, 0.0, 0.06, -0.03, 0.03, raio=0.008),
         # Espumas
-        caixa('espuma_esq', M['espuma'], -0.06, -0.04, 0.02, 0.08, -0.03, 0.03, raio=0.005),
-        caixa('espuma_dir', M['espuma'], 0.04, 0.06, 0.02, 0.08, -0.03, 0.03, raio=0.005),
+        caixa('espuma_esq', M['espuma'], -0.06, -0.04, 0.0, 0.06, -0.03, 0.03, raio=0.005),
+        caixa('espuma_dir', M['espuma'], 0.04, 0.06, 0.0, 0.06, -0.03, 0.03, raio=0.005),
     ]
     objetos['fone'] = unir(p_fone, 'fone_ouvido')
 

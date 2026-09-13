@@ -67,7 +67,7 @@ class EditorApp {
       // Arquivos com várias peças (móveis, itens) mantêm o nome de cada nó.
       if (gltf.scene.children.length === 1 && !m.variasPecas) gltf.scene.children[0].name = m.nome;
       if (m.escala !== 1) gltf.scene.children.forEach(c => c.scale.multiplyScalar(m.escala));
-      addDynamicProps(gltf.scene, { categoria: m.categoria });
+      addDynamicProps(gltf.scene, { categoria: m.categoria, url: m.url, escala: m.escala, variasPecas: m.variasPecas });
     }
 
     this._buildPaletteUI();
@@ -208,7 +208,7 @@ class EditorApp {
         return `
         <div class="palette-item ${this.armedType === p.id ? 'active' : ''}" data-id="${p.id}" title="${p.name}">
           ${p.key && p.key !== '-' ? `<span class="palette-key">${p.key}</span>` : ''}
-          ${TIPOS_QUE_O_JOGO_LE.has(p.id) ? '' : '<span title="O jogo ainda não carrega este item: ele só aparece na cena do editor." style="position: absolute; top: 6px; right: 6px; font-size: 0.55em; padding: 1px 4px; border-radius: 3px; background: #b0342a; color: #fff; pointer-events: none;">só editor</span>'}
+          ${TIPOS_QUE_O_JOGO_LE.has(p.id) || p.modelo ? '' : '<span title="O jogo ainda não carrega este item: ele só aparece na cena do editor." style="position: absolute; top: 6px; right: 6px; font-size: 0.55em; padding: 1px 4px; border-radius: 3px; background: #b0342a; color: #fff; pointer-events: none;">só editor</span>'}
           <img src="${p._thumb}" style="width: 60px; height: 60px; object-fit: contain; pointer-events: none;" />
           <span style="position: absolute; bottom: 4px; font-size: 0.65em; opacity: 0.7; pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90%;">${p.name}</span>
         </div>
@@ -608,7 +608,12 @@ class EditorApp {
 
   _serializeScene() {
     return {
-      items: this.items.map(it => ({ typeId: it.typeId, position: it.position, rotY: it.rotY, props: it.props })),
+      // Itens vindos de .glb levam a origem do modelo, que é o que o jogo usa
+      // pra carregá-los (src/sceneModels.js).
+      items: this.items.map(it => {
+        const modelo = paletteById(it.typeId)?.modelo;
+        return { typeId: it.typeId, position: it.position, rotY: it.rotY, props: it.props, ...(modelo ? { modelo } : {}) };
+      }),
     };
   }
 
@@ -715,8 +720,9 @@ class EditorApp {
     const ignorados = {};
     let foraDoChao = 0;
     for (const it of this.items) {
-      if (!TIPOS_QUE_O_JOGO_LE.has(it.typeId)) ignorados[it.typeId] = (ignorados[it.typeId] || 0) + 1;
-      else if (Math.abs(it.position[1]) > 1e-6) foraDoChao++;
+      const temModelo = !!paletteById(it.typeId)?.modelo;   // carregado com altura e giro
+      if (!TIPOS_QUE_O_JOGO_LE.has(it.typeId) && !temModelo) ignorados[it.typeId] = (ignorados[it.typeId] || 0) + 1;
+      else if (!temModelo && Math.abs(it.position[1]) > 1e-6) foraDoChao++;
     }
     let aviso = document.getElementById('export-aviso');
     if (!aviso) {
