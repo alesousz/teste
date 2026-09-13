@@ -55,11 +55,14 @@ html, body {
   display: flex; gap: 8px; background: rgba(20,24,30,0.85); padding: 8px;
   border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);
   box-shadow: 0 4px 12px rgba(0,0,0,0.4); pointer-events: all;
+  /* Com left: 50% a barra só teria meia tela de largura e quebraria os botões. */
+  width: max-content;
 }
 .tool-btn {
   background: rgba(255,255,255,0.05); color: #cfd3da; border: none;
   padding: 8px 16px; border-radius: 6px; font-size: 0.9em; cursor: pointer;
   display: flex; align-items: center; gap: 6px; font-weight: 500;
+  white-space: nowrap;
 }
 .tool-btn:hover { background: rgba(255,255,255,0.1); }
 .tool-btn.active { background: #ffd98a; color: #1a1206; font-weight: 600; }
