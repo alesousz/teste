@@ -1,0 +1,34 @@
+{
+  "pacote": "Ultimate Animated Animal Pack (Quaternius)",
+  "licenca": "CC0",
+  "categoria": "Animais",
+  "escala": 1,
+  "escalas": {
+    "Alpaca.glb": 0.33,
+    "Bull.glb": 0.33,
+    "Cow.glb": 0.31,
+    "Deer.glb": 0.38,
+    "Donkey.glb": 0.4,
+    "Fox.glb": 0.18,
+    "Horse.glb": 0.43,
+    "Husky.glb": 0.25,
+    "Shiba_Inu.glb": 0.2,
+    "Stag.glb": 0.43,
+    "White_Horse.glb": 0.43,
+    "Wolf.glb": 0.34
+  },
+  "modelos": [
+    "Alpaca.glb",
+    "Bull.glb",
+    "Cow.glb",
+    "Deer.glb",
+    "Donkey.glb",
+    "Fox.glb",
+    "Horse.glb",
+    "Husky.glb",
+    "Shiba_Inu.glb",
+    "Stag.glb",
+    "White_Horse.glb",
+    "Wolf.glb"
+  ]
+}
