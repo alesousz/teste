@@ -219,6 +219,10 @@ export function addDynamicProps(gltfScene, { categoria = null, url = null, escal
       else if (/bed|night_stand|drawer/.test(nameLower)) category = 'Quarto';
       else if (/kitchen|fridge|oven|plate|stool|washing/.test(nameLower)) category = 'Cozinha';
       else if (/couch|fireplace|shelf|rug|curtain/.test(nameLower)) category = 'Sala';
+      // Natureza antes de plantas: "Plant_1" e "Plant_Flowers" são arbustos de
+      // jardim do pacote de natureza; vaso de planta de interior ("Houseplant")
+      // segue em Plantas.
+      else if (/tree|bush|petal|flower|grass|rock|^plant_/.test(nameLower)) category = 'Natureza';
       else if (/plant|cactus/.test(nameLower)) category = 'Plantas';
       else if (/door|window|column/.test(nameLower)) category = 'Portas e janelas';
       else if (/chair|table/.test(nameLower)) category = 'Superfícies';

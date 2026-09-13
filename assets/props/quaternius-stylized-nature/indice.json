@@ -1,0 +1,21 @@
+{
+  "pacote": "Ultimate Stylized Nature Pack (Quaternius)",
+  "licenca": "CC0",
+  "categoria": "Natureza",
+  "escala": 1,
+  "variacoes": true,
+  "modelos": [
+    "Birch_Trees.glb",
+    "Bushes.glb",
+    "Dead_Trees-F5I0Q7TwO5.glb",
+    "Dead_Trees.glb",
+    "Flower_Bushes.glb",
+    "Flowers.glb",
+    "Grass.glb",
+    "Maple_Trees.glb",
+    "Palm_Trees.glb",
+    "Pine_Trees.glb",
+    "Rocks.glb",
+    "Trees.glb"
+  ]
+}

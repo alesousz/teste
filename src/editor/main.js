@@ -65,9 +65,16 @@ class EditorApp {
       // Arquivo de um objeto só: o nome do arquivo vira o nome do item, porque
       // o nó raiz costuma ser genérico ("RootNode" nos pacotes da Quaternius).
       // Arquivos com várias peças (móveis, itens) mantêm o nome de cada nó.
-      if (gltf.scene.children.length === 1 && !m.variasPecas) gltf.scene.children[0].name = m.nome;
-      if (m.escala !== 1) gltf.scene.children.forEach(c => c.scale.multiplyScalar(m.escala));
-      addDynamicProps(gltf.scene, { categoria: m.categoria, url: m.url, escala: m.escala, variasPecas: m.variasPecas });
+      // Pacote de variações (`variacoes` no índice, ex.: natureza da
+      // Quaternius): um nó raiz com várias versões do objeto enfileiradas, e
+      // cada filho vira um item. O jogo acha o filho pelo nome e o coloca na
+      // posição do editor, sem o deslocamento da fileira.
+      const pecas = m.variacoes ? { children: [...(gltf.scene.children[0]?.children ?? [])] } : gltf.scene;
+      if (!m.variacoes && gltf.scene.children.length === 1 && !m.variasPecas) gltf.scene.children[0].name = m.nome;
+      if (m.escala !== 1) pecas.children.forEach(c => c.scale.multiplyScalar(m.escala));
+      addDynamicProps(pecas, {
+        categoria: m.categoria, url: m.url, escala: m.escala, variasPecas: m.variasPecas || m.variacoes,
+      });
     }
 
     this._buildPaletteUI();
@@ -111,6 +118,7 @@ class EditorApp {
           // tamanho, da raposa à vaca).
           escala: indice.escalas?.[arquivo] ?? indice.escala ?? 1,
           categoria: indice.categoria ?? null, variasPecas: false,
+          variacoes: !!indice.variacoes,
         }));
       } catch (e) {
         console.warn(`Sem índice em assets/props/${pasta} (${e.message}): pasta ignorada.`);

@@ -40,3 +40,16 @@ mesmo assim. Licenças conferidas nas páginas oficiais em 13/09/2026.
 - Alterações: nomes de arquivo com espaço trocado por `_`. Os modelos vêm numa
   escala ~2x maior que a do jogo (porta com 4,2 m, cadeira com 1,77 m), então o
   `indice.json` declara `escala: 0.5`; o arquivo em si não foi mexido.
+
+### `quaternius-stylized-nature/` — Ultimate Stylized Nature Pack
+
+- Página: https://quaternius.com/packs/ultimatestylizednature.html
+  (os `.glb` daqui têm o padrão de nome do Poly Pizza:
+  https://poly.pizza/bundle/Ultimate-Stylized-Nature-Pack-zyIyYd9yGr).
+- 12 arquivos com 55 variações: bétulas, árvores mortas, bordos, palmeiras,
+  pinheiros, árvores comuns, arbustos, flores, grama e pedras. O pacote completo
+  tem 63 modelos.
+- Cada arquivo é uma fileira de variações (um nó raiz com um filho por versão);
+  o `indice.json` declara `variacoes: true` e o editor mostra cada filho como um
+  item. Já vêm em tamanho real (escala 1).
+- Alteração: nomes de arquivo com espaço trocado por `_`.
