@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Editor de Cenas — Ferramenta Interna</title>
-  <link rel="stylesheet" href="editor-style.css?v=6" />
+  <link rel="stylesheet" href="editor-style.css?v=7" />
   <script type="importmap">
     {
       "imports": {
@@ -42,11 +42,15 @@
     <div id="top-toolbar">
       <button class="tool-btn active" id="btn-tool-select" title="Selecionar (Esc)">🖐️ Selecionar</button>
       <button class="tool-btn" id="btn-tool-demolish" title="Marreta (Del)">🔨 Demolir</button>
+      <button class="tool-btn" id="btn-tool-parede" title="Parede: arrastar faz uma linha · Shift+arrastar faz um cômodo · Ctrl+arrastar apaga">🧱 Parede</button>
+      <button class="tool-btn" id="btn-tool-piso" title="Piso: arrastar pinta um retângulo · Shift+arrastar é pincel · Ctrl+arrastar apaga">▦ Piso</button>
+      <button class="tool-btn" id="btn-tool-telhado" title="Telhado: clicar dentro de um cômodo fechado cobre · Ctrl+clique tira">⌂ Telhado</button>
       <button class="tool-btn" id="btn-demo-room" style="background:#4CAF50;color:white;font-weight:bold;margin-left:20px;">✨ Construir Casa AAA</button>
     </div>
 
     <div id="controls-hint">
       Câmera: WASD andar · Q/E girar · Roda zoom · Botão direito girar · Botão do meio arrastar · T de cima · F focar · V paredes · Shift mais rápido (e ignorar lugar ocupado) ·
+      Parede/Piso: arrastar · Shift cômodo/pincel · Ctrl apaga · Telhado: clique no cômodo · Porta ou janela: clique numa parede ·
       Clique colocar/selecionar · Arrastar mover ou selecionar em caixa · Ctrl+clique somar ·
       R girar (Shift+R volta) · Ctrl+Z/Ctrl+Y desfazer/refazer · Ctrl+C/Ctrl+V copiar/colar · Ctrl+D duplicar · Setas empurrar · ▲▼ andar · Delete excluir · Tab cenas
     </div>
@@ -66,6 +70,6 @@
     </div>
   </div>
 
-  <script type="module" src="src/editor/main.js?v=15"></script>
+  <script type="module" src="src/editor/main.js?v=16"></script>
 </body>
 </html>

@@ -2,7 +2,12 @@ import * as THREE from 'three';
 import { GLTFLoader } from '../../vendor/jsm/loaders/GLTFLoader.js';
 import { PALETTE, paletteById, addDynamicProps, TIPOS_QUE_O_JOGO_LE } from './palette.js?v=10';
 import { SCENE as GAME_SCENE } from '../data/scene.js';
-import { Historico } from './historico.js';
+import { Historico, lote } from './historico.js';
+import {
+  MODULO, ALTURA_PAREDE, pontoDaGrade, celulaDoPonto, centroDaCelula, trechosDaLinha, trechosDoComodo,
+  chaveDoTrecho, trechosDaPeca, folhasNaParede, trocaDeAbertura, ehAbertura, ehTelhado,
+  chaveDaCelula, celulasDoRetangulo, preencherComodo, telhasDoComodo,
+} from './construcao.js';
 import {
   PASSOS_DE_GRADE, PASSOS_DE_GIRO, ajustar, normalizarAngulo, girarPasso, centroide, deslocar,
 } from './grade.js';
@@ -29,6 +34,9 @@ function papelDoArquivo(papeis, arquivo) {
 }
 
 const plural = (n, um, varios) => (n === 1 ? um : `${n} ${varios}`);
+
+// Ferramentas da barra que desenham com o mouse (ver construcao.js).
+const FERRAMENTAS_DE_OBRA = ['parede', 'piso', 'telhado'];
 
 class EditorApp {
   constructor() {
@@ -209,7 +217,9 @@ class EditorApp {
       this.grid.geometry.dispose();
       this.grid.material.dispose();
     }
-    const grid = new THREE.GridHelper(GRID_SIZE, Math.round(GRID_SIZE / this.passoGrade), 0x223322, 0x2f4f2f);
+    // Nas ferramentas de construção a grade é a do kit (2 m), onde as paredes correm.
+    const passo = this._emObra ? MODULO : this.passoGrade;
+    const grid = new THREE.GridHelper(GRID_SIZE, Math.round(GRID_SIZE / passo), 0x223322, 0x2f4f2f);
     grid.position.y = this.andar * ALTURA_ANDAR + 0.01;
     this.scene.add(grid);
     this.grid = grid;
@@ -298,11 +308,17 @@ class EditorApp {
   }
 
   _setToolMode(mode) {
+    this._cancelarObra();
     this.toolMode = mode;
     if (mode !== 'build') this._arm(null);
+    this._atualizarBotoesDeFerramenta();
+    this._reconstruirGrid();
+  }
 
-    document.getElementById('btn-tool-select').classList.toggle('active', mode === 'select');
-    document.getElementById('btn-tool-demolish').classList.toggle('active', mode === 'demolish');
+  _atualizarBotoesDeFerramenta() {
+    for (const modo of ['select', 'demolish', ...FERRAMENTAS_DE_OBRA]) {
+      document.getElementById(`btn-tool-${modo}`)?.classList.toggle('active', this.toolMode === modo);
+    }
   }
 
   // --- Entrada ------------------------------------------------------------------
@@ -316,6 +332,10 @@ class EditorApp {
 
     document.getElementById('btn-tool-select').onclick = () => this._setToolMode('select');
     document.getElementById('btn-tool-demolish').onclick = () => this._setToolMode('demolish');
+    for (const modo of FERRAMENTAS_DE_OBRA) {
+      const botao = document.getElementById(`btn-tool-${modo}`);
+      if (botao) botao.onclick = () => this._setToolMode(modo);
+    }
 
     window.addEventListener('keydown', e => {
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
@@ -363,6 +383,7 @@ class EditorApp {
       this._atualizarMouse(e);
       if (e.button === 2) { this.isDraggingCamera = true; return; }
       if (e.button === 1) { e.preventDefault(); this._arrastandoVista = true; return; }
+      if (e.button === 0 && this._emObra) { this._iniciarObra(e); return; }
       if (e.button !== 0 || this.armedType || this._colando || this.toolMode !== 'select') return;
       const item = this._raycastItems();
       const aditivo = e.ctrlKey || e.metaKey;
@@ -383,6 +404,7 @@ class EditorApp {
       if (e.button === 2) this.isDraggingCamera = false;
       if (e.button === 1) this._arrastandoVista = false;
       if (e.button !== 0) return;
+      if (this.obra) this._finalizarObra();
       if (this._arrasto) this._finalizarArrasto();
       if (this._caixa) this._finalizarCaixa();
     });
@@ -414,7 +436,7 @@ class EditorApp {
     }, { passive: false });
     // Arrastar peça e caixa de seleção seguem o mouse mesmo por cima dos painéis.
     window.addEventListener('mousemove', e => {
-      if (!this._arrasto && !this._caixa) return;
+      if (!this._arrasto && !this._caixa && !this.obra) return;
       this._atualizarMouse(e);
       if (this._arrasto) this._atualizarArrasto();
       if (this._caixa) this._atualizarCaixa(e);
@@ -524,6 +546,7 @@ class EditorApp {
     const i = MODOS_PAREDE.indexOf(this.modoParede);
     this.modoParede = MODOS_PAREDE[(i + 1) % MODOS_PAREDE.length];
     this._atualizarBotoesDeVisao();
+    this._aplicarVisibilidadeDosAndares();   // o telhado sai da frente fora do modo inteiras
   }
 
   // Aplica o modo das paredes a cada quadro (a câmera muda o que fica "na
@@ -587,7 +610,7 @@ class EditorApp {
     mesh.position.fromArray(foto.position);
     mesh.rotation.y = foto.rotY ?? 0;
     mesh.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    mesh.visible = this._andarDoY(foto.position[1]) <= this.andar;
+    mesh.visible = this._visivel(foto.typeId, foto.position);
     this.scene.add(mesh);
     const item = {
       uuid: foto.uuid, typeId: foto.typeId, position: [...foto.position], rotY: foto.rotY ?? 0, props: foto.props, mesh,
@@ -611,7 +634,7 @@ class EditorApp {
     item.rotY = rotY;
     item.mesh.position.fromArray(position);
     item.mesh.rotation.y = rotY;
-    item.mesh.visible = this._andarDoY(position[1]) <= this.andar;
+    item.mesh.visible = this._visivel(item.typeId, position);
   }
 
   alterarProps(uuid, props) {
@@ -645,10 +668,22 @@ class EditorApp {
     return Math.floor((y + 0.01) / ALTURA_ANDAR);
   }
 
+  // A telha fica em cima das paredes, na altura do andar de cima, mas é do
+  // andar de baixo: some junto com ele, não antes.
+  _andarDoItem(typeId, position) {
+    return this._andarDoY(ehTelhado(typeId) ? position[1] - 0.5 : position[1]);
+  }
+
+  _visivel(typeId, position) {
+    if (this._andarDoItem(typeId, position) > this.andar) return false;
+    // Com paredes cortadas ou baixas o telhado sai da frente, pra ver dentro.
+    return !(ehTelhado(typeId) && this.modoParede !== 'inteiras');
+  }
+
   // Como no The Sims: o que está acima do andar de trabalho some, pra dar pra
   // ver e mexer embaixo. Escondido também não é clicável nem ocupa lugar.
   _aplicarVisibilidadeDosAndares() {
-    for (const it of this.items) it.mesh.visible = this._andarDoY(it.position[1]) <= this.andar;
+    for (const it of this.items) it.mesh.visible = this._visivel(it.typeId, it.position);
     const escondidos = [...this.selecionados].filter(it => !it.mesh.visible);
     if (escondidos.length) {
       for (const it of escondidos) this.selecionados.delete(it);
@@ -719,9 +754,11 @@ class EditorApp {
     }
 
     if (typeId && this.toolMode !== 'build') {
+      this._cancelarObra();
+      const deObra = this._emObra;
       this.toolMode = 'build';
-      document.getElementById('btn-tool-select').classList.remove('active');
-      document.getElementById('btn-tool-demolish').classList.remove('active');
+      this._atualizarBotoesDeFerramenta();
+      if (deObra) this._reconstruirGrid();
       const crosshair = document.getElementById('crosshair');
       crosshair.style.background = '#fff';
       crosshair.style.boxShadow = '0 0 4px rgba(0,0,0,0.6)';
@@ -823,6 +860,14 @@ class EditorApp {
       return;
     }
     if (this.armedType) {
+      const troca = this._trocaSobMouse();
+      if (troca) {
+        this.historico.executar(lote(`Colocar ${paletteById(this.armedType).name}`, [
+          comandoRemover(this, troca.remover.map(fotografar)),
+          comandoColocar(this, this._fotosNovas(troca.colocar)),
+        ]));
+        return;
+      }
       const hit = this._raycastAll();
       if (!hit) return;
       const sx = ajustar(hit.point.x, this.passoGrade);
@@ -844,6 +889,198 @@ class EditorApp {
       const item = this._raycastItems();
       if (item) this.historico.executar(comandoRemover(this, [fotografar(item)], `Demolir ${paletteById(item.typeId)?.name ?? 'peça'}`));
     }
+  }
+
+  // Peças novas (uuid e propriedades padrão) a partir de {typeId, position, rotY}.
+  _fotosNovas(lista) {
+    return lista.map(f => ({ ...f, uuid: crypto.randomUUID(), props: paletteById(f.typeId)?.defaultProps?.() }));
+  }
+
+  // Porta ou janela do catálogo sobre uma parede: troca no lugar (ver construcao.js).
+  _trocaSobMouse() {
+    if (!this.armedType || !ehAbertura(this.armedType)) return null;
+    const hit = this._raycastAll();
+    if (hit?.type !== 'item') return null;
+    const alvo = this.items.find(it => it.mesh === hit.object);
+    if (!alvo) return null;
+    const andar = this._andarDoItem(alvo.typeId, alvo.position);
+    const pecas = this.items.filter(it => this._andarDoItem(it.typeId, it.position) === andar);
+    return trocaDeAbertura(this.armedType, alvo, [hit.point.x, hit.point.z], pecas);
+  }
+
+  // --- Construir: parede, piso e telhado ---------------------------------------------
+  //
+  // Como no The Sims. Parede: arrastar faz uma linha; Shift+arrastar, um
+  // cômodo; Ctrl+arrastar apaga. Piso: arrastar pinta um retângulo; Shift,
+  // pincel; Ctrl apaga. Telhado: clicar dentro de um cômodo fechado cobre
+  // (ou refaz) o telhado; Ctrl+clique tira. Cada gesto é um Ctrl+Z só.
+
+  get _emObra() {
+    return FERRAMENTAS_DE_OBRA.includes(this.toolMode);
+  }
+
+  _pecasDoAndar() {
+    return this.items.filter(it => this._andarDoItem(it.typeId, it.position) === this.andar);
+  }
+
+  _iniciarObra(e) {
+    const p = this._pontoNoPlano(this.andar * ALTURA_ANDAR);
+    if (!p) return;
+    this.obra = { inicio: [p.x, p.z], shift: e.shiftKey, apagar: e.ctrlKey || e.metaKey, pincel: new Map() };
+    this._atualizarObra();
+  }
+
+  // A cada quadro: calcula o que o gesto faria e mostra a prévia. Sem botão
+  // apertado, mostra onde a ferramenta começa (e o telhado do cômodo sob o mouse).
+  _atualizarObra() {
+    const altura = this.andar * ALTURA_ANDAR;
+    const p = this._pontoNoPlano(altura);
+    if (!p) return;
+    const ponto = [p.x, p.z];
+    const apagar = this.obra ? this.obra.apagar : this.keys.has('ControlLeft') || this.keys.has('ControlRight');
+    const planejar = {
+      parede: () => this._planoDeParede(ponto, altura, apagar),
+      piso: () => this._planoDePiso(ponto, altura, apagar),
+      telhado: () => this._planoDeTelhado(ponto, altura, apagar),
+    }[this.toolMode];
+    this._plano = planejar();
+    this._mostrarPrevia(this._plano, altura);
+  }
+
+  _planoDeParede(ponto, altura, apagar) {
+    const marca = pontoDaGrade(...ponto);
+    if (!this.obra) return { colocar: [], remover: [], marca };
+    const a = pontoDaGrade(...this.obra.inicio);
+    const trechos = this.obra.shift ? trechosDoComodo(a, marca) : trechosDaLinha(a, marca);
+    const pecas = this._pecasDoAndar();
+    const donas = new Map();
+    for (const p of pecas) for (const k of trechosDaPeca(p)) donas.set(k, p);
+    if (apagar) {
+      const remover = new Set();
+      for (const t of trechos) {
+        const dona = donas.get(chaveDoTrecho(t));
+        if (!dona) continue;
+        remover.add(dona);
+        for (const folha of folhasNaParede(dona, pecas)) remover.add(folha);
+      }
+      return { colocar: [], remover: [...remover], marca, descricao: `Apagar ${plural(remover.size, 'parede', 'peças')}` };
+    }
+    // Trecho que já tem parede (ou porta, ou janela) fica como está.
+    const colocar = trechos
+      .filter(t => !donas.has(chaveDoTrecho(t)))
+      .map(t => ({ typeId: 'Wall', position: [t.x, altura, t.z], rotY: t.rotY }));
+    return { colocar, remover: [], marca, descricao: `Levantar ${plural(colocar.length, 'parede', 'paredes')}` };
+  }
+
+  _planoDePiso(ponto, altura, apagar) {
+    let celulas;
+    if (!this.obra) {
+      celulas = [celulaDoPonto(...ponto)];
+    } else if (this.obra.shift) {
+      const c = celulaDoPonto(...ponto);
+      this.obra.pincel.set(chaveDaCelula(c), c);
+      celulas = [...this.obra.pincel.values()];
+    } else {
+      celulas = celulasDoRetangulo(this.obra.inicio, ponto);
+    }
+    const pisos = new Map();
+    for (const it of this._pecasDoAndar()) {
+      if (!/^Floor/.test(it.typeId) || Math.abs(it.position[1] - altura) > 0.05) continue;
+      pisos.set(chaveDaCelula(celulaDoPonto(it.position[0], it.position[2])), it);
+    }
+    if (apagar) {
+      const remover = celulas.map(c => pisos.get(chaveDaCelula(c))).filter(Boolean);
+      return { colocar: [], remover, descricao: `Apagar ${plural(remover.length, 'piso', 'pisos')}` };
+    }
+    const colocar = celulas.filter(c => !pisos.has(chaveDaCelula(c))).map(c => {
+      const [x, z] = centroDaCelula(c);
+      return { typeId: 'Floor', position: [x, altura, z], rotY: 0 };
+    });
+    return { colocar, remover: [], descricao: `Pintar ${plural(colocar.length, 'piso', 'pisos')}` };
+  }
+
+  _planoDeTelhado(ponto, altura, apagar) {
+    const inicial = celulaDoPonto(...ponto);
+    const pecas = this._pecasDoAndar();
+    const celulas = preencherComodo(inicial, new Set(pecas.flatMap(trechosDaPeca)));
+    if (!celulas) return { colocar: [], remover: [], aberto: inicial };
+    const yTelhado = altura + ALTURA_PAREDE;
+    const doComodo = new Set(celulas.map(chaveDaCelula));
+    const telhas = pecas.filter(it => ehTelhado(it.typeId)
+      && Math.abs(it.position[1] - yTelhado) < 0.05
+      && doComodo.has(chaveDaCelula(celulaDoPonto(it.position[0], it.position[2]))));
+    if (apagar) return { colocar: [], remover: telhas, descricao: 'Tirar o telhado' };
+    // Refaz o telhado do cômodo inteiro: o cômodo pode ter crescido desde a última vez.
+    const colocar = telhasDoComodo(celulas).map(t => ({ typeId: t.typeId, position: [t.x, yTelhado, t.z], rotY: t.rotY }));
+    // Telhado já igual: nada a fazer (e a prévia não marca as telhas como se fossem sair).
+    const assinatura = lista => lista
+      .map(t => `${t.typeId}@${t.position[0]},${t.position[2]}@${Math.round(normalizarAngulo(t.rotY) * 100)}`)
+      .sort().join('|');
+    if (assinatura(colocar) === assinatura(telhas)) return { colocar: [], remover: [] };
+    return { colocar, remover: telhas, descricao: `Cobrir o cômodo (${plural(colocar.length, 'telha', 'telhas')})` };
+  }
+
+  _mostrarPrevia(plano, altura) {
+    const chave = JSON.stringify([plano.colocar, plano.remover.map(p => p.uuid), plano.marca, plano.aberto, altura]);
+    if (chave === this._chaveDaPrevia) return;
+    this._limparPrevia();
+    this._chaveDaPrevia = chave;
+    const grupo = new THREE.Group();
+    for (const f of plano.colocar) {
+      const def = paletteById(f.typeId);
+      if (!def) continue;
+      const m = def.build(def.defaultProps?.());
+      m.position.fromArray(f.position);
+      m.rotation.y = f.rotY;
+      this._updateGhostMaterial(m, false);
+      grupo.add(m);
+    }
+    for (const it of plano.remover) grupo.add(new THREE.BoxHelper(it.mesh, 0xff5544));
+    if (plano.marca) {
+      const pino = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.1, 0.1, ALTURA_PAREDE, 10),
+        new THREE.MeshBasicMaterial({ color: 0xffd98a, transparent: true, opacity: 0.8 }),
+      );
+      pino.position.set(plano.marca[0], altura + ALTURA_PAREDE / 2, plano.marca[1]);
+      grupo.add(pino);
+    }
+    if (plano.aberto) {
+      // Cômodo sem fechar: a célula sob o mouse fica vermelha.
+      const [x, z] = centroDaCelula(plano.aberto);
+      const aviso = new THREE.Mesh(
+        new THREE.PlaneGeometry(MODULO, MODULO),
+        new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.35, depthWrite: false }),
+      );
+      aviso.rotation.x = -Math.PI / 2;
+      aviso.position.set(x, altura + 0.12, z);
+      grupo.add(aviso);
+    }
+    this.scene.add(grupo);
+    this._previa = grupo;
+  }
+
+  _limparPrevia() {
+    if (this._previa) this.scene.remove(this._previa);
+    this._previa = null;
+    this._chaveDaPrevia = null;
+  }
+
+  _finalizarObra() {
+    this._atualizarObra();
+    const plano = this._plano;
+    this.obra = null;
+    this._limparPrevia();
+    if (!plano || (!plano.colocar.length && !plano.remover.length)) return;
+    const comandos = [];
+    if (plano.remover.length) comandos.push(comandoRemover(this, plano.remover.map(fotografar)));
+    if (plano.colocar.length) comandos.push(comandoColocar(this, this._fotosNovas(plano.colocar)));
+    this.historico.executar(lote(plano.descricao, comandos));
+  }
+
+  _cancelarObra() {
+    this.obra = null;
+    this._plano = null;
+    this._limparPrevia();
   }
 
   // Usado ao carregar cena e na casa de demonstração: entra direto, sem
@@ -1389,9 +1626,18 @@ class EditorApp {
 
     if (this._colando) {
       this._atualizarColagem();
+    } else if (this._emObra) {
+      this._atualizarObra();
     } else if (this.ghost && this.armedType) {
-      const hit = this._raycastAll();
-      if (hit) {
+      const troca = this._trocaSobMouse();
+      const hit = troca ? null : this._raycastAll();
+      if (troca) {
+        // Sobre uma parede: a porta ou janela encaixa no lugar dela.
+        const f = troca.colocar[0];
+        this.ghost.position.fromArray(f.position);
+        this.ghost.rotation.y = f.rotY;
+        this._updateGhostMaterial(this.ghost, false);
+      } else if (hit) {
         const sx = ajustar(hit.point.x, this.passoGrade);
         const sz = ajustar(hit.point.z, this.passoGrade);
         const sy = this._alturaDaColocacao(hit);
