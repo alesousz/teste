@@ -18,8 +18,13 @@ import {
   LIMITES_ORBITA, posicaoDaCamera, direcoesNoChao, aplicarZoom, limitarInclinacao,
 } from './orbita.js';
 import { MODOS_PAREDE, ESCALA_PAREDE_BAIXA, ehParede, paredeRebaixada } from './paredes.js';
+import { criarCidadeDeFundo, TAMANHO_DA_CIDADE } from './cidadeDeFundo.js';
 
-const GRID_SIZE = 60;
+// A grade não cobre a cidade inteira (viraria um xadrez só): é um quadrado em
+// volta do ponto que a câmera olha, que anda junto com ela.
+const GRID_SIZE = 80;
+// A grade fica logo acima das calçadas (3 cm), senão some embaixo delas.
+const ALTURA_DA_GRADE = 0.04;
 // Altura de um andar de trabalho: a parede do Building Kit tem 2,4 m, e o
 // piso do andar de cima assenta em cima dela.
 const ALTURA_ANDAR = 2.4;
@@ -47,7 +52,8 @@ class EditorApp {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x6f8fae);
-    this.scene.fog = new THREE.Fog(0x6f8fae, 40, 140);
+    // Longe o bastante pra ver a cidade inteira de cima.
+    this.scene.fog = new THREE.Fog(0x6f8fae, 150, 480);
     this.camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 500);
     // Câmera orbital (ver orbita.js). O começo fica parecido com a câmera de
     // voo livre de antes: uns 15 m acima, olhando pro centro.
@@ -191,20 +197,18 @@ class EditorApp {
     const sun = new THREE.DirectionalLight(0xffffff, 1.1);
     sun.position.set(30, 50, 20);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
-    const d = 60;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.far = 400;
+    const d = TAMANHO_DA_CIDADE / 2;
     sun.shadow.camera.left = -d; sun.shadow.camera.right = d;
     sun.shadow.camera.top = d; sun.shadow.camera.bottom = -d;
     this.scene.add(sun);
   }
 
+  // A cidade de verdade como chão (ver cidadeDeFundo.js); peças vão por cima.
   _buildGround() {
-    const geo = new THREE.PlaneGeometry(GRID_SIZE, GRID_SIZE);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x4c7a4a, roughness: 1 });
-    const ground = new THREE.Mesh(geo, mat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    this.scene.add(ground);
+    this.cidadeDeFundo = criarCidadeDeFundo();
+    this.scene.add(this.cidadeDeFundo);
     this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     this.andar = 0;
     this._reconstruirGrid();
@@ -220,7 +224,7 @@ class EditorApp {
     // Nas ferramentas de construção a grade é a do kit (2 m), onde as paredes correm.
     const passo = this._emObra ? MODULO : this.passoGrade;
     const grid = new THREE.GridHelper(GRID_SIZE, Math.round(GRID_SIZE / passo), 0x223322, 0x2f4f2f);
-    grid.position.y = this.andar * ALTURA_ANDAR + 0.01;
+    grid.position.y = this.andar * ALTURA_ANDAR + ALTURA_DA_GRADE;
     this.scene.add(grid);
     this.grid = grid;
   }
@@ -655,7 +659,7 @@ class EditorApp {
     this.andar = novo;
     const altura = novo * ALTURA_ANDAR;
     this.groundPlane.constant = -altura;
-    this.grid.position.y = altura + 0.01;
+    this.grid.position.y = altura + ALTURA_DA_GRADE;
     // A câmera acompanha: o ponto que ela olha sobe junto com o andar.
     this.orbita.alvo[1] = altura;
     this._atualizarIndicadorAndar();
@@ -1618,10 +1622,17 @@ class EditorApp {
     this.orbita.alvo[2] += d[1] * lado + f[1] * frente;
   }
 
+  // A grade acompanha a câmera, sempre alinhada nas linhas pares (as das paredes).
+  _acompanharGrade() {
+    this.grid.position.x = ajustar(this.orbita.alvo[0], MODULO);
+    this.grid.position.z = ajustar(this.orbita.alvo[2], MODULO);
+  }
+
   _loop() {
     requestAnimationFrame(() => this._loop());
     const dt = Math.min(this.clock.getDelta(), 0.1);
     this._updateCamera(dt);
+    this._acompanharGrade();
     this._aplicarModoParede();
 
     if (this._colando) {

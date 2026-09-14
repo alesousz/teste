@@ -11,7 +11,7 @@ import { pegadaNaFaixa, colisorDoObjeto, empurrarParaFora, raioContraColisor } f
 import { pisoDoKit, escadaDoKit, apoioEm, tetoEm, raioContraPiso } from './kitSurfaces.js';
 import { clone as clonarComEsqueleto } from '../vendor/jsm/utils/SkeletonUtils.js';
 import { criarAsfalto, criarChaoDaRua } from './streetGround.js';
-import { construirPredioDaCidade } from './cityLook.js';
+import { construirPredioDaCidade, criarTerrenoDosQuarteiroes, criarFonte, criarPostesDaRua } from './cityLook.js';
 
 export class World {
   constructor(scene) {
@@ -52,34 +52,10 @@ export class World {
   }
 
   _buildBlocks() {
-    const grassCanvas = document.createElement('canvas');
-    grassCanvas.width = 64; grassCanvas.height = 64;
-    const gctx = grassCanvas.getContext('2d');
-    gctx.fillStyle = '#4c7a4a';
-    gctx.fillRect(0, 0, 64, 64);
-    for (let i = 0; i < 200; i++) {
-      gctx.fillStyle = `rgba(${60 + Math.random() * 30},${110 + Math.random() * 30},${60 + Math.random() * 20},0.5)`;
-      gctx.fillRect(Math.random() * 64, Math.random() * 64, 2, 2);
-    }
-    const grassTex = new THREE.CanvasTexture(grassCanvas);
-    grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping;
-    grassTex.repeat.set(6, 6);
+    // Terreno, fonte e postes vêm de cityLook.js: o editor de mapa mostra os mesmos.
+    this.scene.add(criarTerrenoDosQuarteiroes(CITY.blocks, CONFIG.BLOCK_SIZE));
 
     for (const block of CITY.blocks) {
-      // O piso da praça é a pedra portuguesa de streetGround.js.
-      if (block.type !== 'plaza') {
-        const isGrass = block.type === 'park' || block.type.startsWith('home_');
-        const lotMat = new THREE.MeshStandardMaterial(
-          isGrass ? { map: grassTex, roughness: 1 } : { color: 0x8d8f92, roughness: 0.95 }
-        );
-        const lotGeo = new THREE.PlaneGeometry(CONFIG.BLOCK_SIZE, CONFIG.BLOCK_SIZE);
-        const lot = new THREE.Mesh(lotGeo, lotMat);
-        lot.rotation.x = -Math.PI / 2;
-        lot.position.set(block.cx, 0.02, block.cz);
-        lot.receiveShadow = true;
-        this.scene.add(lot);
-      }
-
       for (const b of block.lots) {
         if (b.kind) this._addLandmark(b);
         else if (b.custom) this._addCustomBuilding(b);
@@ -158,24 +134,7 @@ export class World {
   }
 
   _addPlazaProps(block) {
-    const fountainGeo = new THREE.CylinderGeometry(4, 4.4, 0.8, 24);
-    const fountainMat = new THREE.MeshStandardMaterial({ color: 0x9aa5ab, roughness: 0.6 });
-    const fountain = new THREE.Mesh(fountainGeo, fountainMat);
-    fountain.position.set(block.cx, 0.4, block.cz);
-    fountain.castShadow = true;
-    fountain.receiveShadow = true;
-    this.scene.add(fountain);
-
-    const waterGeo = new THREE.CylinderGeometry(3.4, 3.4, 0.1, 24);
-    const waterMat = new THREE.MeshStandardMaterial({ color: 0x3d7ea6, roughness: 0.1, metalness: 0.3, transparent: true, opacity: 0.85 });
-    const water = new THREE.Mesh(waterGeo, waterMat);
-    water.position.set(block.cx, 0.85, block.cz);
-    this.scene.add(water);
-
-    const centerGeo = new THREE.CylinderGeometry(0.5, 0.6, 2.2, 12);
-    const center = new THREE.Mesh(centerGeo, fountainMat);
-    center.position.set(block.cx, 1.9, block.cz);
-    this.scene.add(center);
+    this.scene.add(criarFonte(block.cx, block.cz));
   }
 
   _addParkProps(block) {
@@ -230,37 +189,9 @@ export class World {
   }
 
   _buildStreetLamps() {
-    const positions = [];
-    const half = (CONFIG.GRID_SIZE) * CONFIG.CELL / 2;
-    for (let ix = 0; ix <= CONFIG.GRID_SIZE; ix++) {
-      for (let iz = 0; iz <= CONFIG.GRID_SIZE; iz++) {
-        if ((ix + iz) % 2 !== 0) continue;
-        const x = ix * CONFIG.CELL - half;
-        const z = iz * CONFIG.CELL - half;
-        positions.push({ x, z });
-      }
-    }
-    const poleMat = new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.6, metalness: 0.4 });
-    const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff2c9, emissive: 0xfff2c9, emissiveIntensity: 0 });
-    for (const p of positions) {
-      const group = new THREE.Group();
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 5, 8), poleMat);
-      pole.position.y = 2.5;
-      group.add(pole);
-      const arm = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.1, 0.1), poleMat);
-      arm.position.set(0.5, 5, 0);
-      group.add(arm);
-      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.25, 10, 10), bulbMat.clone());
-      bulb.position.set(1.05, 4.85, 0);
-      group.add(bulb);
-      const light = new THREE.PointLight(0xffdca0, 0, 12, 2);
-      light.position.set(1.05, 4.8, 0);
-      light.castShadow = false;
-      group.add(light);
-      group.position.set(p.x, 0, p.z);
-      this.scene.add(group);
-      this.streetLamps.push({ bulb, light });
-    }
+    const { grupo, postes } = criarPostesDaRua(CONFIG.GRID_SIZE, CONFIG.CELL);
+    this.scene.add(grupo);
+    this.streetLamps.push(...postes);
   }
 
   // Decoração colocada à mão no editor de mapa (árvore/banco/poste) — os
