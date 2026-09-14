@@ -19,6 +19,10 @@ import {
 } from './orbita.js';
 import { MODOS_PAREDE, ESCALA_PAREDE_BAIXA, ehParede, paredeRebaixada } from './paredes.js';
 import { criarCidadeDeFundo, TAMANHO_DA_CIDADE } from './cidadeDeFundo.js';
+import { textoDoScene } from '../data/formatoCena.js';
+import { validarCena, CHAVE_CENA_EM_TESTE } from '../data/cenaEmTeste.js';
+
+const CHAVE_RASCUNHO = 'editor-rascunho';
 
 // A grade não cobre a cidade inteira (viraria um xadrez só): é um quadrado em
 // volta do ponto que a câmera olha, que anda junto com ela.
@@ -73,7 +77,12 @@ class EditorApp {
     this.armedType = null;
     this.ghost = null;
     // Toda mudança na cena passa pelo histórico (ver comandos.js).
-    this.historico = new Historico({ aoMudar: () => this._atualizarBotoesHistorico() });
+    this.historico = new Historico({
+      aoMudar: () => {
+        this._atualizarBotoesHistorico();
+        this._salvarRascunho();
+      },
+    });
     this._areaDeTransferencia = null;
     this._colando = null;
     this._arrasto = null;
@@ -1396,6 +1405,12 @@ class EditorApp {
 
   _bindSceneUI() {
     document.getElementById('btn-save-scene').onclick = () => this._saveScene();
+    const baixar = document.getElementById('btn-baixar-scene');
+    if (baixar) baixar.onclick = () => this._baixarScene();
+    const viver = document.getElementById('btn-modo-viver');
+    if (viver) viver.onclick = () => this._modoViver();
+    // A câmera muda sem passar pelo histórico: guarda ao sair da página.
+    window.addEventListener('beforeunload', () => this._salvarRascunho());
     document.getElementById('btn-new-scene').onclick = () => this._newScene();
     document.getElementById('btn-load-game-scene').onclick = () => this._loadGameScene();
     document.getElementById('btn-export-scene').onclick = () => this._exportScene();
@@ -1451,6 +1466,80 @@ class EditorApp {
 
     document.getElementById('scene-name').value = 'Casa Completa';
     Object.assign(this.orbita, { alvo: [0, 0, 0], yaw: 0, pitch: 0.6, distancia: 12 });
+    this._salvarRascunho();
+  }
+
+  // --- Rascunho, Modo Viver e scene.js -----------------------------------------------
+
+  // Rascunho automático: a cena em edição, a câmera e o andar, pra voltar do
+  // Modo Viver (ou de um recarregar) exatamente onde estava.
+  _salvarRascunho() {
+    if (this._carregando || !this.items) return;
+    try {
+      localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify({
+        ...this._serializeScene(),
+        nome: document.getElementById('scene-name')?.value ?? '',
+        orbita: this.orbita, andar: this.andar, modoParede: this.modoParede,
+      }));
+    } catch {
+      // Sem armazenamento (modo privado, cota cheia): segue sem rascunho.
+    }
+  }
+
+  _restaurarRascunho() {
+    let dado;
+    try {
+      dado = JSON.parse(localStorage.getItem(CHAVE_RASCUNHO) || 'null');
+    } catch {
+      return false;
+    }
+    const cena = dado && validarCena(dado);
+    if (!cena) return false;
+    this._loadSceneData(cena);
+    document.getElementById('scene-name').value = typeof dado.nome === 'string' ? dado.nome : '';
+    const o = dado.orbita;
+    if (o && Array.isArray(o.alvo) && o.alvo.length === 3 && [...o.alvo, o.yaw, o.pitch, o.distancia].every(Number.isFinite)) {
+      Object.assign(this.orbita, {
+        alvo: [...o.alvo], yaw: o.yaw, pitch: limitarInclinacao(o.pitch), distancia: aplicarZoom(o.distancia, 0),
+      });
+    }
+    if (Number.isInteger(dado.andar) && dado.andar >= 0) this._mudarAndar(dado.andar - this.andar);
+    if (MODOS_PAREDE.includes(dado.modoParede)) {
+      this.modoParede = dado.modoParede;
+      this._atualizarBotoesDeVisao();
+      this._aplicarVisibilidadeDosAndares();
+    }
+    return true;
+  }
+
+  // ▶ Modo Viver: grava a cena e abre o jogo nela, na mesma aba, com o
+  // personagem no ponto do chão que a câmera olha, no andar de trabalho.
+  _modoViver() {
+    this._cancelarColagem();
+    this._cancelarObra();
+    const spawn = { x: this.orbita.alvo[0], y: this.andar * ALTURA_ANDAR, z: this.orbita.alvo[2] };
+    try {
+      localStorage.setItem(CHAVE_CENA_EM_TESTE, JSON.stringify({ ...this._serializeScene(), spawn }));
+    } catch (e) {
+      alert(`Não deu pra guardar a cena pro Modo Viver (${e.message}).`);
+      return;
+    }
+    this._salvarRascunho();
+    location.href = 'index.html?viver=1';
+  }
+
+  // Baixa o src/data/scene.js pronto: é só trocar o arquivo no projeto.
+  _baixarScene() {
+    const url = URL.createObjectURL(new Blob([textoDoScene(this._serializeScene())], { type: 'text/javascript' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'scene.js';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const out = document.getElementById('export-output');
+    if (out) this._avisarItensIgnorados(out);
   }
 
   _toggleScenePanel() {
@@ -1460,6 +1549,8 @@ class EditorApp {
 
   _serializeScene() {
     return {
+      // O editor sempre mostra e edita a cidade fixa (ver data.js).
+      cidade: 'fixa',
       // Itens vindos de .glb levam a origem do modelo, que é o que o jogo usa
       // pra carregá-los (src/sceneModels.js).
       items: this.items.map(it => {
@@ -1505,10 +1596,17 @@ class EditorApp {
   }
 
   _loadSceneData(data) {
-    this._newScene();
-    for (const it of data.items) {
-      this._place(it.typeId, it.position[0], it.position[1], it.position[2], it.props, it.rotY || 0);
+    // Enquanto carrega, o rascunho não é regravado pela metade.
+    this._carregando = true;
+    try {
+      this._newScene();
+      for (const it of data.items) {
+        this._place(it.typeId, it.position[0], it.position[1], it.position[2], it.props, it.rotY || 0);
+      }
+    } finally {
+      this._carregando = false;
     }
+    this._salvarRascunho();
   }
 
   // Carrega o layout que está de verdade no jogo agora (src/data/scene.js)
@@ -1527,6 +1625,8 @@ class EditorApp {
   }
 
   _loadLastOrEmpty() {
+    // Volta do Modo Viver (ou recarregou a página): continua de onde estava.
+    if (this._restaurarRascunho()) return;
     const last = localStorage.getItem('editor-last-scene');
     const map = this._loadScenesMap();
     // Sem cena salva, parte da cena que está no jogo: começar vazio e exportar

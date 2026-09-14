@@ -1,7 +1,8 @@
 // Configuração e conteúdo do mundo. Layout da cidade é gerado uma única vez
 // (no load do módulo) e compartilhado por todos os sistemas — por isso não
 // precisa de seed determinística: é um singleton de módulo ES.
-import { SCENE } from './data/scene.js';
+// A cena de scene.js ou, no Modo Viver, a que o editor de mapa gravou.
+import { CENA as SCENE } from './data/cenaAtiva.js';
 import { AP as AP_FOOTPRINT } from './data/apartment.js';
 
 export const CONFIG = {

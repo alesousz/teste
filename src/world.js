@@ -5,7 +5,7 @@ import { buildBuilding, updateDoors } from './building.js';
 import { buildApartmentProps, apartmentBoxes } from './apartmentProps.js';
 import { carregarModelosMoveis } from './propModels.js';
 import { loadGLTF } from './assets.js';
-import { SCENE } from './data/scene.js';
+import { CENA as SCENE } from './data/cenaAtiva.js';
 import { modelosDaCena } from './sceneModels.js';
 import { pegadaNaFaixa, colisorDoObjeto, empurrarParaFora, raioContraColisor } from './objectCollision.js';
 import { pisoDoKit, escadaDoKit, apoioEm, tetoEm, raioContraPiso } from './kitSurfaces.js';
