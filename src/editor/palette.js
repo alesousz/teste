@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { NPC_DEFS } from '../data.js';
 import * as SkeletonUtils from '../../vendor/jsm/utils/SkeletonUtils.js';
+import { construirPredioDaCidade } from '../cityLook.js';
 
 // Paleta de itens do editor — agora usando as peças reais do jogo (marcos,
 // NPCs de verdade) em vez de placeholders genéricos, pra o que você desenha
@@ -111,15 +112,22 @@ export const PALETTE = [
     key: '6', category: 'Estruturas',
     name: 'Prédio',
     footprint: { w: 6, d: 6 },
-    defaultProps: () => ({ w: 6, d: 6, h: 8, color: '#b9c4cc' }),
+    defaultProps: () => ({ w: 6, d: 6, h: 8, color: '#b9c4cc', estilo: 'liso', semente: 1 }),
     propFields: [
-      { key: 'w', label: 'Largura', type: 'number', min: 2, max: 30, step: 1 },
-      { key: 'd', label: 'Profundidade', type: 'number', min: 2, max: 30, step: 1 },
+      { key: 'w', label: 'Largura', type: 'number', min: 2, max: 40, step: 1 },
+      { key: 'd', label: 'Profundidade', type: 'number', min: 2, max: 40, step: 1 },
       { key: 'h', label: 'Altura', type: 'number', min: 2, max: 40, step: 1 },
       { key: 'color', label: 'Cor', type: 'color' },
+      {
+        key: 'estilo', label: 'Fachada', type: 'select',
+        options: [{ value: 'liso', label: 'Lisa' }, { value: 'cidade', label: 'Com janelas e toldo' }],
+      },
+      { key: 'semente', label: 'Variação das janelas', type: 'number', min: 0, max: 9999, step: 1 },
     ],
     build: (props) => {
       const p = { w: 6, d: 6, h: 8, color: '#b9c4cc', ...props };
+      // Igual ao jogo (cityLook.js): prédio da cidade com janelas, teto e toldo.
+      if (p.estilo === 'cidade') return construirPredioDaCidade(p).grupo;
       const m = box(p.w, p.h, p.d, p.color);
       m.position.y = p.h / 2;
       return m;

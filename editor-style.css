@@ -79,7 +79,9 @@ html, body {
 }
 
 #props-panel {
-  position: absolute; top: 16px; left: 16px; width: 260px;
+  /* Abaixo da barra de cima, que pode ocupar duas linhas. */
+  position: absolute; top: 128px; left: 16px; width: 260px;
+  max-height: calc(100vh - 380px); overflow-y: auto;
   background: rgba(10,12,16,0.8); border-radius: 8px; padding: 12px 14px; pointer-events: all;
 }
 #props-panel h3 { margin: 0 0 8px; font-size: 0.9em; color: #ffd98a; }

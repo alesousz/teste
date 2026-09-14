@@ -11,31 +11,7 @@ import { pegadaNaFaixa, colisorDoObjeto, empurrarParaFora, raioContraColisor } f
 import { pisoDoKit, escadaDoKit, apoioEm, tetoEm, raioContraPiso } from './kitSurfaces.js';
 import { clone as clonarComEsqueleto } from '../vendor/jsm/utils/SkeletonUtils.js';
 import { criarAsfalto, criarChaoDaRua } from './streetGround.js';
-
-function makeWindowTexture(seed, w, h, lit) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 64; canvas.height = 128;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#20242b';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const cols = Math.max(2, Math.round(w / 3));
-  const rows = Math.max(3, Math.round(h / 3));
-  const cw = canvas.width / cols;
-  const ch = canvas.height / rows;
-  let s = seed;
-  const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return (s % 1000) / 1000; };
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const on = lit ? rnd() > 0.45 : rnd() > 0.85;
-      ctx.fillStyle = on ? 'rgba(255,214,140,0.95)' : 'rgba(70,80,95,0.5)';
-      ctx.fillRect(c * cw + cw * 0.15, r * ch + ch * 0.2, cw * 0.7, ch * 0.6);
-    }
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  return tex;
-}
+import { construirPredioDaCidade } from './cityLook.js';
 
 export class World {
   constructor(scene) {
@@ -155,100 +131,30 @@ export class World {
     return sprite;
   }
 
+  // Prédio da cidade com janelas, teto e toldo (ver cityLook.js). `color`
+  // vem da cena na cidade fixa; no sorteio, do índice da paleta.
   _addBuilding(b) {
-    const color = BUILDING_COLOR_PALETTE[b.colorIdx];
-    const geo = new THREE.BoxGeometry(b.w, b.h, b.d);
-    const litTex = makeWindowTexture(b.winSeed, b.w, b.h, true);
-    const darkTex = makeWindowTexture(b.winSeed, b.w, b.h, false);
-    litTex.repeat.set(1, Math.max(1, Math.round(b.h / 4)));
-    darkTex.repeat.set(1, Math.max(1, Math.round(b.h / 4)));
-    const sideMat = new THREE.MeshStandardMaterial({ color, map: darkTex, roughness: 0.8 });
-    const topMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.9 });
-    const mats = [sideMat, sideMat, topMat, topMat, sideMat, sideMat];
-    const mesh = new THREE.Mesh(geo, mats);
-    mesh.position.set(b.cx, b.h / 2, b.cz);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    mesh.userData.litTex = litTex;
-    mesh.userData.darkTex = darkTex;
-    mesh.userData.isBuildingSide = true;
-    this.scene.add(mesh);
-    this.windowTexturesLit.push(mesh);
-
-    this._addRooftopDetails(b, color);
-    this._addAwning(b, color);
+    const { grupo, corpo } = construirPredioDaCidade({
+      w: b.w, d: b.d, h: b.h, color: b.color ?? BUILDING_COLOR_PALETTE[b.colorIdx], semente: b.winSeed,
+    });
+    grupo.position.set(b.cx, 0, b.cz);
+    this.scene.add(grupo);
+    this.windowTexturesLit.push(corpo);
   }
 
-  // Prédio customizado colocado no editor de mapa — cor lisa, sem
-  // janelas/detalhe de teto (o editor mostra a mesma coisa na prévia dele).
+  // Prédio colocado no editor de mapa: com fachada de cidade, igual aos
+  // gerados; liso, só a caixa na cor escolhida (o editor mostra igual).
   _addCustomBuilding(b) {
+    if (b.estilo === 'cidade') {
+      this._addBuilding(b);
+      return;
+    }
     const mat = new THREE.MeshStandardMaterial({ color: b.color, roughness: 0.85 });
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), mat);
     mesh.position.set(b.cx, b.h / 2, b.cz);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     this.scene.add(mesh);
-  }
-
-  _addRooftopDetails(b, color) {
-    const roofMat = new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.9 });
-    const parapet = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.15, 0.3, b.d + 0.15), roofMat);
-    parapet.position.set(b.cx, b.h + 0.15, b.cz);
-    parapet.castShadow = true;
-    this.scene.add(parapet);
-
-    let seed = b.winSeed;
-    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return (seed % 1000) / 1000; };
-
-    const propCount = 1 + Math.floor(rnd() * 2);
-    for (let i = 0; i < propCount; i++) {
-      const px = b.cx + (rnd() - 0.5) * (b.w * 0.5);
-      const pz = b.cz + (rnd() - 0.5) * (b.d * 0.5);
-      if (rnd() > 0.5) {
-        const ac = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.8), new THREE.MeshStandardMaterial({ color: 0x8a9199, roughness: 0.7 }));
-        ac.position.set(px, b.h + 0.55, pz);
-        ac.castShadow = true;
-        this.scene.add(ac);
-      } else {
-        const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.9, 10), new THREE.MeshStandardMaterial({ color: 0x6b5a4a, roughness: 0.8 }));
-        tank.position.set(px, b.h + 0.75, pz);
-        tank.castShadow = true;
-        this.scene.add(tank);
-      }
-    }
-
-    if (b.h > 24) {
-      const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 3, 6), roofMat);
-      antenna.position.set(b.cx, b.h + 1.8, b.cz);
-      this.scene.add(antenna);
-      const light = new THREE.Mesh(
-        new THREE.SphereGeometry(0.12, 8, 8),
-        new THREE.MeshStandardMaterial({ color: 0xff3b30, emissive: 0xff3b30, emissiveIntensity: 0.8 })
-      );
-      light.position.set(b.cx, b.h + 3.3, b.cz);
-      this.scene.add(light);
-    }
-  }
-
-  _addAwning(b, color) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 32; canvas.height = 8;
-    const ctx = canvas.getContext('2d');
-    const stripeColor = `#${new THREE.Color(color).offsetHSL(0, 0.1, -0.1).getHexString()}`;
-    for (let i = 0; i < 8; i++) {
-      ctx.fillStyle = i % 2 === 0 ? stripeColor : '#e8e4da';
-      ctx.fillRect(i * 4, 0, 4, 8);
-    }
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.repeat.set(Math.max(1, Math.round(b.w / 2)), 1);
-    const awning = new THREE.Mesh(
-      new THREE.BoxGeometry(b.w + 0.4, 0.12, 0.6),
-      new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 })
-    );
-    awning.position.set(b.cx, 2.6, b.cz + b.d / 2 + 0.25);
-    awning.castShadow = true;
-    this.scene.add(awning);
   }
 
   _addPlazaProps(block) {
@@ -273,6 +179,8 @@ export class World {
   }
 
   _addParkProps(block) {
+    // Cidade fixa: as árvores e os bancos dos parques são peças da cena.
+    if (CITY.fixa) return;
     const treeCount = 8 + Math.floor(Math.random() * 5);
     for (let i = 0; i < treeCount; i++) {
       const x = block.cx + (Math.random() - 0.5) * (CONFIG.BLOCK_SIZE - 6);
