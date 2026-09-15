@@ -2,55 +2,16 @@ import * as THREE from 'three';
 import { CONFIG, CITY, BUILDING_COLOR_PALETTE, LANDMARK_SPECS , HOME_ORIGIN } from './data.js';
 import { Interior } from './interior.js';
 import { buildBuilding, updateDoors } from './building.js';
-import { buildApartmentProps } from './apartmentProps.js';
-import { SCENE } from './data/scene.js';
-
-function makeWindowTexture(seed, w, h, lit) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 64; canvas.height = 128;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#20242b';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const cols = Math.max(2, Math.round(w / 3));
-  const rows = Math.max(3, Math.round(h / 3));
-  const cw = canvas.width / cols;
-  const ch = canvas.height / rows;
-  let s = seed;
-  const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return (s % 1000) / 1000; };
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const on = lit ? rnd() > 0.45 : rnd() > 0.85;
-      ctx.fillStyle = on ? 'rgba(255,214,140,0.95)' : 'rgba(70,80,95,0.5)';
-      ctx.fillRect(c * cw + cw * 0.15, r * ch + ch * 0.2, cw * 0.7, ch * 0.6);
-    }
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  return tex;
-}
-
-function makeAsphaltTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256; canvas.height = 256;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#2b2d31';
-  ctx.fillRect(0, 0, 256, 256);
-  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-  ctx.lineWidth = 4;
-  ctx.setLineDash([18, 14]);
-  ctx.beginPath();
-  ctx.moveTo(128, 0); ctx.lineTo(128, 256);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(0, 128); ctx.lineTo(256, 128);
-  ctx.stroke();
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(CONFIG.GRID_SIZE * 3, CONFIG.GRID_SIZE * 3);
-  return tex;
-}
+import { buildApartmentProps, apartmentBoxes } from './apartmentProps.js';
+import { carregarModelosMoveis } from './propModels.js';
+import { loadGLTF } from './assets.js';
+import { CENA as SCENE } from './data/cenaAtiva.js';
+import { modelosDaCena } from './sceneModels.js';
+import { pegadaNaFaixa, colisorDoObjeto, empurrarParaFora, raioContraColisor } from './objectCollision.js';
+import { pisoDoKit, escadaDoKit, apoioEm, tetoEm, raioContraPiso } from './kitSurfaces.js';
+import { clone as clonarComEsqueleto } from '../vendor/jsm/utils/SkeletonUtils.js';
+import { criarAsfalto, criarChaoDaRua } from './streetGround.js';
+import { construirPredioDaCidade, criarTerrenoDosQuarteiroes, criarFonte, criarPostesDaRua } from './cityLook.js';
 
 export class World {
   constructor(scene) {
@@ -63,9 +24,18 @@ export class World {
     this.windowTexturesLit = [];
     this.windowTexturesDark = [];
     this.streetLamps = [];
+    // Colisores dos objetos do catálogo (ver objectCollision.js) e a pegada
+    // medida de cada modelo, reaproveitada por todas as cópias dele.
+    this.objetosSolidos = [];
+    this._pegadas = new Map();
+    // Peças de kit de construção com papel (ver sceneModels.PAPEIS): pisos e
+    // escadas que sustentam o jogador, portas que abrem com E.
+    this.superficiesKit = [];
+    this.portasKit = [];
     this._buildGround();
     this._buildBlocks();
     this._buildProps();
+    this._buildSceneModels();
     this._buildSky();
     this._buildLights();
     this._buildStreetLamps();
@@ -76,42 +46,16 @@ export class World {
 
   _buildGround() {
     const size = CONFIG.GRID_SIZE * CONFIG.CELL + 40;
-    const geo = new THREE.PlaneGeometry(size, size);
-    const mat = new THREE.MeshStandardMaterial({ map: makeAsphaltTexture(), roughness: 1 });
-    const ground = new THREE.Mesh(geo, mat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    this.scene.add(ground);
+    this.scene.add(criarAsfalto(size));
+    // Calçadas, meio-fio, faixas e a praça: traçado em data/streets.js.
+    this.scene.add(criarChaoDaRua());
   }
 
   _buildBlocks() {
-    const grassCanvas = document.createElement('canvas');
-    grassCanvas.width = 64; grassCanvas.height = 64;
-    const gctx = grassCanvas.getContext('2d');
-    gctx.fillStyle = '#4c7a4a';
-    gctx.fillRect(0, 0, 64, 64);
-    for (let i = 0; i < 200; i++) {
-      gctx.fillStyle = `rgba(${60 + Math.random() * 30},${110 + Math.random() * 30},${60 + Math.random() * 20},0.5)`;
-      gctx.fillRect(Math.random() * 64, Math.random() * 64, 2, 2);
-    }
-    const grassTex = new THREE.CanvasTexture(grassCanvas);
-    grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping;
-    grassTex.repeat.set(6, 6);
+    // Terreno, fonte e postes vêm de cityLook.js: o editor de mapa mostra os mesmos.
+    this.scene.add(criarTerrenoDosQuarteiroes(CITY.blocks, CONFIG.BLOCK_SIZE));
 
     for (const block of CITY.blocks) {
-      const isGrass = block.type === 'park' || block.type.startsWith('home_');
-      const lotMat = new THREE.MeshStandardMaterial(
-        isGrass
-          ? { map: grassTex, roughness: 1 }
-          : { color: block.type === 'plaza' ? 0xb9b0a0 : 0x8d8f92, roughness: 0.95 }
-      );
-      const lotGeo = new THREE.PlaneGeometry(CONFIG.BLOCK_SIZE, CONFIG.BLOCK_SIZE);
-      const lot = new THREE.Mesh(lotGeo, lotMat);
-      lot.rotation.x = -Math.PI / 2;
-      lot.position.set(block.cx, 0.02, block.cz);
-      lot.receiveShadow = true;
-      this.scene.add(lot);
-
       for (const b of block.lots) {
         if (b.kind) this._addLandmark(b);
         else if (b.custom) this._addCustomBuilding(b);
@@ -163,33 +107,24 @@ export class World {
     return sprite;
   }
 
+  // Prédio da cidade com janelas, teto e toldo (ver cityLook.js). `color`
+  // vem da cena na cidade fixa; no sorteio, do índice da paleta.
   _addBuilding(b) {
-    const color = BUILDING_COLOR_PALETTE[b.colorIdx];
-    const geo = new THREE.BoxGeometry(b.w, b.h, b.d);
-    const litTex = makeWindowTexture(b.winSeed, b.w, b.h, true);
-    const darkTex = makeWindowTexture(b.winSeed, b.w, b.h, false);
-    litTex.repeat.set(1, Math.max(1, Math.round(b.h / 4)));
-    darkTex.repeat.set(1, Math.max(1, Math.round(b.h / 4)));
-    const sideMat = new THREE.MeshStandardMaterial({ color, map: darkTex, roughness: 0.8 });
-    const topMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.9 });
-    const mats = [sideMat, sideMat, topMat, topMat, sideMat, sideMat];
-    const mesh = new THREE.Mesh(geo, mats);
-    mesh.position.set(b.cx, b.h / 2, b.cz);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    mesh.userData.litTex = litTex;
-    mesh.userData.darkTex = darkTex;
-    mesh.userData.isBuildingSide = true;
-    this.scene.add(mesh);
-    this.windowTexturesLit.push(mesh);
-
-    this._addRooftopDetails(b, color);
-    this._addAwning(b, color);
+    const { grupo, corpo } = construirPredioDaCidade({
+      w: b.w, d: b.d, h: b.h, color: b.color ?? BUILDING_COLOR_PALETTE[b.colorIdx], semente: b.winSeed,
+    });
+    grupo.position.set(b.cx, 0, b.cz);
+    this.scene.add(grupo);
+    this.windowTexturesLit.push(corpo);
   }
 
-  // Prédio customizado colocado no editor de mapa — cor lisa, sem
-  // janelas/detalhe de teto (o editor mostra a mesma coisa na prévia dele).
+  // Prédio colocado no editor de mapa: com fachada de cidade, igual aos
+  // gerados; liso, só a caixa na cor escolhida (o editor mostra igual).
   _addCustomBuilding(b) {
+    if (b.estilo === 'cidade') {
+      this._addBuilding(b);
+      return;
+    }
     const mat = new THREE.MeshStandardMaterial({ color: b.color, roughness: 0.85 });
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), mat);
     mesh.position.set(b.cx, b.h / 2, b.cz);
@@ -198,89 +133,13 @@ export class World {
     this.scene.add(mesh);
   }
 
-  _addRooftopDetails(b, color) {
-    const roofMat = new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.9 });
-    const parapet = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.15, 0.3, b.d + 0.15), roofMat);
-    parapet.position.set(b.cx, b.h + 0.15, b.cz);
-    parapet.castShadow = true;
-    this.scene.add(parapet);
-
-    let seed = b.winSeed;
-    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return (seed % 1000) / 1000; };
-
-    const propCount = 1 + Math.floor(rnd() * 2);
-    for (let i = 0; i < propCount; i++) {
-      const px = b.cx + (rnd() - 0.5) * (b.w * 0.5);
-      const pz = b.cz + (rnd() - 0.5) * (b.d * 0.5);
-      if (rnd() > 0.5) {
-        const ac = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.8), new THREE.MeshStandardMaterial({ color: 0x8a9199, roughness: 0.7 }));
-        ac.position.set(px, b.h + 0.55, pz);
-        ac.castShadow = true;
-        this.scene.add(ac);
-      } else {
-        const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.9, 10), new THREE.MeshStandardMaterial({ color: 0x6b5a4a, roughness: 0.8 }));
-        tank.position.set(px, b.h + 0.75, pz);
-        tank.castShadow = true;
-        this.scene.add(tank);
-      }
-    }
-
-    if (b.h > 24) {
-      const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 3, 6), roofMat);
-      antenna.position.set(b.cx, b.h + 1.8, b.cz);
-      this.scene.add(antenna);
-      const light = new THREE.Mesh(
-        new THREE.SphereGeometry(0.12, 8, 8),
-        new THREE.MeshStandardMaterial({ color: 0xff3b30, emissive: 0xff3b30, emissiveIntensity: 0.8 })
-      );
-      light.position.set(b.cx, b.h + 3.3, b.cz);
-      this.scene.add(light);
-    }
-  }
-
-  _addAwning(b, color) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 32; canvas.height = 8;
-    const ctx = canvas.getContext('2d');
-    const stripeColor = `#${new THREE.Color(color).offsetHSL(0, 0.1, -0.1).getHexString()}`;
-    for (let i = 0; i < 8; i++) {
-      ctx.fillStyle = i % 2 === 0 ? stripeColor : '#e8e4da';
-      ctx.fillRect(i * 4, 0, 4, 8);
-    }
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.repeat.set(Math.max(1, Math.round(b.w / 2)), 1);
-    const awning = new THREE.Mesh(
-      new THREE.BoxGeometry(b.w + 0.4, 0.12, 0.6),
-      new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 })
-    );
-    awning.position.set(b.cx, 2.6, b.cz + b.d / 2 + 0.25);
-    awning.castShadow = true;
-    this.scene.add(awning);
-  }
-
   _addPlazaProps(block) {
-    const fountainGeo = new THREE.CylinderGeometry(4, 4.4, 0.8, 24);
-    const fountainMat = new THREE.MeshStandardMaterial({ color: 0x9aa5ab, roughness: 0.6 });
-    const fountain = new THREE.Mesh(fountainGeo, fountainMat);
-    fountain.position.set(block.cx, 0.4, block.cz);
-    fountain.castShadow = true;
-    fountain.receiveShadow = true;
-    this.scene.add(fountain);
-
-    const waterGeo = new THREE.CylinderGeometry(3.4, 3.4, 0.1, 24);
-    const waterMat = new THREE.MeshStandardMaterial({ color: 0x3d7ea6, roughness: 0.1, metalness: 0.3, transparent: true, opacity: 0.85 });
-    const water = new THREE.Mesh(waterGeo, waterMat);
-    water.position.set(block.cx, 0.85, block.cz);
-    this.scene.add(water);
-
-    const centerGeo = new THREE.CylinderGeometry(0.5, 0.6, 2.2, 12);
-    const center = new THREE.Mesh(centerGeo, fountainMat);
-    center.position.set(block.cx, 1.9, block.cz);
-    this.scene.add(center);
+    this.scene.add(criarFonte(block.cx, block.cz));
   }
 
   _addParkProps(block) {
+    // Cidade fixa: as árvores e os bancos dos parques são peças da cena.
+    if (CITY.fixa) return;
     const treeCount = 8 + Math.floor(Math.random() * 5);
     for (let i = 0; i < treeCount; i++) {
       const x = block.cx + (Math.random() - 0.5) * (CONFIG.BLOCK_SIZE - 6);
@@ -330,37 +189,9 @@ export class World {
   }
 
   _buildStreetLamps() {
-    const positions = [];
-    const half = (CONFIG.GRID_SIZE) * CONFIG.CELL / 2;
-    for (let ix = 0; ix <= CONFIG.GRID_SIZE; ix++) {
-      for (let iz = 0; iz <= CONFIG.GRID_SIZE; iz++) {
-        if ((ix + iz) % 2 !== 0) continue;
-        const x = ix * CONFIG.CELL - half;
-        const z = iz * CONFIG.CELL - half;
-        positions.push({ x, z });
-      }
-    }
-    const poleMat = new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.6, metalness: 0.4 });
-    const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff2c9, emissive: 0xfff2c9, emissiveIntensity: 0 });
-    for (const p of positions) {
-      const group = new THREE.Group();
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 5, 8), poleMat);
-      pole.position.y = 2.5;
-      group.add(pole);
-      const arm = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.1, 0.1), poleMat);
-      arm.position.set(0.5, 5, 0);
-      group.add(arm);
-      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.25, 10, 10), bulbMat.clone());
-      bulb.position.set(1.05, 4.85, 0);
-      group.add(bulb);
-      const light = new THREE.PointLight(0xffdca0, 0, 12, 2);
-      light.position.set(1.05, 4.8, 0);
-      light.castShadow = false;
-      group.add(light);
-      group.position.set(p.x, 0, p.z);
-      this.scene.add(group);
-      this.streetLamps.push({ bulb, light });
-    }
+    const { grupo, postes } = criarPostesDaRua(CONFIG.GRID_SIZE, CONFIG.CELL);
+    this.scene.add(grupo);
+    this.streetLamps.push(...postes);
   }
 
   // Decoração colocada à mão no editor de mapa (árvore/banco/poste) — os
@@ -373,6 +204,173 @@ export class World {
       else if (item.typeId === 'bench') this._addBench(x, z, item.rotY || 0);
       else if (item.typeId === 'lamp') this._addLamp(x, z);
     }
+  }
+
+  // Objetos do catálogo do editor (móveis, veículos, animais, pacotes): cada
+  // item da cena diz de que arquivo e nó veio (ver sceneModels.js). Só
+  // visual por enquanto: sem colisão e sem animação.
+  _buildSceneModels() {
+    const { porArquivo, invalidos } = modelosDaCena(SCENE.items);
+    for (const item of invalidos) console.warn('[cena] item com modelo inválido, ignorado:', item.typeId, item.modelo);
+    for (const [url, copias] of porArquivo) {
+      loadGLTF(url).then(gltf => {
+        for (const c of copias) {
+          const origem = c.no ? gltf.scene.getObjectByName(c.no) : gltf.scene.children[0];
+          if (!origem) {
+            console.warn(`[cena] "${c.no}" não existe em ${url}; ${c.typeId} ignorado.`);
+            continue;
+          }
+          // SkeletonUtils: um clone comum de modelo com esqueleto (animais)
+          // divide os ossos com o original e deforma errado.
+          const obj = clonarComEsqueleto(origem);
+          obj.name = c.typeId;
+          obj.userData.modeloDaCena = url;
+          obj.position.set(c.position[0], c.position[1], c.position[2]);
+          // Igual ao editor: troca só o giro vertical e preserva a inclinação
+          // que o nó já traz do arquivo.
+          obj.rotation.y = c.rotY;
+          obj.scale.copy(origem.scale).multiplyScalar(c.escala);
+          obj.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+          this.scene.add(obj);
+          // Escada não colide pelas laterais: quem manda nela é a rampa.
+          const colisores = c.papel === 'escada' ? [] : this._colisoresDe(obj, url, c).map(s => ({ ...s, nome: c.typeId }));
+          this.objetosSolidos.push(...colisores);
+          const onde = { x: c.position[0], y: c.position[1], z: c.position[2], rotY: c.rotY };
+          if (c.papel === 'piso' || c.papel === 'escada') {
+            const caixa = this._caixaLocal(obj, url, c);
+            if (caixa) this.superficiesKit.push(c.papel === 'piso' ? pisoDoKit(caixa, onde) : escadaDoKit(caixa, onde));
+          } else if (c.papel === 'porta') {
+            this._registrarPortaKit(obj, gltf, url, c, colisores);
+          }
+        }
+        // Materiais novos nascem com o ambiente cheio; o loop redosa.
+        this.homeMaterialsDirty = true;
+      }, err => console.warn(`[cena] ${url} não carregou; ${copias.length} objeto(s) ficam de fora.`, err));
+    }
+  }
+
+  // Colisores de uma cópia — um por parte sólida (parede com porta dá dois).
+  // A pegada é medida uma vez por modelo, no referencial dele (sem giro e na
+  // origem), e reaproveitada pelas cópias.
+  _colisoresDe(obj, url, c) {
+    const chave = `${url}|${c.no ?? ''}|${c.escala}|${c.colisao ?? ''}`;
+    let pegada = this._pegadas.get(chave);
+    if (pegada === undefined) {
+      const posicao = obj.position.clone();
+      const giro = obj.rotation.y;
+      obj.position.set(0, 0, 0);
+      obj.rotation.y = 0;
+      obj.updateMatrixWorld(true);
+      const a = new THREE.Vector3();
+      const b = new THREE.Vector3();
+      const d = new THREE.Vector3();
+      pegada = pegadaNaFaixa(cb => obj.traverse(o => {
+        if (!o.isMesh) return;
+        const p = o.geometry.attributes.position;
+        const indice = o.geometry.index;
+        const n = indice ? indice.count : p.count;
+        const vertice = i => (indice ? indice.getX(i) : i);
+        for (let i = 0; i + 2 < n; i += 3) {
+          a.fromBufferAttribute(p, vertice(i)).applyMatrix4(o.matrixWorld);
+          b.fromBufferAttribute(p, vertice(i + 1)).applyMatrix4(o.matrixWorld);
+          d.fromBufferAttribute(p, vertice(i + 2)).applyMatrix4(o.matrixWorld);
+          cb(a.x, a.y, a.z, b.x, b.y, b.z, d.x, d.y, d.z);
+        }
+      }), { colisao: c.colisao });
+      obj.position.copy(posicao);
+      obj.rotation.y = giro;
+      obj.updateMatrixWorld(true);
+      this._pegadas.set(chave, pegada);
+    }
+    if (!pegada) return [];
+    const onde = { x: c.position[0], y: c.position[1], z: c.position[2], rotY: c.rotY };
+    return pegada.partes.map(parte => colisorDoObjeto({ ...parte, altura: pegada.altura }, onde));
+  }
+
+  // Caixa do modelo no referencial dele (sem giro, base na origem), mais
+  // `zTopo`: o menor z local que já está no alto — onde a escada termina de
+  // subir e começa o patamar. Medida uma vez por modelo.
+  _caixaLocal(obj, url, c) {
+    const chave = `caixa|${url}|${c.no ?? ''}|${c.escala}`;
+    if (this._pegadas.has(chave)) return this._pegadas.get(chave);
+    const posicao = obj.position.clone();
+    const giro = obj.rotation.y;
+    obj.position.set(0, 0, 0);
+    obj.rotation.y = 0;
+    obj.updateMatrixWorld(true);
+    const v = new THREE.Vector3();
+    const pontos = [];
+    obj.traverse(o => {
+      if (!o.isMesh) return;
+      const p = o.geometry.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld);
+        pontos.push(v.x, v.y, v.z);
+      }
+    });
+    obj.position.copy(posicao);
+    obj.rotation.y = giro;
+    obj.updateMatrixWorld(true);
+
+    let caixa = null;
+    if (pontos.length) {
+      caixa = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity, z0: Infinity, z1: -Infinity, zTopo: Infinity };
+      for (let i = 0; i < pontos.length; i += 3) {
+        caixa.x0 = Math.min(caixa.x0, pontos[i]);
+        caixa.x1 = Math.max(caixa.x1, pontos[i]);
+        caixa.y0 = Math.min(caixa.y0, pontos[i + 1]);
+        caixa.y1 = Math.max(caixa.y1, pontos[i + 1]);
+        caixa.z0 = Math.min(caixa.z0, pontos[i + 2]);
+        caixa.z1 = Math.max(caixa.z1, pontos[i + 2]);
+      }
+      for (let i = 0; i < pontos.length; i += 3) {
+        if (pontos[i + 1] > caixa.y1 - 0.05) caixa.zTopo = Math.min(caixa.zTopo, pontos[i + 2]);
+      }
+    }
+    this._pegadas.set(chave, caixa);
+    return caixa;
+  }
+
+  // Porta de kit: abre e fecha com a tecla de interagir, tocando as animações
+  // que vêm no modelo (`door|door|open` / `door|door|close` e as da maçaneta,
+  // no Building Kit da Kenney). Aberta, a folha deixa de colidir.
+  _registrarPortaKit(obj, gltf, url, c, colisores) {
+    const mixer = new THREE.AnimationMixer(obj);
+    // Os clipes vêm com sufixo de camada ("door|door|open|Animation Base
+    // Layer"): vale o nome exato ou o nome seguido de "|".
+    const acoes = nomes => nomes
+      .map(nome => gltf.animations.find(a => a.name === nome || a.name.startsWith(`${nome}|`)))
+      .filter(Boolean)
+      .map(clipe => {
+        const acao = mixer.clipAction(clipe);
+        acao.setLoop(THREE.LoopOnce, 1);
+        acao.clampWhenFinished = true;
+        return acao;
+      });
+    const abrir = acoes(['door|door|open', 'handle|door|open']);
+    const fechar = acoes(['door|door|close', 'handle|door|close']);
+    if (!abrir.length) console.warn(`[cena] ${url} não tem animação de abrir; a porta só libera a passagem.`);
+
+    // Ponto de interação no meio da folha.
+    const caixa = this._caixaLocal(obj, url, c);
+    const lx = caixa ? (caixa.x0 + caixa.x1) / 2 : 0;
+    const lz = caixa ? (caixa.z0 + caixa.z1) / 2 : 0;
+    const cos = Math.cos(c.rotY);
+    const sin = Math.sin(c.rotY);
+    const porta = {
+      def: { id: `kit-porta-${this.portasKit.length}`, label: 'Porta', locked: false },
+      aberta: false,
+      mundo: { x: c.position[0] + lx * cos + lz * sin, y: c.position[1], z: c.position[2] - lx * sin + lz * cos },
+      mixer,
+      alternar: () => {
+        porta.aberta = !porta.aberta;
+        for (const a of porta.aberta ? fechar : abrir) a.stop();
+        for (const a of porta.aberta ? abrir : fechar) a.reset().play();
+        return true;
+      },
+    };
+    for (const s of colisores) s.porta = porta;
+    this.portasKit.push(porta);
   }
 
   _addLamp(x, z) {
@@ -513,6 +511,11 @@ export class World {
     const props = buildApartmentProps(THREE);
     group.add(props.group);
     this.interior.addSolids(props.solids);
+    // Móveis com modelo do Blender chegam depois; até lá (ou se falharem)
+    // ficam as caixas. Os materiais novos nascem com o ambiente cheio, então
+    // o loop precisa redosar o interior quando eles entram.
+    carregarModelosMoveis(props.group, apartmentBoxes(), loadGLTF)
+      .then(n => { if (n > 0) this.homeMaterialsDirty = true; });
     this.homeAnchors = props.anchors.map(a => ({
       ...a,
       x: a.x + this.interior.origin.x,
@@ -559,16 +562,18 @@ export class World {
   /** Move as folhas das portas. Chamado pelo loop do jogo. */
   updateBuilding(dt) {
     if (this.doors) updateDoors(this.doors, dt);
+    for (const p of this.portasKit) p.mixer.update(dt);
   }
 
   /** Altura do chão sob o jogador — rua, laje ou degrau da escada. */
   supportAt(x, z, feetY) {
-    return this.interior.supportAt(x, z, feetY);
+    // Pisos e escadas de kit somam-se ao prédio inicial; fora de tudo, a rua.
+    return Math.max(this.interior.supportAt(x, z, feetY), apoioEm(this.superficiesKit, x, z, feetY));
   }
 
-  /** Altura livre acima da cabeça (laje ou cobertura). */
+  /** Altura livre acima da cabeça (laje, cobertura ou piso de kit). */
   ceilingAt(x, z, feetY) {
-    return this.interior.ceilingAt(x, z, feetY);
+    return Math.min(this.interior.ceilingAt(x, z, feetY), tetoEm(this.superficiesKit, x, z, feetY));
   }
 
   /**
@@ -577,16 +582,21 @@ export class World {
    * está no corredor logo acima dela.
    */
   nearestDoor(pos, maxDist = 2.2) {
-    if (!this.doors) return null;
     let melhor = null;
     let menor = maxDist;
-    for (const p of this.doors.values()) {
+    for (const p of this.doors?.values() ?? []) {
       const alvoY = p.level * 3.2;
       if (Math.abs(pos.y - alvoY) > 1.6) continue;
       const d = Math.hypot(
         pos.x - (p.ponto.x + this.interior.origin.x),
         pos.z - (p.ponto.z + this.interior.origin.z),
       );
+      if (d < menor) { menor = d; melhor = p; }
+    }
+    // Portas de kit: mesmo filtro de pavimento, pela altura da base da porta.
+    for (const p of this.portasKit) {
+      if (Math.abs(pos.y - p.mundo.y) > 1.6) continue;
+      const d = Math.hypot(pos.x - p.mundo.x, pos.z - p.mundo.z);
       if (d < menor) { menor = d; melhor = p; }
     }
     return melhor;
@@ -606,6 +616,18 @@ export class World {
       if (d < menor) { menor = d; melhor = a; }
     }
     return melhor;
+  }
+
+  /**
+   * O jogador está num lugar fechado, onde a câmera tem de ficar curta? No
+   * prédio inicial, embaixo de um piso de kit (até 4 m acima) ou em cima de
+   * um piso de kit.
+   */
+  dentroDeConstrucao(pos) {
+    if (this.interior.containsXZ(pos.x, pos.z)) return true;
+    if (this.superficiesKit.length === 0) return false;
+    if (tetoEm(this.superficiesKit, pos.x, pos.z, pos.y) - pos.y < 4) return true;
+    return apoioEm(this.superficiesKit, pos.x, pos.z, pos.y, 0.05) > 0.05;
   }
 
   /** O jogador está dentro da pegada do prédio inicial? */
@@ -628,6 +650,10 @@ export class World {
         pos.x += (dx / dist) * overlap;
         pos.z += (dz / dist) * overlap;
       }
+    }
+    for (const s of this.objetosSolidos) {
+      if (s.porta?.aberta) continue;   // folha de porta de kit aberta
+      empurrarParaFora(pos, radius, height, s);
     }
     this.interior.resolve(pos, radius, height);
     const half = CONFIG.WORLD_HALF - 2;
@@ -653,6 +679,18 @@ export class World {
     // As paredes do interior também travam a câmera — sem isso ela atravessa
     // o prédio inteiro e mostra o lado de fora enquanto o jogador está dentro.
     closest = Math.min(closest, this.interior.raycast(origin, dir, closest));
+    // Objetos do catálogo (paredes de kit, porta fechada, móveis) e as lajes
+    // dos pisos de kit também seguram a câmera.
+    for (const s of this.objetosSolidos) {
+      if (s.porta?.aberta) continue;
+      const t = raioContraColisor(origin, dir, s);
+      if (t !== null && t < closest) closest = t;
+    }
+    for (const piso of this.superficiesKit) {
+      if (piso.tipo !== 'piso') continue;
+      const t = raioContraPiso(origin, dir, piso);
+      if (t !== null && t < closest) closest = t;
+    }
     // A fronteira do prédio também limita: a porta é um buraco legítimo na
     // parede, e sem isto a câmera de quem está na rua entra por ela.
     return Math.min(closest, this.interior.boundaryDistance(origin, dir, closest));

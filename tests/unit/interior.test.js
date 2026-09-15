@@ -28,8 +28,8 @@ describe('planta do prédio — consistência geométrica', () => {
   });
 
   // Achado durante a integração: o vão de 0,85 m do banheiro era menor que o
-  // diâmetro de colisão do jogador (0,90 m), e o banheiro ficava inacessível
-  // sem nenhum aviso — a porta existia, e não dava pra passar.
+  // diâmetro de colisão do jogador (0,90 m na época), e o banheiro ficava
+  // inacessível sem nenhum aviso — a porta existia, e não dava pra passar.
   test('toda porta é mais larga que o diâmetro de colisão do jogador', () => {
     const diametro = CONFIG.PLAYER_RADIUS * 2;
     for (const d of DOORS) {

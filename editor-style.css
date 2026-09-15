@@ -8,41 +8,80 @@ html, body {
 .hidden { display: none !important; }
 
 #palette-panel {
-  position: absolute; top: 16px; left: 16px; width: 220px;
-  background: rgba(10,12,16,0.7); border-radius: 8px; padding: 12px 14px; pointer-events: all;
+  position: absolute; bottom: 0; left: 0; width: 100%; height: 210px;
+  background: rgba(20, 24, 30, 0.95); pointer-events: all;
+  display: flex; flex-direction: row; border-top: 2px solid #ffd98a;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
 }
-#palette-panel h3 { margin: 0 0 8px; font-size: 0.95em; color: #ffd98a; }
-.hint { font-size: 0.75em; color: #8992a0; }
-#palette-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+#palette-sidebar {
+  width: 180px; background: rgba(0,0,0,0.2); padding: 12px;
+  display: flex; flex-direction: column; gap: 6px; border-right: 1px solid rgba(255,255,255,0.05);
+}
+#palette-sidebar h3 { margin: 0 0 8px; color: #ffd98a; font-size: 1.05em; }
+.cat-btn { background: transparent; color: #cfd3da; border: none; text-align: left; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 0.85em; font-weight: 500; }
+.cat-btn:hover { background: rgba(255,255,255,0.1); }
+.cat-btn.active { background: #ffd98a; color: #1a1206; font-weight: bold; }
+
+#palette-content { flex-grow: 1; display: flex; flex-direction: column; padding: 12px; overflow: hidden; }
+#palette-header { display: flex; gap: 16px; margin-bottom: 12px; }
+#palette-search {
+  flex-grow: 1; max-width: 300px; padding: 6px 12px; border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: white; font-size: 0.85em; outline: none;
+}
+#palette-search:focus { border-color: #ffd98a; }
+
+#palette-list {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 8px; overflow-y: auto; padding-right: 8px; align-content: start;
+}
 .palette-item {
-  display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 6px;
-  background: rgba(255,255,255,0.05); font-size: 0.85em; cursor: default;
+  position: relative; aspect-ratio: 1 / 1; background: rgba(255,255,255,0.03); border: 2px solid rgba(255,255,255,0.05);
+  border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; cursor: pointer; padding: 6px; transition: 0.1s;
 }
-.palette-item.active { background: #ffd98a; color: #1a1206; font-weight: 600; }
+.palette-item:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,217,138,0.5); }
+.palette-item.active { background: rgba(255,217,138,0.15); border-color: #ffd98a; }
+.palette-item span:not(.palette-key) { font-size: 0.7em; font-weight: 600; color: #eee; text-transform: uppercase; letter-spacing: 0.5px; }
+
 .palette-key {
-  display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px;
-  border-radius: 4px; background: rgba(255,255,255,0.15); font-size: 0.8em;
+  position: absolute; top: 6px; left: 6px; width: 22px; height: 22px;
+  border-radius: 4px; background: rgba(0,0,0,0.4); font-size: 0.75em; color: #ffd98a;
+  display: flex; align-items: center; justify-content: center;
 }
-.palette-item.active .palette-key { background: rgba(0,0,0,0.2); }
 
 #hud-hint { position: absolute; inset: 0; pointer-events: none; }
-#crosshair {
-  position: absolute; top: 50%; left: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
-  background: #fff; border-radius: 50%; box-shadow: 0 0 4px rgba(0,0,0,0.6);
-}
-#mode-label {
+#top-toolbar {
   position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
-  background: rgba(10,12,16,0.7); padding: 6px 14px; border-radius: 20px; font-size: 0.85em;
+  display: flex; gap: 8px; background: rgba(20,24,30,0.85); padding: 8px;
+  border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4); pointer-events: all;
+  /* Com left: 50% a barra só teria meia tela de largura e quebraria os botões.
+     Em tela estreita ela quebra em linhas em vez de vazar pelas bordas. */
+  width: max-content; max-width: calc(100vw - 32px);
+  flex-wrap: wrap; justify-content: center; align-items: center;
 }
+.tool-btn {
+  background: rgba(255,255,255,0.05); color: #cfd3da; border: none;
+  padding: 8px 12px; border-radius: 6px; font-size: 0.9em; cursor: pointer;
+  display: flex; align-items: center; gap: 6px; font-weight: 500;
+  white-space: nowrap;
+}
+.tool-btn:hover { background: rgba(255,255,255,0.1); }
+.tool-btn.active { background: #ffd98a; color: #1a1206; font-weight: 600; }
 
 #controls-hint {
-  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+  /* Acima do catálogo (que ocupa os 210 px de baixo) e quebrando linha: com
+     todos os atalhos, uma linha só vazava pelas bordas da tela. */
+  position: absolute; bottom: 222px; left: 50%; transform: translateX(-50%);
   background: rgba(10,12,16,0.65); padding: 6px 14px; border-radius: 8px; font-size: 0.78em; color: #b6bcc6;
-  white-space: nowrap;
+  white-space: normal; text-align: center; line-height: 1.5;
+  width: max-content; max-width: min(1100px, 92vw);
 }
 
 #props-panel {
-  position: absolute; top: 16px; left: 256px; width: 220px;
+  /* Abaixo da barra de cima, que pode ocupar duas linhas. */
+  position: absolute; top: 128px; left: 16px; width: 260px;
+  max-height: calc(100vh - 380px); overflow-y: auto;
   background: rgba(10,12,16,0.8); border-radius: 8px; padding: 12px 14px; pointer-events: all;
 }
 #props-panel h3 { margin: 0 0 8px; font-size: 0.9em; color: #ffd98a; }
@@ -72,3 +111,4 @@ html, body {
 .scene-row button { background: rgba(255,255,255,0.1); color: #eee; font-weight: 400; }
 #export-output { width: 100%; height: 140px; margin-top: 10px; background: #05060a; color: #9fe08a;
   font-family: monospace; font-size: 0.75em; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); padding: 8px; }
+.hint { font-size: 0.75em; color: #8992a0; }

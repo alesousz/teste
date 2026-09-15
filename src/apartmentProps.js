@@ -138,7 +138,8 @@ const MOVEIS = [
   // lado de fora: é o único jeito de caber uma mesa aqui sem fechar a
   // passagem entre a porta de entrada, o quarto, o banheiro e a cozinha.
   // Deslocada 20 cm pro oeste quando os vãos foram alargados de 1,05 pra
-  // 1,15 m — o jogador colide como um círculo de 0,90 m e não passava.
+  // 1,15 m — na época o jogador colidia como um círculo de 0,90 m e não
+  // passava (hoje o raio é 0,38; ver CONFIG.PLAYER_RADIUS).
   movel('mesa_jantar', 'sala', Y_ANDAR, {
     x0: SL.x0 + 2.45, x1: SL.x0 + 3.35,
     z0: SL.z0 + 0.10, z1: SL.z0 + 0.80,

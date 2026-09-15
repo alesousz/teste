@@ -20,9 +20,14 @@ function distanciaDeCor(a, b) {
 }
 
 export class RenderPipeline {
-  constructor(renderer, scene) {
+  constructor(renderer, scene, opcoes = {}) {
     this.renderer = renderer;
     this.scene = scene;
+    // Mesma detecção que decide o pós-processamento. Num rasterizador de
+    // software cada texel de sombra e cada busca de textura é CPU: medido,
+    // o passe visual dobrou o tempo de um teste E2E (21 s -> 48 s). Numa GPU
+    // real a diferença entre 1024 e 2048 é desprezível; aqui não é.
+    this.software = opcoes.software ?? false;
 
     // ACES: a curva usada em cinema e na maioria dos motores atuais. Sem ela,
     // qualquer luz forte satura em branco liso e o resto some no preto.
@@ -40,6 +45,18 @@ export class RenderPipeline {
   }
 
   /**
+   * Ajusta o custo da sombra ao que a máquina aguenta. Chamado uma vez, antes
+   * do primeiro quadro — depois disso trocar mapSize exige descartar o mapa
+   * já alocado.
+   */
+  configurarSombra(sun) {
+    const lado = this.software ? 1024 : 2048;
+    sun.shadow.mapSize.set(lado, lado);
+    if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+    return lado;
+  }
+
+  /**
    * Gera o mapa de ambiente a partir do próprio céu do jogo.
    *
    * É isto que faz materiais PBR pararem de parecer plástico: sem um ambiente,
@@ -50,6 +67,12 @@ export class RenderPipeline {
     const mudouCor = distanciaDeCor(skyColor, this._corDoEnvAtual);
     const mudouLuz = Math.abs(dayFactor - this._ultimoDayFactor);
     if (!forcar && mudouCor < LIMIAR_MUDANCA_CEU && mudouLuz < LIMIAR_MUDANCA_CEU) return false;
+    // Em software o ambiente é gerado uma vez e fica: refazer a convolução a
+    // cada mudança de céu custa mais do que o realismo que entrega. Pular o
+    // ambiente POR COMPLETO seria ~20% mais rápido (medido), mas aí os testes
+    // deixariam de exercitar o caminho que o jogo de fato usa — e o E2E não
+    // trava o deploy, então não compensa trocar cobertura por tempo.
+    if (!forcar && this.software && this._envAtual) return false;
 
     const cena = new THREE.Scene();
     // Cúpula: gradiente do horizonte pro zênite, mais o chão. Uma esfera
@@ -94,6 +117,7 @@ export class RenderPipeline {
    * ciclo dia/noite continua mandando nisso.
    */
   focusShadows(sun, alvoPos, raio = 55) {
+    if (this.software) raio = 40;   // menos área, mais nitidez pelo mesmo custo
     const dir = sun.position.clone().sub(sun.target.position).normalize();
 
     // Ancorar num passo discreto evita a sombra "nadar" enquanto o jogador

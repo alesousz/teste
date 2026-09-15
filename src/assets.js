@@ -2,7 +2,7 @@ import { GLTFLoader } from '../vendor/jsm/loaders/GLTFLoader.js';
 
 const loader = new GLTFLoader();
 
-function loadGLTF(url) {
+export function loadGLTF(url) {
   return new Promise((resolve, reject) => {
     loader.load(url, resolve, undefined, reject);
   });

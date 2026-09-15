@@ -1,7 +1,8 @@
 // Configuração e conteúdo do mundo. Layout da cidade é gerado uma única vez
 // (no load do módulo) e compartilhado por todos os sistemas — por isso não
 // precisa de seed determinística: é um singleton de módulo ES.
-import { SCENE } from './data/scene.js';
+// A cena de scene.js ou, no Modo Viver, a que o editor de mapa gravou.
+import { CENA as SCENE } from './data/cenaAtiva.js';
 import { AP as AP_FOOTPRINT } from './data/apartment.js';
 
 export const CONFIG = {
@@ -12,7 +13,9 @@ export const CONFIG = {
   PLAYER_SPEED_WALK: 3.2,
   PLAYER_SPEED_RUN: 6.5,
   PLAYER_SPEED_CROUCH: 1.8,
-  PLAYER_RADIUS: 0.45,
+  // 0,76 m de diâmetro: passa nos vãos de porta de 0,88–0,90 m do Building
+  // Kit (decisão de 13/09/2026; era 0,45).
+  PLAYER_RADIUS: 0.38,
   PLAYER_HEIGHT: 1.7,          // altura do corpo usada na colisão
   CAM_DIST_OUTDOOR: 6.5,       // câmera na rua
   CAM_DIST_INDOOR: 2.5,        // câmera dentro do prédio: 6,5 m não cabe num quarto
@@ -86,8 +89,13 @@ function blockIndexFromPos(x, z) {
   return { ix: clamp(x / CONFIG.CELL + half), iz: clamp(z / CONFIG.CELL + half) };
 }
 
+// Cidade fixa (`cidade: 'fixa'` na cena): todo prédio vem da cena e dá pra
+// mexer nele no editor de mapa. Sem isso, os lotes são sorteados a cada
+// carregamento, como antes (tools/fixar-cidade.mjs grava uma versão fixa).
+const CIDADE_FIXA = SCENE.cidade === 'fixa';
+
 const sceneLandmarks = {}; // kind -> {cx,cz,ix,iz}
-const sceneBuildings = []; // prédios customizados: {cx,cz,w,d,h,color,ix,iz}
+const sceneBuildings = []; // prédios da cena: {cx,cz,w,d,h,color,estilo,semente,ix,iz}
 for (const item of SCENE.items) {
   const kind = LANDMARK_TYPE_TO_KIND[item.typeId];
   const [x, , z] = item.position;
@@ -98,6 +106,8 @@ for (const item of SCENE.items) {
       cx: x, cz: z, ...blockIndexFromPos(x, z),
       w: item.props?.w ?? 6, d: item.props?.d ?? 6, h: item.props?.h ?? 8,
       color: item.props?.color ?? '#b9c4cc',
+      // 'cidade': fachada com janelas e toldo, como os prédios gerados.
+      estilo: item.props?.estilo ?? 'liso', semente: item.props?.semente ?? 0,
     });
   }
 }
@@ -115,11 +125,33 @@ function isSpecial(ix, iz) {
 
 const BUILDING_COLORS = [0xb9c4cc, 0xc9b6a3, 0x9fb3c8, 0xd9cba8, 0xa8a8a8, 0x8fa998, 0xc7a9a0];
 
-function rand(min, max) {
-  return min + Math.random() * (max - min);
+// Lote de um marco e de um prédio da cena, com a caixa de colisão.
+function loteDoMarco(kind, pos) {
+  const spec = LANDMARK_SPECS[kind];
+  return {
+    minX: pos.cx - spec.w / 2, maxX: pos.cx + spec.w / 2,
+    minZ: pos.cz - spec.d / 2, maxZ: pos.cz + spec.d / 2,
+    h: spec.h, cx: pos.cx, cz: pos.cz, w: spec.w, d: spec.d, kind,
+  };
 }
 
-function generateCity() {
+function loteDaCena(cb) {
+  return {
+    minX: cb.cx - cb.w / 2, maxX: cb.cx + cb.w / 2,
+    minZ: cb.cz - cb.d / 2, maxZ: cb.cz + cb.d / 2,
+    h: cb.h, cx: cb.cx, cz: cb.cz, w: cb.w, d: cb.d, custom: true,
+    color: cb.color, estilo: cb.estilo, winSeed: cb.semente,
+  };
+}
+
+/**
+ * Monta a cidade. `random` sorteia os lotes (o jogo usa Math.random; o script
+ * de fixar a cidade passa um sorteador com semente). Com `fixa`, nada é
+ * sorteado: cada marco e prédio da cena entra no quarteirão mais perto, quantos
+ * forem.
+ */
+export function gerarCidade(random = Math.random, { fixa = CIDADE_FIXA } = {}) {
+  const rand = (min, max) => min + random() * (max - min);
   const blocks = [];
   const buildings = []; // AABBs planos {minX,maxX,minZ,maxZ,h,colorIdx,seed}
 
@@ -128,36 +160,29 @@ function generateCity() {
       const { x: cx, z: cz } = blockCenter(ix, iz);
       const special = isSpecial(ix, iz);
       const block = { ix, iz, cx, cz, type: special || 'urban', lots: [] };
+      const pôr = b => { buildings.push(b); block.lots.push(b); };
 
-      if (special && LANDMARK_SPECS[special]) {
-        const spec = LANDMARK_SPECS[special];
-        const pos = sceneLandmarks[special];
-        const b = {
-          minX: pos.cx - spec.w / 2, maxX: pos.cx + spec.w / 2,
-          minZ: pos.cz - spec.d / 2, maxZ: pos.cz + spec.d / 2,
-          h: spec.h, cx: pos.cx, cz: pos.cz, w: spec.w, d: spec.d, kind: special,
-        };
-        buildings.push(b);
-        block.lots.push(b);
+      if (fixa) {
+        for (const [kind, pos] of Object.entries(sceneLandmarks)) {
+          if (pos.ix === ix && pos.iz === iz) pôr(loteDoMarco(kind, pos));
+        }
+        for (const cb of sceneBuildings) {
+          if (cb.ix === ix && cb.iz === iz) pôr(loteDaCena(cb));
+        }
+      } else if (special && LANDMARK_SPECS[special]) {
+        pôr(loteDoMarco(special, sceneLandmarks[special]));
       } else if (special === 'custom') {
-        const cb = sceneBuildings.find(b => b.ix === ix && b.iz === iz);
-        const b = {
-          minX: cb.cx - cb.w / 2, maxX: cb.cx + cb.w / 2,
-          minZ: cb.cz - cb.d / 2, maxZ: cb.cz + cb.d / 2,
-          h: cb.h, cx: cb.cx, cz: cb.cz, w: cb.w, d: cb.d, custom: true, color: cb.color,
-        };
-        buildings.push(b);
-        block.lots.push(b);
+        pôr(loteDaCena(sceneBuildings.find(b => b.ix === ix && b.iz === iz)));
       } else if (!special) {
         const half = CONFIG.BLOCK_SIZE / 2;
         const margin = 3;
         const usable = half - margin;
-        const splitAxis = Math.random() < 0.55 ? null : (Math.random() < 0.5 ? 'x' : 'z');
+        const splitAxis = random() < 0.55 ? null : (random() < 0.5 ? 'x' : 'z');
 
         const makeBuilding = (bx, bz, w, d) => {
           const h = rand(7, 38);
-          const colorIdx = Math.floor(Math.random() * BUILDING_COLORS.length);
-          const winSeed = Math.floor(Math.random() * 10000);
+          const colorIdx = Math.floor(random() * BUILDING_COLORS.length);
+          const winSeed = Math.floor(random() * 10000);
           const b = {
             minX: bx - w / 2, maxX: bx + w / 2,
             minZ: bz - d / 2, maxZ: bz + d / 2,
@@ -189,10 +214,10 @@ function generateCity() {
     }
   }
 
-  return { blocks, buildings, plazaCenter: blockCenter(PLAZA.ix, PLAZA.iz), parkCenters: PARKS.map(p => blockCenter(p.ix, p.iz)) };
+  return { blocks, buildings, fixa, plazaCenter: blockCenter(PLAZA.ix, PLAZA.iz), parkCenters: PARKS.map(p => blockCenter(p.ix, p.iz)) };
 }
 
-export const CITY = generateCity();
+export const CITY = gerarCidade();
 
 // Canto mínimo do prédio inicial em coordenadas de mundo. A planta de
 // data/apartment.js é local (0..W, 0..D); somar esta origem leva pro mundo.

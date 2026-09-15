@@ -24,29 +24,41 @@ const ROTA = [
   ['rua', 5.8, -4.0],
 ];
 
-// Anda até um ponto da planta usando o update real do jogador.
-async function caminharAte(page, lx, lz) {
-  return page.evaluate(({ lx, lz }) => {
+// Anda por uma sequência de pontos da planta usando o update real do
+// jogador, numa ÚNICA ida ao navegador. Cada page.evaluate espera o quadro em
+// curso terminar, e com renderização por software um quadro desta cena leva
+// segundos (medido em 13/09/2026: ~6-7 s por quadro numa máquina comum, igual
+// desde a versão em que o CI passava). Uma ida por ponto somava ~60 s só de
+// espera aqui — e mais no CI — e o teste estourava o tempo sem nada de errado
+// na física. Para no primeiro ponto que falhar.
+async function caminharPor(page, pontos) {
+  return page.evaluate((pontos) => {
     const g = window.__game;
     const O = g.world.interior.origin;
-    const alvo = { x: lx + O.x, z: lz + O.z };
     const p = g.player;
     const input = { isDown: c => c === 'KeyW', wasPressed: () => false, consumeAttack: () => false };
-    let travado = 0;
-    for (let i = 0; i < 2000; i++) {
-      const dx = alvo.x - p.position.x, dz = alvo.z - p.position.z;
-      const d = Math.hypot(dx, dz);
-      if (d < 0.2) return { ok: true, y: p.position.y };
-      const antes = { x: p.position.x, z: p.position.z };
-      // A câmera fica ATRÁS do personagem, então ele anda em -forward.
-      p.camYaw = Math.atan2(-dx, -dz);
-      p.update(1 / 60, input, 'KeyQ');
-      if (p.position.y < -1) return { ok: false, motivo: 'caiu do mundo', y: p.position.y };
-      travado = Math.hypot(p.position.x - antes.x, p.position.z - antes.z) < 0.005 ? travado + 1 : 0;
-      if (travado > 60) return { ok: false, motivo: 'preso na geometria', y: p.position.y };
+    const resultados = [];
+    for (const [nome, lx, lz] of pontos) {
+      const alvo = { x: lx + O.x, z: lz + O.z };
+      let r = null;
+      let travado = 0;
+      for (let i = 0; i < 2000 && !r; i++) {
+        const dx = alvo.x - p.position.x, dz = alvo.z - p.position.z;
+        if (Math.hypot(dx, dz) < 0.2) { r = { ok: true, y: p.position.y }; break; }
+        const antes = { x: p.position.x, z: p.position.z };
+        // A câmera fica ATRÁS do personagem, então ele anda em -forward.
+        p.camYaw = Math.atan2(-dx, -dz);
+        p.update(1 / 60, input, 'KeyQ');
+        if (p.position.y < -1) r = { ok: false, motivo: 'caiu do mundo', y: p.position.y };
+        travado = Math.hypot(p.position.x - antes.x, p.position.z - antes.z) < 0.005 ? travado + 1 : 0;
+        if (!r && travado > 60) r = { ok: false, motivo: 'preso na geometria', y: p.position.y };
+      }
+      r = r || { ok: false, motivo: 'não alcançou o ponto', y: p.position.y };
+      resultados.push({ nome, ...r });
+      if (!r.ok) break;
     }
-    return { ok: false, motivo: 'não alcançou o ponto', y: p.position.y };
-  }, { lx, lz });
+    return resultados;
+  }, pontos);
 }
 
 test.beforeEach(({ page }) => collectConsoleErrors(page));
@@ -77,10 +89,9 @@ test('percurso completo: quarto → corredor → escada → saguão → rua', as
   page.on('pageerror', e => excecoes.push(e.message));
   await startGameRunning(page);
 
-  for (const [nome, lx, lz] of ROTA) {
-    const r = await caminharAte(page, lx, lz);
-    expect(r.ok, `${nome}: ${r.motivo}`).toBe(true);
-  }
+  const passos = await caminharPor(page, ROTA);
+  for (const r of passos) expect(r.ok, `${r.nome}: ${r.motivo}`).toBe(true);
+  expect(passos.length, 'todos os pontos da rota foram alcançados').toBe(ROTA.length);
 
   const fim = await page.evaluate(() => {
     const g = window.__game;
@@ -106,7 +117,7 @@ test('a câmera se aproxima dentro do prédio e volta a afastar na rua', async (
   });
   expect(dentro, 'câmera de interior precisa ser bem mais curta').toBeLessThan(3);
 
-  for (const [, lx, lz] of ROTA) await caminharAte(page, lx, lz);
+  await caminharPor(page, ROTA);
   const fora = await page.evaluate(() => {
     const g = window.__game;
     const input = { isDown: () => false, wasPressed: () => false, consumeAttack: () => false };

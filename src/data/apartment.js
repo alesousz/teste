@@ -17,10 +17,10 @@ export const AP = {
   FLOOR_H: 3.2,     // altura de um pavimento (piso a piso)
   SLAB: 0.35,       // espessura da laje
   CEIL: 2.85,       // pé-direito livre
-  // 1,15 m e não 1,05: o jogador colide como um círculo de 0,90 m de diâmetro
-  // (CONFIG.PLAYER_RADIUS = 0,45), e uma porta de porte residencial real não o
-  // deixa passar. Alargar a porta é mais barato do que abrir exceção de raio
-  // só dentro de casa.
+  // 1,15 m e não 1,05: quando a planta foi feita o jogador colidia como um
+  // círculo de 0,90 m (CONFIG.PLAYER_RADIUS era 0,45) e uma porta de porte
+  // residencial real não o deixava passar. O raio caiu pra 0,38 depois (pros
+  // vãos do Building Kit); a folga a mais aqui ficou.
   DOOR_W: 1.15,     // vão de porta
   DOOR_H: 2.15,
 };

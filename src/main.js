@@ -19,6 +19,7 @@ import { writeSave, clearSave, readSave, quarantineSave } from './save.js';
 import { SAVE_VERSION, SaveStatus, validateSave, saveErrorMessage } from './saveSchema.js';
 import { preloadCharacterAssets } from './assets.js';
 import { createTrainingDummy } from './combat.js';
+import { MODO_VIVER } from './data/cenaAtiva.js';
 
 class InputManager {
   constructor(canvas) {
@@ -85,19 +86,29 @@ class Game {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
     this.scene = new THREE.Scene();
-    // Mapeamento tonal, iluminação por imagem e foco da sombra vivem aqui.
-    this.render = new RenderPipeline(this.renderer, this.scene);
+    // Uma detecção só governa toda a escala de qualidade: pós-processamento,
+    // tamanho do mapa de sombra e frequência do mapa de ambiente. Num
+    // rasterizador de software cada texel de sombra e cada busca de textura é
+    // CPU, e o passe visual dobrava o tempo de um teste E2E.
+    const ehSoftware = rendererEhSoftware(this.renderer);
+    this.render = new RenderPipeline(this.renderer, this.scene, { software: ehSoftware });
+    // Sem GPU, quase todo o custo de um quadro é resolução: medido em
+    // 13/09/2026 com SwiftShader, 1280x720 levava 6,5 s por quadro e 640x360
+    // levava 2,1 s — tirar as sombras mudava menos de 10%. Metade da
+    // resolução nesse modo é o que separa "lento" de "travado" (e os testes
+    // E2E de estourar o tempo esperando quadro).
+    if (ehSoftware) this.renderer.setPixelRatio(0.5);
 
-    // Pós-processamento: ligado por padrão, desligado em rasterizador de
-    // software (onde só custaria quadro). `?postfx=0` / `?postfx=1` força
-    // qualquer um dos dois — é assim que a cadeia é inspecionada em ambiente
-    // sem GPU, já que é justamente lá que ela ficaria desligada.
+    // `?postfx=0` / `?postfx=1` força qualquer um dos dois — é assim que a
+    // cadeia é inspecionada em ambiente sem GPU, já que é justamente lá que
+    // ela ficaria desligada.
     const forcado = new URLSearchParams(location.search).get('postfx');
-    const usarPostfx = forcado === null ? !rendererEhSoftware(this.renderer) : forcado !== '0';
+    const usarPostfx = forcado === null ? !ehSoftware : forcado !== '0';
     this.postfx = new PostFX(this.renderer, window.innerWidth, window.innerHeight, { enabled: usarPostfx });
     this.camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 500);
 
     this.world = new World(this.scene);
+    this.render.configurarSombra(this.world.sun);
     this.player = null;
     this.npcs = [];
     this.dummy = createTrainingDummy(this.scene);
@@ -133,7 +144,36 @@ class Game {
 
     this.ui.setLoadingProgress(1, 'Pronto');
     this.ui.hideLoading();
-    this._showMenu();
+    if (MODO_VIVER) this._iniciarModoViver();
+    else this._showMenu();
+  }
+
+  // Modo Viver (editor.html → "▶ Modo Viver"): entra direto na cena do
+  // editor, sem menu nem criação de personagem, e nada é salvo — o save da
+  // partida de verdade fica intacto. Esc na pausa volta pro editor.
+  _iniciarModoViver() {
+    this.modoViver = MODO_VIVER;
+    const voltar = () => { location.href = 'editor.html'; };
+    const acoes = document.querySelector('#pause-menu .menu-actions');
+    if (acoes && !document.getElementById('btn-voltar-editor')) {
+      const botao = document.createElement('button');
+      botao.id = 'btn-voltar-editor';
+      botao.className = 'menu-action';
+      botao.innerHTML = '<span>Voltar ao editor</span><span class="menu-action-note">Esc</span>';
+      botao.onclick = voltar;
+      acoes.appendChild(botao);
+    }
+    const sair = document.getElementById('btn-save-quit');
+    if (sair) sair.style.display = 'none';
+    const rodape = document.querySelector('#pause-menu .pause-foot');
+    if (rodape) rodape.textContent = 'Modo Viver: nada é salvo';
+    // Na captura, antes de qualquer outro atalho do jogo mexer na pausa. O Esc
+    // que solta o mouse não chega na página; o seguinte, com a pausa aberta, volta.
+    window.addEventListener('keydown', e => {
+      if (e.code !== 'Escape' || document.pointerLockElement) return;
+      if (!this.ui.pauseMenu.classList.contains('hidden')) voltar();
+    }, { capture: true });
+    this._startGame(null, { name: 'Teste', sex: 'f', courseId: 'medicina' });
   }
 
   // Único lugar que decide o estado do menu a partir do save. "Continuar" só
@@ -341,6 +381,12 @@ class Game {
       // sem relacionamentos), sem perder nenhum outro dado do save antigo.
       this.gameState.deserialize(restore.gameState);
       this.phone.deserialize(this.gameState.worldState.phone);
+    } else if (this.modoViver?.spawn) {
+      // Modo Viver: nasce no ponto que a câmera do editor olhava.
+      const s = this.modoViver.spawn;
+      this.player.position.set(s.x, s.y, s.z);
+      this.player.facingAngle = Math.PI;
+      this.player.camYaw = Math.PI;
     } else {
       // Partida nova começa DENTRO do apartamento, no quarto — é o ponto de
       // partida dos primeiros minutos.
@@ -349,7 +395,8 @@ class Game {
       this.player.facingAngle = s.facing;
       this.player.camYaw = s.facing;
     }
-    this.phone.startParentsConversation();
+    // No Modo Viver o tutorial do celular só atrapalharia o teste da cena.
+    if (!this.modoViver) this.phone.startParentsConversation();
     this.player.snapCamera();
     this._lastDayCount = this.world.dayCount;
     this._saveState = { status: SaveStatus.OK };
@@ -364,7 +411,8 @@ class Game {
     // caminho que deixasse o jogo meio-inicializado poderia sobrescrever um
     // save existente (inclusive um corrompido que o jogador ainda não teve
     // chance de recuperar) com um estado incompleto.
-    if (!this.running || !this.player) return false;
+    // Modo Viver nunca grava: é um teste da cena do editor.
+    if (!this.running || !this.player || this.modoViver) return false;
     this.gameState.worldState.phone = this.phone.serialize();
     return writeSave({
       version: SAVE_VERSION,
@@ -473,7 +521,9 @@ class Game {
         this.ui.showPrompt(`${rotulo} — trancada`);
       } else {
         this.ui.showPrompt(`${interactLabel} — ${porta.aberta ? 'Fechar' : 'Abrir'}: ${rotulo}`);
-        if (this.input.wasPressed(interactKey) && abrirPorta(porta)) {
+        // Porta de kit (World.portasKit) sabe se abrir; a do prédio inicial
+        // passa por abrirPorta.
+        if (this.input.wasPressed(interactKey) && (porta.alternar ? porta.alternar() : abrirPorta(porta))) {
           this.phone.advanceTutorial('interagiu');
           if (porta.def.id === 'ap201') this.phone.advanceTutorial('saiu_do_apartamento');
           if (porta.def.id === 'entrada') this.phone.advanceTutorial('saiu_do_predio');
@@ -642,11 +692,13 @@ class Game {
     // Sombra e ambiente acompanham o jogador e o horário. O ambiente só é
     // refeito quando o céu muda de verdade — é um render + convolução.
     this.render.focusShadows(this.world.sun, this.player.position);
-    if (this.world.skyColor
-        && this.render.updateEnvironment(this.world.skyColor, this.world.groundColor, this.world.dayFactor)
-        && this.world.homeBuilding) {
-      // Reaplicado a cada troca de ambiente porque materiais criados depois
-      // (ou clonados) voltariam ao padrao 1.0 e lavariam o interior.
+    const ambienteMudou = this.world.skyColor
+      && this.render.updateEnvironment(this.world.skyColor, this.world.groundColor, this.world.dayFactor);
+    if ((ambienteMudou || this.world.homeMaterialsDirty) && this.world.homeBuilding) {
+      this.world.homeMaterialsDirty = false;
+      // Reaplicado a cada troca de ambiente e quando um modelo de móvel
+      // chega, porque materiais criados depois (ou clonados) voltariam ao
+      // padrao 1.0 e lavariam o interior.
       // Ordem importa: a cena inteira primeiro, o prédio depois — o segundo
       // passe sobrescreve os materiais do interior. O asfalto e as fachadas da
       // cidade são rugosos, e com ambiente cheio devolviam o azul do céu como

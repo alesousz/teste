@@ -1,33 +1,78 @@
-// Cena da cidade — landmarks, NPCs, fragmentos e prédios/decoração
-// customizados, no mesmo formato que o editor de mapa (dialogue-editor.html
-// tem seu par em src/data/dialogues.json) exporta e lê. Isso permite editar
-// visualmente o layout do jogo em vez de mexer direto no código.
+// Cena da cidade: marcos, prédios, NPCs, fragmentos, natureza, decoração e
+// peças de construção, no formato que o editor de mapa (editor.html) lê e
+// escreve. Não edite à mão: abra o editor, mude o que quiser e use
+// "Baixar scene.js" pra trocar este arquivo.
 //
-// O conteúdo abaixo reproduz EXATAMENTE as posições que já existiam
-// hardcoded em data.js antes dessa integração — abrir o editor de mapa,
-// carregar esta cena, mover algo e exportar de volta aqui é o fluxo
-// esperado daqui pra frente.
+// `cidade: 'fixa'` quer dizer que os prédios da cidade estão todos aqui (e dá
+// pra mexer neles no editor). Sem isso, data.js sorteia os prédios a cada
+// carregamento, como era antes.
 export const SCENE = {
+  cidade: "fixa",
   items: [
-    { typeId: 'landmark_home_operario', position: [-100, 0, 0], rotY: 0 },
-    { typeId: 'landmark_job_mercado', position: [-50, 0, -50], rotY: 0 },
-    { typeId: 'landmark_home_nobre', position: [100, 0, 0], rotY: 0 },
-    { typeId: 'landmark_school', position: [50, 0, 50], rotY: 0 },
-
-    { typeId: 'npc', position: [-6, 0, 5], rotY: 0, props: { npcId: 'almeida' } },
-    { typeId: 'npc', position: [-47, 0, 46], rotY: 0, props: { npcId: 'marina' } },
-    { typeId: 'npc', position: [8, 0, -7], rotY: 0, props: { npcId: 'diego' } },
-    { typeId: 'npc', position: [0, 0, 10], rotY: 0, props: { npcId: 'busker' } },
-    { typeId: 'npc', position: [45, 0, -44], rotY: 0, props: { npcId: 'runner' } },
-    { typeId: 'npc', position: [-100, 0, 7.5], rotY: 0, props: { npcId: 'mae_operaria' } },
-    { typeId: 'npc', position: [-50, 0, -41], rotY: 0, props: { npcId: 'seu_ivo' } },
-    { typeId: 'npc', position: [100, 0, 9.5], rotY: 0, props: { npcId: 'mae_nobre' } },
-    { typeId: 'npc', position: [50, 0, 62], rotY: 0, props: { npcId: 'professora' } },
-
-    { typeId: 'fragment', position: [3, 0, 3], rotY: 0, props: { note: 'A luz da fonte da praça ao entardecer.' } },
-    { typeId: 'fragment', position: [-50, 0, 42], rotY: 0, props: { note: 'Uma árvore solitária no meio do concreto.' } },
-    { typeId: 'fragment', position: [54, 0, -53], rotY: 0, props: { note: 'Risos distantes num banco de parque.' } },
-    { typeId: 'fragment', position: [-10, 0, -12], rotY: 0, props: { note: 'Um reflexo de neon numa poça d\'água.' } },
-    { typeId: 'fragment', position: [44, 0, -42], rotY: 0, props: { note: 'O silêncio raro entre duas buzinas.' } },
+    {"typeId":"landmark_home_operario","position":[-100,0,0],"rotY":0},
+    {"typeId":"landmark_job_mercado","position":[-50,0,-50],"rotY":0},
+    {"typeId":"landmark_home_nobre","position":[100,0,0],"rotY":0},
+    {"typeId":"landmark_school","position":[50,0,50],"rotY":0},
+    {"typeId":"npc","position":[-6,0,5],"rotY":0,"props":{"npcId":"almeida"}},
+    {"typeId":"npc","position":[-47,0,46],"rotY":0,"props":{"npcId":"marina"}},
+    {"typeId":"npc","position":[8,0,-7],"rotY":0,"props":{"npcId":"diego"}},
+    {"typeId":"npc","position":[0,0,10],"rotY":0,"props":{"npcId":"busker"}},
+    {"typeId":"npc","position":[45,0,-44],"rotY":0,"props":{"npcId":"runner"}},
+    {"typeId":"npc","position":[-100,0,7.5],"rotY":0,"props":{"npcId":"mae_operaria"}},
+    {"typeId":"npc","position":[-50,0,-41],"rotY":0,"props":{"npcId":"seu_ivo"}},
+    {"typeId":"npc","position":[100,0,9.5],"rotY":0,"props":{"npcId":"mae_nobre"}},
+    {"typeId":"npc","position":[50,0,62],"rotY":0,"props":{"npcId":"professora"}},
+    {"typeId":"fragment","position":[3,0,3],"rotY":0,"props":{"note":"A luz da fonte da praça ao entardecer."}},
+    {"typeId":"fragment","position":[-50,0,42],"rotY":0,"props":{"note":"Uma árvore solitária no meio do concreto."}},
+    {"typeId":"fragment","position":[54,0,-53],"rotY":0,"props":{"note":"Risos distantes num banco de parque."}},
+    {"typeId":"fragment","position":[-10,0,-12],"rotY":0,"props":{"note":"Um reflexo de neon numa poça d'água."}},
+    {"typeId":"fragment","position":[44,0,-42],"rotY":0,"props":{"note":"O silêncio raro entre duas buzinas."}},
+    {"typeId":"building","position":[-100.71,0,-99.8],"rotY":0,"props":{"w":24.58,"d":21.84,"h":9.51,"color":"#c9b6a3","estilo":"cidade","semente":9163}},
+    {"typeId":"building","position":[-101.96,0,-48.3],"rotY":0,"props":{"w":21.74,"d":20.83,"h":13.58,"color":"#c7a9a0","estilo":"cidade","semente":4619}},
+    {"typeId":"building","position":[-98.8,0,49.51],"rotY":0,"props":{"w":25.5,"d":22.74,"h":26.67,"color":"#8fa998","estilo":"cidade","semente":4113}},
+    {"typeId":"building","position":[-108.5,0,100],"rotY":0,"props":{"w":14.45,"d":28.9,"h":24.39,"color":"#c9b6a3","estilo":"cidade","semente":4890}},
+    {"typeId":"building","position":[-91.5,0,100],"rotY":0,"props":{"w":14.45,"d":28.9,"h":10.79,"color":"#d9cba8","estilo":"cidade","semente":9129}},
+    {"typeId":"building","position":[-48.55,0,-100.9],"rotY":0,"props":{"w":23.19,"d":26.26,"h":24.39,"color":"#b9c4cc","estilo":"cidade","semente":5871}},
+    {"typeId":"building","position":[-50.3,0,0.35],"rotY":0,"props":{"w":27.35,"d":22.15,"h":18.09,"color":"#b9c4cc","estilo":"cidade","semente":9467}},
+    {"typeId":"tree","position":[-38.26,0,55.67],"rotY":0},
+    {"typeId":"tree","position":[-50.91,0,50.1],"rotY":0},
+    {"typeId":"tree","position":[-38.53,0,36.07],"rotY":0},
+    {"typeId":"tree","position":[-55.14,0,50.65],"rotY":0},
+    {"typeId":"tree","position":[-62.96,0,41.61],"rotY":0},
+    {"typeId":"tree","position":[-57.17,0,55.97],"rotY":0},
+    {"typeId":"tree","position":[-61.91,0,44.39],"rotY":0},
+    {"typeId":"tree","position":[-64.92,0,62.13],"rotY":0},
+    {"typeId":"tree","position":[-39.11,0,63.56],"rotY":0},
+    {"typeId":"tree","position":[-48.54,0,64.85],"rotY":0},
+    {"typeId":"tree","position":[-61.01,0,45.93],"rotY":0},
+    {"typeId":"bench","position":[-45.88,0,60.66],"rotY":2.58},
+    {"typeId":"bench","position":[-47.33,0,44.07],"rotY":1.2},
+    {"typeId":"bench","position":[-54.45,0,52.65],"rotY":0.21},
+    {"typeId":"building","position":[-48.3,0,98.4],"rotY":0,"props":{"w":26.62,"d":26.23,"h":31.17,"color":"#a8a8a8","estilo":"cidade","semente":9960}},
+    {"typeId":"building","position":[-0.51,0,-99.74],"rotY":0,"props":{"w":19.39,"d":23.08,"h":34.83,"color":"#8fa998","estilo":"cidade","semente":2774}},
+    {"typeId":"building","position":[-1.2,0,51.62],"rotY":0,"props":{"w":23.58,"d":21.71,"h":28.53,"color":"#c9b6a3","estilo":"cidade","semente":1713}},
+    {"typeId":"building","position":[-8.5,0,100],"rotY":0,"props":{"w":14.45,"d":28.9,"h":35.86,"color":"#b9c4cc","estilo":"cidade","semente":3724}},
+    {"typeId":"building","position":[8.5,0,100],"rotY":0,"props":{"w":14.45,"d":28.9,"h":29.3,"color":"#9fb3c8","estilo":"cidade","semente":2898}},
+    {"typeId":"building","position":[50.13,0,-100.01],"rotY":0,"props":{"w":21.08,"d":29.99,"h":10.86,"color":"#9fb3c8","estilo":"cidade","semente":6172}},
+    {"typeId":"tree","position":[34.51,0,-57.02],"rotY":0},
+    {"typeId":"tree","position":[47.78,0,-34.18],"rotY":0},
+    {"typeId":"tree","position":[66.79,0,-49.45],"rotY":0},
+    {"typeId":"tree","position":[57.99,0,-64.5],"rotY":0},
+    {"typeId":"tree","position":[37.42,0,-41.72],"rotY":0},
+    {"typeId":"tree","position":[35.19,0,-50.71],"rotY":0},
+    {"typeId":"tree","position":[37.61,0,-40.56],"rotY":0},
+    {"typeId":"tree","position":[38.03,0,-57.94],"rotY":0},
+    {"typeId":"bench","position":[35.85,0,-43.35],"rotY":2.18},
+    {"typeId":"bench","position":[40.5,0,-40.18],"rotY":1.76},
+    {"typeId":"bench","position":[57.82,0,-44.4],"rotY":2.89},
+    {"typeId":"building","position":[50.08,0,0.23],"rotY":0,"props":{"w":20.46,"d":29.09,"h":19.51,"color":"#c7a9a0","estilo":"cidade","semente":2778}},
+    {"typeId":"building","position":[50,0,91.5],"rotY":0,"props":{"w":28.9,"d":14.45,"h":9.71,"color":"#d9cba8","estilo":"cidade","semente":1684}},
+    {"typeId":"building","position":[50,0,108.5],"rotY":0,"props":{"w":28.9,"d":14.45,"h":16.01,"color":"#8fa998","estilo":"cidade","semente":4251}},
+    {"typeId":"building","position":[98.21,0,-100.29],"rotY":0,"props":{"w":27.83,"d":29.98,"h":18.81,"color":"#8fa998","estilo":"cidade","semente":9051}},
+    {"typeId":"building","position":[100,0,-58.5],"rotY":0,"props":{"w":28.9,"d":14.45,"h":26.11,"color":"#b9c4cc","estilo":"cidade","semente":505}},
+    {"typeId":"building","position":[100,0,-41.5],"rotY":0,"props":{"w":28.9,"d":14.45,"h":17.69,"color":"#8fa998","estilo":"cidade","semente":8638}},
+    {"typeId":"building","position":[100.31,0,49.92],"rotY":0,"props":{"w":20.38,"d":20.84,"h":21.99,"color":"#d9cba8","estilo":"cidade","semente":3532}},
+    {"typeId":"building","position":[100,0,91.5],"rotY":0,"props":{"w":28.9,"d":14.45,"h":22.33,"color":"#9fb3c8","estilo":"cidade","semente":539}},
+    {"typeId":"building","position":[100,0,108.5],"rotY":0,"props":{"w":28.9,"d":14.45,"h":20.21,"color":"#8fa998","estilo":"cidade","semente":4287}},
   ],
 };

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { NPC_DEFS } from '../data.js';
+import * as SkeletonUtils from '../../vendor/jsm/utils/SkeletonUtils.js';
+import { construirPredioDaCidade } from '../cityLook.js';
 
 // Paleta de itens do editor — agora usando as peças reais do jogo (marcos,
 // NPCs de verdade) em vez de placeholders genéricos, pra o que você desenha
@@ -39,41 +41,51 @@ function buildLandmark(w, d, h, color, roofColor, label) {
   return g;
 }
 
+// Tipos embutidos que o jogo sabe carregar de src/data/scene.js: marcos,
+// prédio, NPC e fragmento em data.js; árvore, banco e poste em
+// World._buildProps (esses vão pro chão, a altura é ignorada). Itens vindos
+// de .glb não estão aqui: eles levam `modelo` na cena e o jogo os carrega
+// por World._buildSceneModels, com altura e giro.
+export const TIPOS_QUE_O_JOGO_LE = new Set([
+  'landmark_home_operario', 'landmark_home_nobre', 'landmark_job_mercado', 'landmark_school',
+  'building', 'npc', 'fragment', 'tree', 'bench', 'lamp',
+]);
+
 const NPC_COLOR_BY_ID = Object.fromEntries(NPC_DEFS.map(n => [n.id, n.color]));
 const NPC_NAME_BY_ID = Object.fromEntries(NPC_DEFS.map(n => [n.id, n.name]));
 
 export const PALETTE = [
   {
     id: 'landmark_home_operario',
-    key: '1',
+    key: '1', category: 'Estruturas',
     name: 'Casa (Op.)',
     footprint: { w: 10, d: 9 },
     build: () => buildLandmark(10, 9, 4.5, 0xc9a876, 0x7a4a34, 'CASA'),
   },
   {
     id: 'landmark_home_nobre',
-    key: '2',
+    key: '2', category: 'Estruturas',
     name: 'Casa (Nobre)',
     footprint: { w: 16, d: 13 },
     build: () => buildLandmark(16, 13, 6.5, 0xf3ead9, 0x5a4636, 'CASA'),
   },
   {
     id: 'landmark_job_mercado',
-    key: '3',
+    key: '3', category: 'Estruturas',
     name: 'Mercado',
     footprint: { w: 18, d: 12 },
     build: () => buildLandmark(18, 12, 5, 0xd97b4a, 0xb03a3a, 'MERCADO'),
   },
   {
     id: 'landmark_school',
-    key: '4',
+    key: '4', category: 'Estruturas',
     name: 'Escola',
     footprint: { w: 26, d: 18 },
     build: () => buildLandmark(26, 18, 9, 0xdfe6ee, 0x3a5a7a, 'ESCOLA'),
   },
   {
     id: 'npc',
-    key: '5',
+    key: '5', category: 'Personagens',
     name: 'NPC',
     footprint: { w: 1, d: 1 },
     defaultProps: () => ({ npcId: NPC_DEFS[0].id }),
@@ -97,18 +109,25 @@ export const PALETTE = [
   },
   {
     id: 'building',
-    key: '6',
+    key: '6', category: 'Estruturas',
     name: 'Prédio',
     footprint: { w: 6, d: 6 },
-    defaultProps: () => ({ w: 6, d: 6, h: 8, color: '#b9c4cc' }),
+    defaultProps: () => ({ w: 6, d: 6, h: 8, color: '#b9c4cc', estilo: 'liso', semente: 1 }),
     propFields: [
-      { key: 'w', label: 'Largura', type: 'number', min: 2, max: 30, step: 1 },
-      { key: 'd', label: 'Profundidade', type: 'number', min: 2, max: 30, step: 1 },
+      { key: 'w', label: 'Largura', type: 'number', min: 2, max: 40, step: 1 },
+      { key: 'd', label: 'Profundidade', type: 'number', min: 2, max: 40, step: 1 },
       { key: 'h', label: 'Altura', type: 'number', min: 2, max: 40, step: 1 },
       { key: 'color', label: 'Cor', type: 'color' },
+      {
+        key: 'estilo', label: 'Fachada', type: 'select',
+        options: [{ value: 'liso', label: 'Lisa' }, { value: 'cidade', label: 'Com janelas e toldo' }],
+      },
+      { key: 'semente', label: 'Variação das janelas', type: 'number', min: 0, max: 9999, step: 1 },
     ],
     build: (props) => {
       const p = { w: 6, d: 6, h: 8, color: '#b9c4cc', ...props };
+      // Igual ao jogo (cityLook.js): prédio da cidade com janelas, teto e toldo.
+      if (p.estilo === 'cidade') return construirPredioDaCidade(p).grupo;
       const m = box(p.w, p.h, p.d, p.color);
       m.position.y = p.h / 2;
       return m;
@@ -116,7 +135,7 @@ export const PALETTE = [
   },
   {
     id: 'tree',
-    key: '7',
+    key: '7', category: 'Natureza',
     name: 'Árvore',
     footprint: { w: 2, d: 2 },
     build: () => {
@@ -131,7 +150,7 @@ export const PALETTE = [
   },
   {
     id: 'bench',
-    key: '8',
+    key: '8', category: 'Decoração',
     name: 'Banco',
     footprint: { w: 2, d: 1 },
     build: () => {
@@ -146,7 +165,7 @@ export const PALETTE = [
   },
   {
     id: 'lamp',
-    key: '9',
+    key: '9', category: 'Decoração',
     name: 'Poste de Luz',
     footprint: { w: 1, d: 1 },
     build: () => {
@@ -161,7 +180,7 @@ export const PALETTE = [
   },
   {
     id: 'fragment',
-    key: '0',
+    key: '0', category: 'Itens',
     name: 'Fragmento',
     footprint: { w: 1, d: 1 },
     defaultProps: () => ({ note: '' }),
@@ -175,6 +194,91 @@ export const PALETTE = [
     },
   },
 ];
+
+// `url`, `escala` e `variasPecas` descrevem de onde o item veio: o editor
+// grava isso na cena exportada, e o jogo carrega o mesmo nó do mesmo arquivo
+// (src/sceneModels.js).
+export function addDynamicProps(gltfScene, {
+  categoria = null, url = null, escala = 1, variasPecas = false, colisao, sobreposicaoLivre = false, papel = null,
+} = {}) {
+  gltfScene.children.forEach((child, index) => {
+    if (child) {
+      const box = new THREE.Box3().setFromObject(child);
+      const w = box.max.x - box.min.x;
+      const d = box.max.z - box.min.z;
+      
+      const nameLower = child.name.toLowerCase();
+      let category = null;
+      const tem = (...palavras) => palavras.some(p => nameLower.includes(p));
+      if (tem('cama', 'criado', 'guarda')) category = 'Quarto';
+      // Banheiro antes de cozinha: "pia_banheiro" também contém "pia".
+      else if (tem('banho', 'banheiro', 'vaso', 'espelho', 'chuveiro')) category = 'Banheiro';
+      else if (tem('geladeira', 'pia', 'fogao', 'armario')) category = 'Cozinha';
+      else if (tem('sofa', 'tv', 'estante', 'poltrona', 'mesinha', 'monitor', 'tapete', 'mural', 'retrato')) category = 'Sala';
+      else if (tem('abajur', 'luminaria')) category = 'Iluminação';
+      else if (tem('caixa_correio', 'extintor')) category = 'Decoração';
+      else if (tem('celular', 'dinheiro', 'cartao', 'cigarro', 'fone')) category = 'Itens';
+      else if (nameLower.includes('banco') || nameLower.includes('cadeira') || nameLower.includes('mesa') || nameLower.includes('bancada')) category = 'Superfícies';
+      else if (nameLower.includes('veiculo') || nameLower.includes('carro') || nameLower.includes('fusca')) category = 'Veículos';
+      else if (nameLower.includes('personagem') || nameLower.includes('velhinho')) category = 'Personagens';
+      else if (['alpaca','bull','cow','deer','donkey','fox','horse','husky','shiba','stag','wolf'].some(a => nameLower.includes(a))) category = 'Animais';
+      // Nomes em inglês dos pacotes da Quaternius. A ordem importa: "table_lamp"
+      // é luminária, não mesa; "bathroom_toilet_paper" é banheiro.
+      else if (/light|lamp|chandelier/.test(nameLower)) category = 'Iluminação';
+      else if (/bath|toilet|towel/.test(nameLower)) category = 'Banheiro';
+      else if (/bed|night_stand|drawer/.test(nameLower)) category = 'Quarto';
+      else if (/kitchen|fridge|oven|plate|stool|washing/.test(nameLower)) category = 'Cozinha';
+      else if (/couch|fireplace|shelf|rug|curtain/.test(nameLower)) category = 'Sala';
+      // Natureza antes de plantas: "Plant_1" e "Plant_Flowers" são arbustos de
+      // jardim do pacote de natureza; vaso de planta de interior ("Houseplant")
+      // segue em Plantas.
+      else if (/tree|bush|petal|flower|grass|rock|^plant_/.test(nameLower)) category = 'Natureza';
+      else if (/plant|cactus/.test(nameLower)) category = 'Plantas';
+      else if (/door|window|column/.test(nameLower)) category = 'Portas e janelas';
+      else if (/chair|table/.test(nameLower)) category = 'Superfícies';
+      if (!category) category = categoria || 'Outros';
+
+      // Id repetido sobrescreveria o item anterior no catálogo sem aviso.
+      if (PALETTE.some(p => p.id === child.name)) {
+        console.warn(`Item "${child.name}" já existe no catálogo; a cópia de outro arquivo foi ignorada.`);
+        return;
+      }
+      
+      const nomeLimpo = child.name.charAt(0).toUpperCase() + child.name.slice(1).replace(/_/g, ' ');
+      
+      PALETTE.push({
+        id: child.name,
+        key: '-',
+        category: category,
+        name: nomeLimpo,
+        footprint: { w: Math.max(1, Math.ceil(w)), d: Math.max(1, Math.ceil(d)) },
+        sobreposicaoLivre,
+        modelo: url
+          ? {
+            url, no: variasPecas ? child.name : null, escala,
+            ...(typeof colisao === 'boolean' ? { colisao } : {}),
+            ...(papel ? { papel } : {}),
+          }
+          : null,
+        build: () => {
+          let clone;
+          try {
+            clone = SkeletonUtils.clone(child);
+          } catch (e) {
+            clone = child.clone();
+          }
+          clone.traverse(o => {
+            if (o.isMesh) {
+              o.castShadow = true;
+              o.receiveShadow = true;
+            }
+          });
+          return clone;
+        }
+      });
+    }
+  });
+}
 
 export function paletteById(id) {
   return PALETTE.find(p => p.id === id);
