@@ -20,16 +20,17 @@ const PREFIXO = 'assets/props/';
  */
 export const PAPEIS = ['piso', 'escada', 'porta', 'luz'];
 
-// Propriedades da PEÇA (não do modelo) que o jogo usa, definidas no editor:
-//   interacao — id em data/observacoes.js: o objeto passa a responder ao E;
-//   rotulo    — o nome que aparece no prompt ("Porta do 101", "Geladeira");
-//   portaId   — nome fixo de uma porta, pro roteiro do jogo achar ela.
+// Propriedades da PEÇA (não do modelo) que o jogo usa, escritas no editor:
+//   texto   — o que o jogador lê ao apertar E nela (é isso que a torna
+//             interativa; o texto é conteúdo da cena, não do código);
+//   rotulo  — o nome que aparece no prompt ("Sua cama", "Geladeira");
+//   portaId — nome fixo de uma porta, pro roteiro do jogo achar ela.
 const TEXTO = (v, max) => v === undefined || (typeof v === 'string' && v.length <= max);
 
 function propsValidas(props) {
   if (props === undefined || props === null) return true;
   if (typeof props !== 'object' || Array.isArray(props)) return false;
-  return TEXTO(props.interacao, 60) && TEXTO(props.rotulo, 60) && TEXTO(props.portaId, 60);
+  return TEXTO(props.texto, 400) && TEXTO(props.rotulo, 60) && TEXTO(props.portaId, 60);
 }
 
 function modeloValido(item) {
@@ -70,7 +71,7 @@ export function modelosDaCena(itens) {
       // Só quando o pacote forçou: sem isso vale a regra automática.
       ...(typeof colisao === 'boolean' ? { colisao } : {}),
       ...(papel ? { papel } : {}),
-      ...(item.props?.interacao ? { interacao: item.props.interacao } : {}),
+      ...(item.props?.texto ? { texto: item.props.texto } : {}),
       ...(item.props?.rotulo ? { rotulo: item.props.rotulo } : {}),
       ...(item.props?.portaId ? { portaId: item.props.portaId } : {}),
     });

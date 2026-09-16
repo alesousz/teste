@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from '../../vendor/jsm/loaders/GLTFLoader.js';
-import { PALETTE, paletteById, addDynamicProps, TIPOS_QUE_O_JOGO_LE } from './palette.js?v=10';
+import { PALETTE, paletteById, addDynamicProps, TIPOS_QUE_O_JOGO_LE } from './palette.js?v=11';
 import { SCENE as GAME_SCENE } from '../data/scene.js';
 import { Historico, lote } from './historico.js';
 import {
@@ -1353,8 +1353,14 @@ class EditorApp {
       return;
     }
     panel.classList.remove('hidden');
+    // O que você digita entra em HTML: sem escapar, uma aspa no texto de uma
+    // peça quebraria o painel inteiro.
+    const esc = v => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     panel.innerHTML = `<h3>${def.name}${this.selected ? '' : ' (a colocar)'}</h3>` + def.propFields.map(f => {
       const value = target.props?.[f.key] ?? '';
+      if (f.type === 'textarea') {
+        return `<label>${f.label}<textarea data-key="${f.key}" rows="3" placeholder="${esc(f.placeholder ?? '')}">${esc(value)}</textarea></label>`;
+      }
       if (f.type === 'select') {
         return `<label>${f.label}<select data-key="${f.key}">${f.options.map(o => `<option value="${o.value}" ${o.value === value ? 'selected' : ''}>${o.label}</option>`).join('')}</select></label>`;
       }
@@ -1364,7 +1370,7 @@ class EditorApp {
       if (f.type === 'number') {
         return `<label>${f.label}<input type="number" data-key="${f.key}" value="${value}" min="${f.min ?? ''}" max="${f.max ?? ''}" step="${f.step ?? 1}" /></label>`;
       }
-      return `<label>${f.label}<input type="text" data-key="${f.key}" value="${value}" /></label>`;
+      return `<label>${f.label}<input type="text" data-key="${f.key}" value="${esc(value)}" /></label>`;
     }).join('');
 
     panel.querySelectorAll('[data-key]').forEach(input => {

@@ -27,8 +27,8 @@ export class World {
     // escadas que sustentam o jogador, portas que abrem com E.
     this.superficiesKit = [];
     this.portasKit = [];
-    // Móveis da cena com `props.interacao` (ver data/observacoes.js) e as
-    // luzes de teto que vêm com a cena.
+    // Móveis da cena com texto de interação (`props.texto`) e as luzes de
+    // teto que vêm com a cena.
     this.homeAnchors = [];
     this.luzesDaCena = [];
     this._buildGround();
@@ -246,7 +246,7 @@ export class World {
           } else if (c.papel === 'luz') {
             this._registrarLuzDaCena(obj, c);
           }
-          if (c.interacao) this._registrarInteracao(obj, url, c);
+          if (c.texto) this._registrarInteracao(obj, url, c);
         }
         // Materiais novos nascem com o ambiente cheio; o loop redosa.
         this.homeMaterialsDirty = true;
@@ -347,7 +347,7 @@ export class World {
   }
 
   // Móvel que responde ao E: o ponto de interação é o centro da peça, e o
-  // texto vem de data/observacoes.js pelo id em `props.interacao`.
+  // texto é o que foi escrito nela no editor (`props.texto`).
   _registrarInteracao(obj, url, c) {
     const caixa = this._caixaLocal(obj, url, c);
     const lx = caixa ? (caixa.x0 + caixa.x1) / 2 : 0;
@@ -355,7 +355,7 @@ export class World {
     const cos = Math.cos(c.rotY);
     const sin = Math.sin(c.rotY);
     this.homeAnchors.push({
-      id: c.interacao,
+      texto: c.texto,
       label: c.rotulo ?? c.typeId.replace(/_/g, ' '),
       x: c.position[0] + lx * cos + lz * sin,
       y: c.position[1] + (caixa ? caixa.y1 : 0),

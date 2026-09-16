@@ -180,16 +180,16 @@ test('as portas do prédio têm nome e abrem e fecham', async ({ page }) => {
 test('os móveis do apartamento respondem com uma observação', async ({ page }) => {
   await startGameRunning(page);
   await esperarOPredio(page);
-  const r = await page.evaluate(async () => {
+  const r = await page.evaluate(() => {
     const g = window.__game;
-    const { OBSERVACOES } = await import('/src/data/observacoes.js');
-    const cama = g.world.homeAnchors.find(a => a.id === 'cama');
+    const cama = g.world.homeAnchors.find(a => a.label === 'Sua cama');
     const perto = g.world.nearestAnchor({ x: cama.x, y: cama.nivelY, z: cama.z });
-    return { total: g.world.homeAnchors.length, achou: perto?.id, texto: OBSERVACOES[perto?.id] ?? null };
+    return { total: g.world.homeAnchors.length, achou: perto?.label, texto: perto?.texto ?? null };
   });
   expect(r.total, 'o prédio tem móveis com interação').toBeGreaterThan(8);
-  expect(r.achou).toBe('cama');
-  expect(r.texto).toBeTruthy();
+  expect(r.achou).toBe('Sua cama');
+  // O texto vem escrito na peça, não de uma lista no código.
+  expect(r.texto).toMatch(/cama/i);
 });
 
 test('o celular entrega a primeira mensagem dos pais', async ({ page }) => {

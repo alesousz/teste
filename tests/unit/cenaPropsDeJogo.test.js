@@ -1,8 +1,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { modelosDaCena, PAPEIS } from '../../src/sceneModels.js';
-import { OBSERVACOES } from '../../src/data/observacoes.js';
 import { SPAWN_DA_CENA } from '../../src/data.js';
+import { SCENE } from '../../src/data/scene.js';
 
 const peca = (extra = {}) => ({
   typeId: 'Kitchen_Fridge',
@@ -13,10 +13,10 @@ const peca = (extra = {}) => ({
 });
 
 describe('propriedades de jogo nas peças da cena', () => {
-  test('interacao, rotulo e portaId chegam no mundo', () => {
-    const { porArquivo } = modelosDaCena([peca({ props: { interacao: 'geladeira', rotulo: 'Geladeira', portaId: 'ap101' } })]);
+  test('texto, rotulo e portaId chegam no mundo', () => {
+    const { porArquivo } = modelosDaCena([peca({ props: { texto: 'Quase vazia.', rotulo: 'Geladeira', portaId: 'ap101' } })]);
     const copia = [...porArquivo.values()][0][0];
-    assert.equal(copia.interacao, 'geladeira');
+    assert.equal(copia.texto, 'Quase vazia.');
     assert.equal(copia.rotulo, 'Geladeira');
     assert.equal(copia.portaId, 'ap101');
   });
@@ -25,13 +25,13 @@ describe('propriedades de jogo nas peças da cena', () => {
     const { porArquivo, invalidos } = modelosDaCena([peca()]);
     const copia = [...porArquivo.values()][0][0];
     assert.deepEqual(invalidos, []);
-    assert.equal(copia.interacao, undefined);
+    assert.equal(copia.texto, undefined);
     assert.equal(copia.rotulo, undefined);
     assert.equal(copia.portaId, undefined);
   });
 
   test('props malformada derruba a peça em vez de entrar no jogo', () => {
-    for (const props of [{ interacao: 7 }, { rotulo: {} }, { portaId: 'x'.repeat(61) }, [1, 2]]) {
+    for (const props of [{ texto: 7 }, { texto: 'x'.repeat(401) }, { rotulo: {} }, { portaId: 'x'.repeat(61) }, [1, 2]]) {
       const { porArquivo, invalidos } = modelosDaCena([peca({ props })]);
       assert.equal(porArquivo.size, 0, JSON.stringify(props));
       assert.equal(invalidos.length, 1);
@@ -44,10 +44,12 @@ describe('propriedades de jogo nas peças da cena', () => {
     assert.equal([...porArquivo.values()][0][0].papel, 'luz');
   });
 
-  test('todo texto de observação tem id em snake_case e frase não vazia', () => {
-    for (const [id, texto] of Object.entries(OBSERVACOES)) {
-      assert.match(id, /^[a-z][a-z0-9_]*$/, id);
-      assert.ok(texto.length > 10, id);
+  test('o texto de cada objeto mora na cena, não no código', () => {
+    const comTexto = SCENE.items.filter(i => i.props?.texto);
+    assert.ok(comTexto.length >= 15, `poucos objetos com texto: ${comTexto.length}`);
+    for (const item of comTexto) {
+      assert.ok(item.props.texto.length > 10, item.typeId);
+      assert.ok(item.props.rotulo, `${item.typeId} tem texto mas não tem nome de prompt`);
     }
   });
 

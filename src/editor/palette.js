@@ -2,16 +2,12 @@ import * as THREE from 'three';
 import { NPC_DEFS } from '../data.js';
 import * as SkeletonUtils from '../../vendor/jsm/utils/SkeletonUtils.js';
 import { construirPredioDaCidade } from '../cityLook.js';
-import { OBSERVACOES } from '../data/observacoes.js';
-
-// Campos que valem pra qualquer peça vinda de .glb: fazer o móvel responder
-// ao E, dar nome ao prompt e, nas portas, o id que o roteiro do jogo procura.
+// Campos que valem pra qualquer peça vinda de .glb. Escrever um texto é o
+// que faz o objeto responder ao E no jogo: o conteúdo mora na cena, não no
+// código — dá pra criar interação nova sem programar nada.
 const CAMPOS_DE_CENA = papel => [
-  {
-    key: 'interacao', label: 'Interação (E)', type: 'select',
-    options: [{ value: '', label: '— nenhuma —' }, ...Object.keys(OBSERVACOES).map(id => ({ value: id, label: id.replace(/_/g, ' ') }))],
-  },
   { key: 'rotulo', label: 'Nome no prompt', type: 'text' },
+  { key: 'texto', label: 'Texto ao apertar E', type: 'textarea' },
   ...(papel === 'porta' ? [{ key: 'portaId', label: 'Id da porta (roteiro)', type: 'text' }] : []),
 ];
 

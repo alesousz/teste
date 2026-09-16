@@ -4,7 +4,6 @@ import { World } from './world.js';
 import { Phone, PHONE_DEFAULT_KEY } from './phone.js';
 import { RenderPipeline } from './render.js';
 import { PostFX, rendererEhSoftware } from './postfx.js';
-import { OBSERVACOES } from './data/observacoes.js';
 import { Player } from './player.js';
 import { createNpcs } from './npc.js';
 import { QuestSystem, DialogueSystem } from './interactions.js';
@@ -532,7 +531,8 @@ class Game {
       this.ui.showPrompt(`${interactLabel} — ${objeto.label}`);
       promptShown = true;
       if (this.input.wasPressed(interactKey)) {
-        this.ui.showToast(OBSERVACOES[objeto.id] || objeto.label);
+        // O texto é escrito na peça, no editor de mapa.
+        this.ui.showToast(objeto.texto || objeto.label);
         this.phone.advanceTutorial('interagiu');
       }
     } else if (nearestNpc) {

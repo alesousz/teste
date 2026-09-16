@@ -199,19 +199,19 @@ const movel = (typeId, x, z, rotY = 0, props, y = yAlto) => por(typeId, x, y, z,
 const luz = (x, z, y) => por('Light_Ceiling', x, y, z);
 
 // Saguão: caixa de correio, banco e planta.
-movel('Shelf_Small', -9.5, -47.2, Q, { interacao: 'caixa_correio', rotulo: 'Caixas de correio' }, yTerreo);
-movel('Couch_Small', -7.5, -46.6, Math.PI, { interacao: 'banco_saguao', rotulo: 'Banco do saguão' }, yTerreo);
-movel('Houseplant-bfLOqIV5uP', -2.6, -46.6, 0, { interacao: 'planta_saguao', rotulo: 'Samambaia' }, yTerreo);
+movel('Shelf_Small', -9.5, -47.2, Q, { rotulo: 'Caixas de correio', texto: 'Nada na sua caixa hoje.' }, yTerreo);
+movel('Couch_Small', -7.5, -46.6, Math.PI, { rotulo: 'Banco do saguão', texto: 'O banco do saguão, onde ninguém nunca senta.' }, yTerreo);
+movel('Houseplant-bfLOqIV5uP', -2.6, -46.6, 0, { rotulo: 'Samambaia', texto: 'A samambaia da portaria, viva por teimosia.' }, yTerreo);
 luz(-6, -48, ANDAR - 0.05);
 
 // Salão de festas: mesas, cadeiras e uma cozinha pequena.
-movel('Table_Round_Large', -2, -53, 0, { interacao: 'mesa_salao', rotulo: 'Mesa do salão' }, yTerreo);
+movel('Table_Round_Large', -2, -53, 0, { rotulo: 'Mesa do salão', texto: 'O salão de festas, reservado pelo grupo do prédio com um mês de antecedência.' }, yTerreo);
 movel('Chair', -3.4, -53, Q, undefined, yTerreo);
 movel('Chair', -0.6, -53, -Q, undefined, yTerreo);
 movel('Table_Round_Small', 3, -53, 0, undefined, yTerreo);
 movel('Chair', 3, -54.2, 0, undefined, yTerreo);
 movel('Chair', 3, -51.8, Math.PI, undefined, yTerreo);
-movel('Kitchen_Sink', 5.4, -56.5, -Q, { interacao: 'bancada_salao', rotulo: 'Pia do salão' }, yTerreo);
+movel('Kitchen_Sink', 5.4, -56.5, -Q, { rotulo: 'Pia do salão', texto: 'A pia do salão. Alguém deixou um copo aqui desde o último aniversário.' }, yTerreo);
 movel('Oven', 5.4, -55.4, -Q, undefined, yTerreo);
 movel('Kitchen_Fridge', 5.3, -54.2, -Q, undefined, yTerreo);
 movel('Houseplant-dveIJ0xNpX', -5.3, -57.3, 0, undefined, yTerreo);
@@ -220,12 +220,12 @@ luz(-2, -53, ANDAR - 0.05);
 luz(3, -55, ANDAR - 0.05);
 
 // Área de serviço do condomínio.
-movel('Washing_Machine', 5.3, -49.4, -Q, { interacao: 'maquina_lavar', rotulo: 'Máquina de lavar' }, yTerreo);
+movel('Washing_Machine', 5.3, -49.4, -Q, { rotulo: 'Máquina de lavar', texto: 'A máquina do condomínio, que todo mundo usa e ninguém limpa.' }, yTerreo);
 movel('Trashcan_Large', 5.4, -47.8, -Q, undefined, yTerreo);
 luz(0, -48, ANDAR - 0.05);
 
 // Garagem: o fusca do vizinho.
-movel('fusca', 9, -46.5, 0, { interacao: 'carro_garagem', rotulo: 'Fusca do 102' }, TERREO);
+movel('fusca', 9, -46.5, 0, { rotulo: 'Fusca do 102', texto: 'O fusca do vizinho do 102. Ele diz que ainda pega.' }, TERREO);
 movel('Trashcan_Small', 11.3, -49.2, 0, undefined, yTerreo);
 
 // Escada, patamar e corredor.
@@ -235,26 +235,26 @@ luz(2, -48, TOPO - 0.05);
 movel('Houseplant-f6GPjbEgg0', -9.4, -46.7);
 
 // Apê 101 — quarto (onde o jogador acorda).
-movel('Bed_King', -4.2, -56.4, 0, { interacao: 'cama', rotulo: 'Sua cama' });
+movel('Bed_King', -4.2, -56.4, 0, { rotulo: 'Sua cama', texto: 'A cama ainda está desarrumada. Dá pra deixar assim.' });
 movel('Night_Stand', -5.6, -56.6, 0);
-movel('Table_Lamp', -5.6, -56.6, 0, { interacao: 'abajur', rotulo: 'Abajur' }, yAlto + 0.41);
+movel('Table_Lamp', -5.6, -56.6, 0, { rotulo: 'Abajur', texto: 'O abajur pisca uma vez antes de acender direito.' }, yAlto + 0.41);
 // Longe da porta do quarto (vão em x = -5): encostada na parede do banheiro.
-movel('Drawer-T4uDbyP90C', -2.5, -56.2, -Q, { interacao: 'armario', rotulo: 'Cômoda' });
+movel('Drawer-T4uDbyP90C', -2.5, -56.2, -Q, { rotulo: 'Cômoda', texto: 'Roupa suficiente pra uma semana, se você não for exigente.' });
 movel('Rug', -3.4, -55, 0);
 luz(-4, -56, TOPO - 0.05);
 // Apê 101 — banheiro.
-movel('Toilet', -1.4, -57.3, Q, { interacao: 'vaso', rotulo: 'Vaso' });
-movel('Bathtub', -0.6, -56, 0, { interacao: 'box_banho', rotulo: 'Box' });
-movel('Bathroom_Sink', -1.6, -55.8, -Q, { interacao: 'pia', rotulo: 'Pia do banheiro' });
+movel('Toilet', -1.4, -57.3, Q, { rotulo: 'Vaso', texto: 'Tudo em ordem por aqui.' });
+movel('Bathtub', -0.6, -56, 0, { rotulo: 'Box', texto: 'O chuveiro pinga. Sempre pingou.' });
+movel('Bathroom_Sink', -1.6, -55.8, -Q, { rotulo: 'Pia do banheiro', texto: 'A água sai gelada primeiro.' });
 movel('Towel_Rack', -0.4, -54.7, Math.PI);
 luz(-1, -56, TOPO - 0.05);
 // Apê 101 — sala e cozinha.
 // Encostados nas paredes: o caminho do quarto até a porta do apê passa no meio.
-movel('Couch_Medium', -5.3, -52, Q, { interacao: 'sofa', rotulo: 'Sofá' });
-movel('Table_Round_Small', -4.2, -51.2, 0, { interacao: 'mesa', rotulo: 'Mesa' });
-movel('Shelf_Large', -4.6, -50.3, 0, { interacao: 'tv', rotulo: 'Estante' });
-movel('Kitchen_Fridge', -0.6, -53.2, Math.PI, { interacao: 'geladeira', rotulo: 'Geladeira' });
-movel('Kitchen_Sink', -0.6, -52, Math.PI, { interacao: 'bancada', rotulo: 'Pia da cozinha' });
+movel('Couch_Medium', -5.3, -52, Q, { rotulo: 'Sofá', texto: 'O sofá afunda de um lado só.' });
+movel('Table_Round_Small', -4.2, -51.2, 0, { rotulo: 'Mesa', texto: 'A mesa balança se você apoiar o cotovelo.' });
+movel('Shelf_Large', -4.6, -50.3, 0, { rotulo: 'Estante', texto: 'A estante tem mais caixa de mudança do que livro.' });
+movel('Kitchen_Fridge', -0.6, -53.2, Math.PI, { rotulo: 'Geladeira', texto: 'Quase vazia. Precisa fazer compras.' });
+movel('Kitchen_Sink', -0.6, -52, Math.PI, { rotulo: 'Pia da cozinha', texto: 'Louça de ontem, ainda na pia.' });
 movel('Oven', -0.6, -50.9, Math.PI);
 movel('Round_Rug', -3, -51.6, 0);
 luz(-3, -52, TOPO - 0.05);
