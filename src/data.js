@@ -3,6 +3,11 @@
 // precisa de seed determinística: é um singleton de módulo ES.
 // A cena de scene.js ou, no Modo Viver, a que o editor de mapa gravou.
 import { CENA as SCENE } from './data/cenaAtiva.js';
+// Missões: dado de conteúdo, escrito no editor de diálogos (aba Missões)
+// e gravado em src/data/quests.json — não se mexe em código pra criar uma.
+import QUESTS from './data/quests.json' with { type: 'json' };
+
+export { QUESTS };
 
 export const CONFIG = {
   GRID_SIZE: 5,
@@ -418,42 +423,6 @@ export const WORLD_ITEM_SPOTS = [
 // ---------------------------------------------------------------------------
 // Missões
 // ---------------------------------------------------------------------------
-export const QUESTS = {
-  boas_vindas: {
-    id: 'boas_vindas',
-    title: 'Boas-vindas à Cidade',
-    description: 'Converse com o Sr. Almeida na praça central para conhecer um pouco da cidade.',
-    objectives: [{ id: 'talk_almeida', text: 'Falar com Sr. Almeida', done: false }],
-    reward: 'Você aprende a observar a cidade com outros olhos.',
-    autoStart: true,
-  },
-  ecos_perdidos: {
-    id: 'ecos_perdidos',
-    title: 'Ecos Perdidos',
-    description: 'Encontre e fotografe 5 fragmentos de memória espalhados pela cidade.',
-    objectives: [{ id: 'frags', text: 'Fotografar fragmentos (0/5)', done: false, count: 0, target: 5 }],
-    reward: 'Um álbum silencioso de instantes que quase ninguém nota.',
-    autoStart: true,
-  },
-  livro_esquecido: {
-    id: 'livro_esquecido',
-    title: 'O Livro Esquecido',
-    description: 'Marina perdeu seu livro em algum lugar do parque. Encontre-o e devolva a ela.',
-    objectives: [
-      { id: 'find_book', text: 'Encontrar o livro de Marina', done: false },
-      { id: 'return_book', text: 'Devolver o livro para Marina', done: false },
-    ],
-    reward: 'A gratidão sincera de alguém que você mal conhece.',
-  },
-  desconectar: {
-    id: 'desconectar',
-    title: 'Desconectar',
-    description: 'Diego nunca larga o celular. Talvez, com o tempo, isso mude.',
-    objectives: [{ id: 'talk_diego_night', text: 'Falar com Diego durante a noite', done: false }],
-    reward: 'Uma conversa breve, mas real.',
-    autoStart: true,
-  },
-};
 
 // ---------------------------------------------------------------------------
 // Controles — ações remapeáveis (lidas pelo main.js via ui.getBinding(id)) e

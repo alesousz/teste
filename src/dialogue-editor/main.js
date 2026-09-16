@@ -18,6 +18,7 @@ import {
 } from './vocabulary.js';
 
 const DRAFT_KEY = 'dialogue-editor-draft';
+const DRAFT_KEY_MISSOES = 'quest-editor-draft';
 
 // Tipo padrão de uma condição recém-criada.
 const DEFAULT_CONDITION_TYPE = SELECTABLE_CONDITION_TYPES[0].type;
@@ -53,6 +54,10 @@ export class DialogueEditorApp {
     this.currentNpcId = null;
     this.currentNodeId = null;
     this._editRules = [];
+    // Aba Missões: mesmo editor, outro arquivo de conteúdo (quests.json).
+    this.quests = null;
+    this.currentQuestId = null;
+    this.aba = 'dialogos';
 
     this._bindStaticEvents();
     this._init();
@@ -67,26 +72,52 @@ export class DialogueEditorApp {
     }
     this._renderNpcSelect();
     this._selectNpc(NPC_DEFS[0].id);
+
+    this.quests = this._lerRascunho(DRAFT_KEY_MISSOES) ?? await (await fetch('src/data/quests.json')).json();
+    this._renderQuestList();
   }
 
-  _loadDraft() {
+  _lerRascunho(chave) {
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
+      const raw = localStorage.getItem(chave);
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
     }
   }
 
-  _persistDraft() {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(this.trees));
+  _avisarSalvo() {
     const status = document.getElementById('save-status');
     status.textContent = 'Rascunho salvo automaticamente';
     clearTimeout(this._statusTimer);
     this._statusTimer = setTimeout(() => { status.textContent = ''; }, 2000);
   }
 
+  _loadDraft() {
+    return this._lerRascunho(DRAFT_KEY);
+  }
+
+  _persistDraft() {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(this.trees));
+    this._avisarSalvo();
+  }
+
+  _persistQuests() {
+    localStorage.setItem(DRAFT_KEY_MISSOES, JSON.stringify(this.quests));
+    this._avisarSalvo();
+  }
+
   async _loadFromGameData(confirmFirst = true) {
+    if (this.aba === 'missoes') {
+      if (!confirm('Isso substitui o rascunho das missões pelas que estão hoje no jogo. Continuar?')) return;
+      this.quests = await (await fetch('src/data/quests.json')).json();
+      this.currentQuestId = null;
+      this._persistQuests();
+      this._renderQuestList();
+      document.getElementById('quest-editor-body').classList.add('hidden');
+      document.getElementById('quest-editor-empty').classList.remove('hidden');
+      return;
+    }
     if (confirmFirst && !confirm('Isso substitui todo o rascunho atual pelos diálogos que estão hoje no jogo. Continuar?')) return;
     const res = await fetch('src/data/dialogues.json');
     this.trees = await res.json();
@@ -98,6 +129,26 @@ export class DialogueEditorApp {
   }
 
   _bindStaticEvents() {
+    for (const botao of document.querySelectorAll('#abas .aba')) {
+      botao.onclick = () => this._trocarAba(botao.dataset.aba);
+    }
+    document.getElementById('btn-baixar').onclick = () => this._baixarArquivo();
+    document.getElementById('btn-add-quest').onclick = () => this._addQuest();
+    document.getElementById('btn-add-objective').onclick = () => this._addObjective();
+    document.getElementById('btn-delete-quest').onclick = () => this._deleteQuest();
+    for (const [id, campo] of [['quest-title', 'title'], ['quest-description', 'description'], ['quest-reward', 'reward']]) {
+      document.getElementById(id).addEventListener('input', e => {
+        this._questAtual()[campo] = e.target.value;
+        this._persistQuests();
+        this._renderQuestList();
+      });
+    }
+    document.getElementById('quest-autostart').addEventListener('change', e => {
+      const q = this._questAtual();
+      if (e.target.checked) q.autoStart = true;
+      else delete q.autoStart;
+      this._persistQuests();
+    });
     document.getElementById('btn-reload-game-data').onclick = () => this._loadFromGameData(true);
     document.getElementById('btn-export').onclick = () => this._exportJson();
     document.getElementById('btn-close-export').onclick = () => document.getElementById('export-modal').classList.add('hidden');
@@ -119,6 +170,136 @@ export class DialogueEditorApp {
 
   _currentTree() {
     return this.trees[this.currentNpcId];
+  }
+
+  // --- Missões ------------------------------------------------------------------
+
+  _questAtual() {
+    return this.quests[this.currentQuestId];
+  }
+
+  _trocarAba(aba) {
+    this.aba = aba;
+    for (const botao of document.querySelectorAll('#abas .aba')) botao.classList.toggle('ativa', botao.dataset.aba === aba);
+    document.getElementById('layout').classList.toggle('hidden', aba !== 'dialogos');
+    document.getElementById('layout-missoes').classList.toggle('hidden', aba !== 'missoes');
+  }
+
+  _renderQuestList() {
+    const lista = document.getElementById('quest-list');
+    const ids = Object.keys(this.quests);
+    lista.innerHTML = ids.map(id => `
+      <div class="quest-item ${id === this.currentQuestId ? 'selected' : ''}" data-id="${id}">
+        <span>${escapeHtml(this.quests[id].title || '(sem título)')}</span>
+        <span class="quest-id">${escapeHtml(id)}${this.quests[id].autoStart ? ' · começa ativa' : ''}</span>
+      </div>
+    `).join('') || '<p class="hint">Nenhuma missão ainda.</p>';
+    for (const el of lista.querySelectorAll('.quest-item')) {
+      el.onclick = () => this._selectQuest(el.dataset.id);
+    }
+  }
+
+  _selectQuest(id) {
+    this.currentQuestId = id;
+    const q = this.quests[id];
+    document.getElementById('editing-quest-id').textContent = id;
+    document.getElementById('quest-editor-empty').classList.toggle('hidden', !!q);
+    document.getElementById('quest-editor-body').classList.toggle('hidden', !q);
+    if (!q) return;
+    document.getElementById('quest-title').value = q.title ?? '';
+    document.getElementById('quest-description').value = q.description ?? '';
+    document.getElementById('quest-reward').value = q.reward ?? '';
+    document.getElementById('quest-autostart').checked = !!q.autoStart;
+    this._renderObjectives();
+    this._renderQuestList();
+  }
+
+  _renderObjectives() {
+    const q = this._questAtual();
+    const caixa = document.getElementById('quest-objectives');
+    caixa.innerHTML = q.objectives.map((o, i) => `
+      <div class="objective-row" data-i="${i}">
+        <input type="text" data-campo="id" value="${escapeHtml(o.id)}" placeholder="id" />
+        <input type="text" data-campo="text" value="${escapeHtml(o.text)}" placeholder="o que o jogador faz" />
+        <input type="number" data-campo="target" value="${o.target ?? ''}" placeholder="alvo" min="0" />
+        <button class="btn-icon" data-act="del">✕</button>
+      </div>
+    `).join('') || '<p class="hint">Nenhum objetivo: a missão nunca conclui.</p>';
+
+    for (const linha of caixa.querySelectorAll('.objective-row')) {
+      const obj = q.objectives[Number(linha.dataset.i)];
+      for (const campo of linha.querySelectorAll('[data-campo]')) {
+        campo.addEventListener('input', () => {
+          const chave = campo.dataset.campo;
+          if (chave === 'target') {
+            const n = Number(campo.value);
+            if (n > 0) obj.target = n;
+            else delete obj.target;
+          } else {
+            obj[chave] = campo.value;
+          }
+          this._persistQuests();
+        });
+      }
+      linha.querySelector('[data-act="del"]').onclick = () => {
+        q.objectives.splice(Number(linha.dataset.i), 1);
+        this._persistQuests();
+        this._renderObjectives();
+      };
+    }
+  }
+
+  _addObjective() {
+    const q = this._questAtual();
+    q.objectives.push({ id: `objetivo_${q.objectives.length + 1}`, text: 'Novo objetivo' });
+    this._persistQuests();
+    this._renderObjectives();
+  }
+
+  _addQuest() {
+    const id = prompt('Id da missão (sem espaço, é o que o diálogo usa):', 'missao_nova');
+    if (!id) return;
+    const limpo = id.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    if (this.quests[limpo]) {
+      alert(`Já existe uma missão com o id "${limpo}".`);
+      return;
+    }
+    this.quests[limpo] = {
+      id: limpo,
+      title: 'Missão nova',
+      description: '',
+      objectives: [{ id: 'objetivo_1', text: 'Novo objetivo' }],
+      reward: '',
+    };
+    this._persistQuests();
+    this._selectQuest(limpo);
+  }
+
+  _deleteQuest() {
+    const id = this.currentQuestId;
+    if (!id || !confirm(`Excluir a missão "${this.quests[id].title}"? Os diálogos que apontam pra ela deixam de funcionar.`)) return;
+    delete this.quests[id];
+    this.currentQuestId = null;
+    this._persistQuests();
+    document.getElementById('quest-editor-body').classList.add('hidden');
+    document.getElementById('quest-editor-empty').classList.remove('hidden');
+    document.getElementById('editing-quest-id').textContent = '—';
+    this._renderQuestList();
+  }
+
+  // Baixa o arquivo da aba aberta, pronto pra trocar no projeto.
+  _baixarArquivo() {
+    const [nome, dados] = this.aba === 'missoes'
+      ? ['quests.json', this.quests]
+      : ['dialogues.json', this.trees];
+    const url = URL.createObjectURL(new Blob([`${JSON.stringify(dados, null, 2)}\n`], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nome;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   _renderNpcSelect() {
@@ -549,7 +730,10 @@ export class DialogueEditorApp {
   // Exportar
   // -------------------------------------------------------------------
   _exportJson() {
-    document.getElementById('export-output').value = JSON.stringify(this.trees, null, 2);
+    const missoes = this.aba === 'missoes';
+    document.getElementById('export-output').value = JSON.stringify(missoes ? this.quests : this.trees, null, 2);
+    document.querySelector('#export-modal-inner h2').textContent = missoes ? 'JSON das missões' : 'JSON completo (todos os NPCs)';
+    document.querySelector('#export-modal-inner .hint').innerHTML = `Copie este conteúdo pra atualizar <code>src/data/${missoes ? 'quests' : 'dialogues'}.json</code> no jogo.`;
     document.getElementById('export-modal').classList.remove('hidden');
   }
 }

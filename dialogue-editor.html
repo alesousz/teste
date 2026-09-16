@@ -8,10 +8,15 @@
 </head>
 <body>
   <header id="topbar">
-    <h1>Editor de Diálogos</h1>
+    <h1>Editor de Conteúdo</h1>
+    <nav id="abas">
+      <button class="aba ativa" data-aba="dialogos">Diálogos</button>
+      <button class="aba" data-aba="missoes">Missões</button>
+    </nav>
     <div id="topbar-actions">
       <span id="save-status"></span>
       <button id="btn-reload-game-data">Recarregar dados do jogo</button>
+      <button id="btn-baixar">Baixar arquivo</button>
       <button id="btn-export">Exportar JSON</button>
     </div>
   </header>
@@ -53,6 +58,44 @@
         <button class="btn-secondary" id="btn-add-option">+ Opção</button>
 
         <button class="btn-danger" id="btn-delete-node">Excluir este nó</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="layout-missoes" class="hidden">
+    <aside id="quest-panel">
+      <h2>Missões</h2>
+      <p class="hint">O diário mostra as ativas. Uma missão vira ativa sozinha ou por uma opção de diálogo.</p>
+      <div id="quest-list"></div>
+      <button class="btn-secondary" id="btn-add-quest">+ Nova missão</button>
+    </aside>
+
+    <section id="quest-editor-panel">
+      <h2>Editando: <span id="editing-quest-id">—</span></h2>
+      <div id="quest-editor-empty" class="hint">Escolha uma missão na lista ou crie uma nova.</div>
+      <div id="quest-editor-body" class="hidden">
+        <label class="field">
+          Título
+          <input type="text" id="quest-title" />
+        </label>
+        <label class="field">
+          Descrição (o que aparece no diário)
+          <textarea id="quest-description" rows="3"></textarea>
+        </label>
+        <label class="field">
+          Recompensa (texto ao concluir)
+          <textarea id="quest-reward" rows="2"></textarea>
+        </label>
+        <label class="negate">
+          <input type="checkbox" id="quest-autostart" /> já começa ativa numa partida nova
+        </label>
+
+        <h3>Objetivos</h3>
+        <p class="hint">O id do objetivo é o que as opções de diálogo marcam como concluído. Com alvo, o objetivo conta (ex.: fotografar 5 fragmentos).</p>
+        <div id="quest-objectives"></div>
+        <button class="btn-secondary" id="btn-add-objective">+ Objetivo</button>
+
+        <button class="btn-danger" id="btn-delete-quest">Excluir esta missão</button>
       </div>
     </section>
   </div>
