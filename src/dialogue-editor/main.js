@@ -1,4 +1,5 @@
-import { NPC_DEFS, QUESTS, ITEM_DEFS } from '../data.js';
+import { NPC_DEFS, QUESTS, ITEM_DEFS, MARCOS_DA_CENA, LANDMARK_SPECS } from '../data.js';
+import { AbaRotina } from './rotinaAba.js';
 import { publicarConteudo, abrirConfiguracao } from '../publicarUI.js';
 import {
   CONDITION_TYPES,
@@ -21,6 +22,7 @@ import {
 const DRAFT_KEY = 'dialogue-editor-draft';
 const DRAFT_KEY_MISSOES = 'quest-editor-draft';
 const DRAFT_KEY_ITENS = 'item-editor-draft';
+const DRAFT_KEY_ROTINA = 'routine-editor-draft';
 
 // Tipo padrão de uma condição recém-criada.
 const DEFAULT_CONDITION_TYPE = SELECTABLE_CONDITION_TYPES[0].type;
@@ -61,6 +63,17 @@ export class DialogueEditorApp {
     this.currentQuestId = null;
     this.itens = null;
     this.currentItemId = null;
+    // Aba Rotina: a aba tem forma própria demais pra caber aqui dentro, então
+    // mora em rotinaAba.js e só recebe daqui o que existe na cena (NPCs e
+    // prédios) e onde gravar o rascunho.
+    this.rotina = new AbaRotina({
+      npcs: NPC_DEFS,
+      marcos: MARCOS_DA_CENA,
+      nomeDoMarco: kind => LANDMARK_SPECS[kind]?.label
+        ? `${LANDMARK_SPECS[kind].label.charAt(0)}${LANDMARK_SPECS[kind].label.slice(1).toLowerCase()} (${kind})`
+        : kind,
+      aoSalvar: dados => this._persistRotina(dados),
+    });
     this.aba = 'dialogos';
 
     this._bindStaticEvents();
@@ -82,6 +95,9 @@ export class DialogueEditorApp {
 
     this.itens = this._lerRascunho(DRAFT_KEY_ITENS) ?? await (await fetch('src/data/items.json')).json();
     this._renderItemList();
+
+    this.rotina.definir(this._lerRascunho(DRAFT_KEY_ROTINA) ?? await (await fetch('src/data/routine.json')).json());
+    this.rotina.ligarBotoes();
   }
 
   _lerRascunho(chave) {
@@ -119,7 +135,19 @@ export class DialogueEditorApp {
     this._avisarSalvo();
   }
 
+  _persistRotina(dados) {
+    localStorage.setItem(DRAFT_KEY_ROTINA, JSON.stringify(dados));
+    this._avisarSalvo();
+  }
+
   async _loadFromGameData(confirmFirst = true) {
+    if (this.aba === 'rotina') {
+      if (!confirm('Isso substitui o rascunho da rotina pela que está hoje no jogo. Continuar?')) return;
+      const dados = await (await fetch('src/data/routine.json')).json();
+      this.rotina.definir(dados);
+      this._persistRotina(dados);
+      return;
+    }
     if (this.aba === 'itens') {
       if (!confirm('Isso substitui o rascunho dos itens pelos que estão hoje no jogo. Continuar?')) return;
       this.itens = await (await fetch('src/data/items.json')).json();
@@ -232,6 +260,10 @@ export class DialogueEditorApp {
     document.getElementById('layout').classList.toggle('hidden', aba !== 'dialogos');
     document.getElementById('layout-missoes').classList.toggle('hidden', aba !== 'missoes');
     document.getElementById('layout-itens').classList.toggle('hidden', aba !== 'itens');
+    document.getElementById('layout-rotina').classList.toggle('hidden', aba !== 'rotina');
+    // A aba Rotina depende do que existe na cena e da conferência: redesenha
+    // ao abrir, pra não mostrar um painel de problemas velho.
+    if (aba === 'rotina') this.rotina.render();
   }
 
   // --- Itens ---------------------------------------------------------------------
@@ -423,8 +455,9 @@ export class DialogueEditorApp {
         { caminho: 'src/data/dialogues.json', conteudo: `${JSON.stringify(this.trees, null, 2)}\n` },
         { caminho: 'src/data/quests.json', conteudo: `${JSON.stringify(this.quests, null, 2)}\n` },
         { caminho: 'src/data/items.json', conteudo: `${JSON.stringify(this.itens, null, 2)}\n` },
+        { caminho: 'src/data/routine.json', conteudo: `${JSON.stringify(this.rotina.rotina, null, 2)}\n` },
       ],
-      'Diálogos, missões e itens atualizados pelo editor de conteúdo',
+      'Diálogos, missões, itens e rotina atualizados pelo editor de conteúdo',
       avisar,
     );
   }
@@ -434,6 +467,7 @@ export class DialogueEditorApp {
     const porAba = {
       missoes: ['quests.json', this.quests],
       itens: ['items.json', this.itens],
+      rotina: ['routine.json', this.rotina.rotina],
       dialogos: ['dialogues.json', this.trees],
     };
     const [nome, dados] = porAba[this.aba];
@@ -878,6 +912,7 @@ export class DialogueEditorApp {
     const porAba = {
       missoes: ['quests', 'JSON das missões', this.quests],
       itens: ['items', 'JSON dos itens', this.itens],
+      rotina: ['routine', 'JSON da rotina', this.rotina.rotina],
       dialogos: ['dialogues', 'JSON completo (todos os NPCs)', this.trees],
     };
     const [arquivo, titulo, dados] = porAba[this.aba];

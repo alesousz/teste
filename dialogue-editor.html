@@ -13,6 +13,7 @@
       <button class="aba ativa" data-aba="dialogos">Diálogos</button>
       <button class="aba" data-aba="missoes">Missões</button>
       <button class="aba" data-aba="itens">Itens</button>
+      <button class="aba" data-aba="rotina">Rotina</button>
     </nav>
     <div id="topbar-actions">
       <span id="save-status"></span>
@@ -141,6 +142,45 @@
         <button class="btn-danger" id="btn-delete-item">Excluir este item</button>
       </div>
     </section>
+  </div>
+
+  <div id="layout-rotina" class="hidden">
+    <aside id="rotina-panel">
+      <h2>Rotina</h2>
+      <p class="hint">O que o personagem tem pra cumprir todo dia, onde ele dorme e com o que começa. O lugar de cada compromisso é uma peça do mapa — mover o prédio no editor de mapa move o compromisso junto.</p>
+
+      <h3>Compromissos</h3>
+      <p class="hint">Turno, aula, estágio: uma janela de horário num lugar, com consequência de faltar.</p>
+      <div id="rotina-lista-obligation"></div>
+      <button class="btn-secondary" data-novo="obligation">+ Novo compromisso</button>
+
+      <h3>Cursos</h3>
+      <p class="hint">O que aparece na criação de personagem. Todo curso precisa de um compromisso.</p>
+      <div id="rotina-lista-course"></div>
+      <button class="btn-secondary" data-novo="course">+ Novo curso</button>
+
+      <h3>Casas</h3>
+      <p class="hint">Onde o personagem dorme. Dormir recupera a energia e passa o dia.</p>
+      <div id="rotina-lista-home"></div>
+      <button class="btn-secondary" data-novo="home">+ Nova casa</button>
+
+      <h3>Origens</h3>
+      <p class="hint">De onde o personagem vem: casa, compromisso e dinheiro inicial juntos.</p>
+      <div id="rotina-lista-origin"></div>
+      <button class="btn-secondary" data-novo="origin">+ Nova origem</button>
+    </aside>
+
+    <section id="rotina-editor-panel">
+      <h2>Editando: <span id="editing-rotina-id">—</span></h2>
+      <div id="rotina-editor-empty" class="hint">Escolha algo na lista ou crie um item novo.</div>
+      <div id="rotina-editor-body"></div>
+    </section>
+
+    <aside id="rotina-problemas-panel">
+      <h2>Conferência</h2>
+      <p class="hint">Roda a cada tecla. Erro em vermelho quebra o que você quis; aviso em amarelo funciona, mas provavelmente não é o que você queria. Clique pra ir até o problema.</p>
+      <div id="rotina-problemas"></div>
+    </aside>
   </div>
 
   <div id="export-modal" class="hidden">

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   normalizarRotina, validarRotina, errosDaRotina, resolverLocal,
   janelasPorNpc, serveComoRotina, descreverLocal, ANCORAS,
+  horaParaTexto, textoParaHora,
 } from '../../src/rotina.js';
 
 // A rotina é escrita à mão na aba Rotina do editor. Estes testes são a rede
@@ -97,6 +98,23 @@ describe('normalizarRotina — nada do que o autor digita vira partida quebrada'
     assert.equal(ob.endHour, 14.5);
   });
 
+  test('problema aponta o item exato: tipo, id e campo', () => {
+    const bruta = rotinaBoa();
+    bruta.courses.medicina.obligation = 'sumiu';
+    const [erro] = errosDaRotina(validarRotina(bruta, mundoDeTeste));
+    assert.equal(erro.tipo, 'course');
+    assert.equal(erro.id, 'medicina');
+    assert.equal(erro.campo, 'obligation');
+    assert.equal(erro.onde, 'curso medicina');
+  });
+
+  test('horaParaTexto e textoParaHora fecham o círculo', () => {
+    for (const h of [0, 8, 8.5, 13.25, 23.75, 24]) assert.equal(textoParaHora(horaParaTexto(h)), h);
+    assert.equal(horaParaTexto(8.5), '08:30');
+    assert.equal(textoParaHora('08:30'), 8.5);
+    for (const lixo of ['', null, undefined, 'oito', '8', '99:99']) assert.equal(textoParaHora(lixo), null, `${lixo}`);
+  });
+
   test('valores negativos ou absurdos são presos nos limites', () => {
     const bruta = rotinaBoa();
     Object.assign(bruta.obligations.turno, { payPerDay: -100, missPenaltyMoney: -5, maxMisses: 0, startHour: -3, endHour: 99 });
@@ -157,10 +175,10 @@ describe('normalizarRotina — nada do que o autor digita vira partida quebrada'
     }
   });
 
-  test('hora quebrada é arredondada pro meio passo que o relógio mostra', () => {
+  test('hora com minuto quebrado é preservada: o relógio do jogo mostra minuto', () => {
     const bruta = rotinaBoa();
-    bruta.obligations.turno.startHour = 8.3;
-    assert.equal(normalizarRotina(bruta).obligations.turno.startHour, 8.5);
+    bruta.obligations.turno.startHour = 8.25;
+    assert.equal(normalizarRotina(bruta).obligations.turno.startHour, 8.25);
   });
 });
 
@@ -193,7 +211,7 @@ describe('validarRotina — o que o autor precisa ler', () => {
 
   test('compromisso que termina antes de começar é erro, com as horas na mensagem', () => {
     const erros = comErro(r => { r.obligations.turno.startHour = 14; r.obligations.turno.endHour = 8; }, 'horario');
-    assert.match(erros[0].mensagem, /14h.*8h|8h.*14h/);
+    assert.match(erros[0].mensagem, /08:00.*14:00|14:00.*08:00/);
   });
 
   test('NPC que não existe no mapa é erro, não silêncio', () => {

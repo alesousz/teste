@@ -31,7 +31,38 @@ code { background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px;
   background: rgba(255,255,255,0.08);
   height: calc(100vh - 53px);
 }
-#quest-panel, #quest-editor-panel, #item-panel, #item-editor-panel { background: #0d0e12; padding: 16px; overflow-y: auto; }
+/* Rotina tem uma terceira coluna fixa: a conferência do que foi escrito fica
+   sempre à vista, não atrás de um botão "validar" que ninguém aperta. */
+#layout-rotina {
+  display: grid; grid-template-columns: 300px 1fr 320px; gap: 1px;
+  background: rgba(255,255,255,0.08);
+  height: calc(100vh - 53px);
+}
+#quest-panel, #quest-editor-panel, #item-panel, #item-editor-panel,
+#rotina-panel, #rotina-editor-panel, #rotina-problemas-panel { background: #0d0e12; padding: 16px; overflow-y: auto; }
+#rotina-editor-panel .field { max-width: 560px; }
+#rotina-panel button[data-novo] { width: 100%; margin-bottom: 4px; }
+
+/* Dois campos lado a lado (início/fim, peso/valor) sem inventar classe nova. */
+.linha-dupla { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.linha-tripla { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; }
+
+.problema {
+  display: block; width: 100%; text-align: left; font-weight: 400; font-size: 0.78em;
+  padding: 8px 10px; border-radius: 6px; margin-bottom: 6px; line-height: 1.35;
+  background: rgba(255,255,255,0.05); border: 1px solid transparent; color: #cfd3da;
+}
+.problema .problema-onde { display: block; font-size: 0.9em; color: #8992a0; margin-bottom: 2px; }
+.problema.erro { background: rgba(160,50,50,0.22); border-color: #a04040; color: #ffd9d9; }
+.problema.erro .problema-onde { color: #e8a0a0; }
+.problema.aviso { background: rgba(190,150,40,0.16); border-color: #8a6f28; color: #f0dfae; }
+.problema.aviso .problema-onde { color: #cbb06a; }
+.tudo-certo { color: #9fd0a8; font-size: 0.82em; }
+
+/* O campo que a conferência apontou fica marcado no formulário, pra não
+   precisar caçar qual dos dez inputs é o do problema. */
+.campo-com-erro input, .campo-com-erro select, .campo-com-erro textarea { border-color: #a04040; }
+.campo-com-aviso input, .campo-com-aviso select, .campo-com-aviso textarea { border-color: #8a6f28; }
 #item-editor-panel .field { max-width: 520px; }
 .quest-item {
   padding: 8px 10px; border-radius: 6px; background: rgba(255,255,255,0.05);

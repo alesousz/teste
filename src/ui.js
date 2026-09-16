@@ -1,4 +1,7 @@
 import { CONFIG, QUESTS, ITEM_CATEGORIES, COURSES, KEYBIND_ACTIONS, FIXED_CONTROLS, DEFAULT_KEYBINDS, LOADING_SHOTS, LOADING_TIPS, NPC_PROFILES, RELATIONSHIP_MAX, landmarkCenter } from './data.js';
+// O horário do compromisso é escrito no editor e pode ter meia hora (8.5):
+// formatar com padStart mostrava "18.5:00" na tela de criação e no HUD.
+import { horaParaTexto } from './rotina.js';
 
 // Bússola: abertura de 180° e os pontos cardeais em português. Na prática,
 // player.facingAngle é 0 = +Z (não -Z): targetAngle em player.js vem de
@@ -169,7 +172,7 @@ export class UI {
   _renderCourseSummary(courseId) {
     const c = COURSES[courseId];
     if (!c || !this.ccCourseSummary) return;
-    const hours = `${String(c.startHour).padStart(2, '0')}:00 – ${String(c.endHour).padStart(2, '0')}:00`;
+    const hours = `${horaParaTexto(c.startHour)} – ${horaParaTexto(c.endHour)}`;
     this.ccCourseSummary.innerHTML = `
       <div class="cc-summary-row"><span>Compromisso</span><span>${c.obligationLabel}</span></div>
       <div class="cc-summary-row"><span>Horário</span><span class="num">${hours}</span></div>
@@ -294,9 +297,9 @@ export class UI {
       if (!obligation.active) { status = 'Dispensado(a)'; cls = 'missed'; }
       else if (obligation.attendedToday) { status = 'Cumprido hoje'; cls = 'done'; }
       else if (hour >= def.startHour && hour < def.endHour) { status = 'Agora — vá até lá!'; cls = 'active'; }
-      else if (hour < def.startHour) { status = `Começa às ${String(def.startHour).padStart(2, '0')}:00`; cls = ''; }
+      else if (hour < def.startHour) { status = `Começa às ${horaParaTexto(def.startHour)}`; cls = ''; }
       else { status = 'Faltou hoje'; cls = 'missed'; }
-      const hours = `${String(def.startHour).padStart(2, '0')}:00 – ${String(def.endHour).padStart(2, '0')}:00`;
+      const hours = `${horaParaTexto(def.startHour)} – ${horaParaTexto(def.endHour)}`;
       this.scheduleBox.innerHTML =
         `<div class="schedule-label">${def.label}</div>` +
         `<div class="schedule-status ${cls}">${status}</div>` +
