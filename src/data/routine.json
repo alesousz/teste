@@ -1,0 +1,135 @@
+{
+  "obligations": {
+    "job_mercado": {
+      "id": "job_mercado",
+      "type": "job",
+      "label": "Turno no Mercado",
+      "local": { "marco": "job_mercado", "ancora": "frente", "margem": 3 },
+      "npc": "seu_ivo",
+      "startHour": 8,
+      "endHour": 14,
+      "payPerDay": 40,
+      "missPenaltyMoney": 10,
+      "maxMisses": 3,
+      "warningMessage": "Seu Ivo cruzou os braços. \"Já é a segunda falta. Mais uma e eu vou ter que te dispensar.\"",
+      "endMessage": "Seu Ivo balançou a cabeça. \"Sinto muito, mas não posso mais contar com você. Vamos ter que nos despedir.\""
+    },
+    "school": {
+      "id": "school",
+      "type": "school",
+      "label": "Aula na Escola",
+      "local": { "marco": "school", "ancora": "frente", "margem": 3 },
+      "npc": "professora",
+      "startHour": 8,
+      "endHour": 14,
+      "payPerDay": 0,
+      "missPenaltyMoney": 0,
+      "maxMisses": 3,
+      "warningMessage": "A Professora Elaine suspirou. \"Mais uma falta e eu vou ter que chamar seus pais.\"",
+      "endMessage": "A Professora Elaine anotou algo com pesar. \"Seu desempenho caiu demais. Precisamos conversar sério sobre isso.\""
+    },
+    "course_medicina": {
+      "id": "course_medicina",
+      "type": "school",
+      "label": "Aula de Medicina",
+      "local": { "marco": "school", "ancora": "frente", "margem": 3 },
+      "npc": "professora",
+      "startHour": 8,
+      "endHour": 14,
+      "payPerDay": 0,
+      "missPenaltyMoney": 0,
+      "maxMisses": 3,
+      "warningMessage": "A Professora Elaine suspirou. \"Mais uma falta e eu vou ter que chamar seus pais.\"",
+      "endMessage": "A Professora Elaine anotou algo com pesar. \"Seu desempenho caiu demais. Precisamos conversar sério sobre isso.\""
+    },
+    "course_direito": {
+      "id": "course_direito",
+      "type": "school",
+      "label": "Aula de Direito",
+      "local": { "marco": "school", "ancora": "frente", "margem": 3 },
+      "npc": "professora",
+      "startHour": 8,
+      "endHour": 14,
+      "payPerDay": 0,
+      "missPenaltyMoney": 0,
+      "maxMisses": 3,
+      "warningMessage": "A Professora Elaine suspirou. \"Mais uma falta e eu vou ter que chamar seus pais.\"",
+      "endMessage": "A Professora Elaine anotou algo com pesar. \"Seu desempenho caiu demais. Precisamos conversar sério sobre isso.\""
+    },
+    "course_engenharia": {
+      "id": "course_engenharia",
+      "type": "school",
+      "label": "Aula de Engenharia",
+      "local": { "marco": "school", "ancora": "frente", "margem": 3 },
+      "npc": "professora",
+      "startHour": 8,
+      "endHour": 14,
+      "payPerDay": 0,
+      "missPenaltyMoney": 0,
+      "maxMisses": 3,
+      "warningMessage": "A Professora Elaine suspirou. \"Mais uma falta e eu vou ter que chamar seus pais.\"",
+      "endMessage": "A Professora Elaine anotou algo com pesar. \"Seu desempenho caiu demais. Precisamos conversar sério sobre isso.\""
+    }
+  },
+  "homes": {
+    "home_operario": {
+      "id": "home_operario",
+      "kind": "home_operario",
+      "local": { "marco": "home_operario", "ancora": "lado", "margem": 3 }
+    },
+    "home_nobre": {
+      "id": "home_nobre",
+      "kind": "home_nobre",
+      "local": { "marco": "home_nobre", "ancora": "lado", "margem": 3 }
+    }
+  },
+  "origins": {
+    "operario": {
+      "id": "operario",
+      "label": "Bairro Operário",
+      "shortDesc": "Você cresceu apertado, mas cercado de gente que se ajuda. Hoje começa seu primeiro turno no mercado do bairro.",
+      "startMoney": 60,
+      "home": "home_operario",
+      "obligation": "job_mercado",
+      "familyNpc": "mae_operaria"
+    },
+    "nobre": {
+      "id": "nobre",
+      "label": "Bairro Nobre",
+      "shortDesc": "Você nunca precisou se preocupar com dinheiro, mas a cobrança em casa é constante. Hoje é seu primeiro dia numa nova escola.",
+      "startMoney": 250,
+      "home": "home_nobre",
+      "obligation": "school",
+      "familyNpc": "mae_nobre"
+    }
+  },
+  "courses": {
+    "medicina": {
+      "id": "medicina",
+      "label": "Medicina",
+      "glyph": "stethoscope",
+      "age": 18,
+      "startMoney": 60,
+      "obligation": "course_medicina",
+      "note": "Faltar à aula três vezes te tira do curso — e a família comenta."
+    },
+    "direito": {
+      "id": "direito",
+      "label": "Direito",
+      "glyph": "gavel",
+      "age": 18,
+      "startMoney": 60,
+      "obligation": "course_direito",
+      "note": "Faltar à aula três vezes te tira do curso — e a família comenta."
+    },
+    "engenharia": {
+      "id": "engenharia",
+      "label": "Engenharia",
+      "glyph": "engineering",
+      "age": 18,
+      "startMoney": 60,
+      "obligation": "course_engenharia",
+      "note": "Faltar à aula três vezes te tira do curso — e a família comenta."
+    }
+  }
+}

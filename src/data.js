@@ -7,6 +7,10 @@ import { CENA as SCENE } from './data/cenaAtiva.js';
 // e gravado em src/data/quests.json — não se mexe em código pra criar uma.
 import MISSOES_PUBLICADAS from './data/quests.json' with { type: 'json' };
 import ITENS_PUBLICADOS from './data/items.json' with { type: 'json' };
+// Rotina (compromissos, casas, origens, cursos): mesmo caminho das missoes -
+// arquivo de conteudo escrito na aba Rotina do editor.
+import ROTINA_PUBLICADA from './data/routine.json' with { type: 'json' };
+import { normalizarRotina, resolverLocal, janelasPorNpc, serveComoRotina } from './rotina.js';
 
 /**
  * Rascunho do editor de conteúdo NESTA máquina: escreveu a missão (ou o item),
@@ -270,24 +274,6 @@ export function landmarkCenter(kind) {
 // ---------------------------------------------------------------------------
 const plaza = CITY.plazaCenter;
 const [parkA, parkB] = CITY.parkCenters;
-// Ponto na frente do prédio (fora da caixa de colisão) e um ponto ao lado,
-// pra garantir que marcadores/NPCs de um mesmo marco não fiquem dentro da
-// construção nem colados um no outro.
-function frontOf(center, kind, margin = 3) {
-  const spec = LANDMARK_SPECS[kind];
-  return { x: center.x, z: center.z + spec.d / 2 + margin };
-}
-function sideOf(center, kind, margin = 3) {
-  const spec = LANDMARK_SPECS[kind];
-  return { x: center.x + spec.w / 2 + margin, z: center.z };
-}
-
-
-const homeOperario = landmarkCenter('home_operario');
-const homeNobre = landmarkCenter('home_nobre');
-const jobMercado = landmarkCenter('job_mercado');
-const schoolCenter = landmarkCenter('school');
-
 // Gente da cidade: cada peça "NPC" da cena diz quem é a pessoa (nome, cor,
 // se anda por aí, o que carrega) além de onde ela fica. Criar um NPC novo é
 // colocar a peça no editor e preencher os campos — sem passar por aqui.
@@ -310,84 +296,51 @@ export const NPC_DEFS = PECAS_DE_NPC.map(item => {
 });
 
 // ---------------------------------------------------------------------------
-// Casa / Origem / Rotina — o núcleo do "life sim". Cada origem determina
-// onde o personagem mora, quanto dinheiro tem no início e qual compromisso
-// fixo (emprego ou escola) precisa cumprir todo dia.
+// Casa / Origem / Rotina - o nucleo do "life sim": qual compromisso o
+// personagem tem todo dia, onde ele dorme e com quanto dinheiro comeca.
+// Isso e conteudo: mora em src/data/routine.json, escrito na aba Rotina do
+// editor de conteudo. O local de cada compromisso nao e coordenada digitada:
+// e um marco do mapa (mercado, escola, casa), entao mover o predio no editor
+// de mapa move o compromisso junto.
 // ---------------------------------------------------------------------------
-export const HOMES = {
-  home_operario: { kind: 'home_operario', sleepSpot: sideOf(homeOperario, 'home_operario', 3) },
-  home_nobre: { kind: 'home_nobre', sleepSpot: sideOf(homeNobre, 'home_nobre', 3) },
-};
+const rotinaDoEditor = () => rascunhoDeConteudo('routine-editor-draft', serveComoRotina);
+export const ROTINA = normalizarRotina(rotinaDoEditor() ?? ROTINA_PUBLICADA);
 
-export const OBLIGATIONS = {
-  job_mercado: {
-    id: 'job_mercado',
-    type: 'job',
-    label: 'Turno no Mercado',
-    location: frontOf(jobMercado, 'job_mercado', 3),
-    npc: 'seu_ivo',
-    startHour: 8,
-    endHour: 14,
-    payPerDay: 40,
-    missPenaltyMoney: 10,
-    maxMisses: 3,
-    warningMessage: 'Seu Ivo cruzou os braços. "Já é a segunda falta. Mais uma e eu vou ter que te dispensar."',
-    endMessage: 'Seu Ivo balançou a cabeça. "Sinto muito, mas não posso mais contar com você. Vamos ter que nos despedir."',
+// Marcos que existem de fato na cena: o editor lista estes e a validacao
+// recusa compromisso apontando pra um marco que ninguem colocou no mapa.
+export const MARCOS_DA_CENA = Object.keys(LANDMARK_SPECS)
+  .filter(kind => CITY.buildings.some(b => b.kind === kind));
+
+// Como o mundo responde "onde fica X" pro resolvedor de local (rotina.js).
+const MUNDO_DA_ROTINA = {
+  marco: kind => {
+    const b = CITY.buildings.find(b => b.kind === kind);
+    return b ? { x: b.cx, z: b.cz, w: b.w, d: b.d } : null;
   },
-  school: {
-    id: 'school',
-    type: 'school',
-    label: 'Aula na Escola',
-    location: frontOf(schoolCenter, 'school', 3),
-    npc: 'professora',
-    startHour: 8,
-    endHour: 14,
-    payPerDay: 0,
-    missPenaltyMoney: 0,
-    maxMisses: 3,
-    warningMessage: 'A Professora Elaine suspirou. "Mais uma falta e eu vou ter que chamar seus pais."',
-    endMessage: 'A Professora Elaine anotou algo com pesar. "Seu desempenho caiu demais. Precisamos conversar sério sobre isso."',
+  npc: id => {
+    const n = NPC_DEFS.find(n => n.id === id);
+    return n ? { x: n.home.x, z: n.home.z } : null;
   },
 };
 
-export const ORIGINS = {
-  operario: {
-    id: 'operario',
-    label: 'Bairro Operário',
-    shortDesc: 'Você cresceu apertado, mas cercado de gente que se ajuda. Hoje começa seu primeiro turno no mercado do bairro.',
-    startMoney: 60,
-    home: 'home_operario',
-    obligation: 'job_mercado',
-    familyNpc: 'mae_operaria',
-  },
-  nobre: {
-    id: 'nobre',
-    label: 'Bairro Nobre',
-    shortDesc: 'Você nunca precisou se preocupar com dinheiro, mas a cobrança em casa é constante. Hoje é seu primeiro dia numa nova escola.',
-    startMoney: 250,
-    home: 'home_nobre',
-    obligation: 'school',
-    familyNpc: 'mae_nobre',
-  },
-};
+// Marco sumiu do mapa (o autor apagou a escola) e o ponto nao resolve: cai na
+// praca central em vez de NaN. O jogo continua jogavel e os testes de
+// conteudo apontam o buraco.
+const PONTO_DE_RESERVA = () => ({ x: CITY.plazaCenter.x, z: CITY.plazaCenter.z });
+const pontoDoLocal = local => resolverLocal(local, MUNDO_DA_ROTINA) ?? PONTO_DE_RESERVA();
 
-// ---------------------------------------------------------------------------
-// Cursos — a criação de personagem escolhe um curso (não mais um bairro de
-// origem). Por ora nenhum curso define casa/família própria: todos usam
-// ORIGINS.operario como base disso, só trocando o compromisso diário pelo
-// curso escolhido. Cada curso reaproveita o compromisso de "school" (mesma
-// Professora Elaine, mesmo prédio) — não é conteúdo novo, só um rótulo novo.
-// ---------------------------------------------------------------------------
-const courseObligation = (id, label) => ({ ...OBLIGATIONS.school, id, label });
-OBLIGATIONS.course_medicina = courseObligation('course_medicina', 'Aula de Medicina');
-OBLIGATIONS.course_direito = courseObligation('course_direito', 'Aula de Direito');
-OBLIGATIONS.course_engenharia = courseObligation('course_engenharia', 'Aula de Engenharia');
+export const HOMES = Object.fromEntries(Object.values(ROTINA.homes)
+  .map(casa => [casa.id, { id: casa.id, kind: casa.kind, sleepSpot: pontoDoLocal(casa.local) }]));
 
-export const COURSES = {
-  medicina: { id: 'medicina', label: 'Medicina', glyph: 'stethoscope', age: 18, startHour: 8, endHour: 14, startMoney: 60, obligationLabel: 'Aula de Medicina', obligation: 'course_medicina', note: 'Faltar à aula três vezes te tira do curso — e a família comenta.' },
-  direito: { id: 'direito', label: 'Direito', glyph: 'gavel', age: 18, startHour: 8, endHour: 14, startMoney: 60, obligationLabel: 'Aula de Direito', obligation: 'course_direito', note: 'Faltar à aula três vezes te tira do curso — e a família comenta.' },
-  engenharia: { id: 'engenharia', label: 'Engenharia', glyph: 'engineering', age: 18, startHour: 8, endHour: 14, startMoney: 60, obligationLabel: 'Aula de Engenharia', obligation: 'course_engenharia', note: 'Faltar à aula três vezes te tira do curso — e a família comenta.' },
-};
+export const OBLIGATIONS = Object.fromEntries(Object.values(ROTINA.obligations)
+  .map(ob => [ob.id, { ...ob, location: pontoDoLocal(ob.local) }]));
+
+export const ORIGINS = ROTINA.origins;
+export const COURSES = ROTINA.courses;
+
+// Horario de funcionamento de cada NPC com compromisso (npc.js usa pra fechar
+// o lugar fora do turno). Sai do mesmo dado, sem tabela paralela.
+export const JANELAS_DE_NPC = janelasPorNpc(OBLIGATIONS);
 
 // ---------------------------------------------------------------------------
 // Fragmentos de memória: peças 'fragment' da cena. Cada uma diz a nota que

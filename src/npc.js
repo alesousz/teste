@@ -1,14 +1,11 @@
 import * as THREE from 'three';
-import { NPC_DEFS, OBLIGATIONS } from './data.js';
+import { NPC_DEFS, JANELAS_DE_NPC } from './data.js';
 import { buildHumanoid } from './characterModel.js';
 
-// NPCs com um turno fixo (dono do mercado, professora) usam o mesmo horário
-// que o próprio sistema de obrigação do jogador já define — sem duplicar
-// dado nenhum. Fora do turno eles "fecham" (ficam parados no lugar).
-const NPC_OBLIGATIONS = {};
-for (const ob of Object.values(OBLIGATIONS)) {
-  if (ob.npc) NPC_OBLIGATIONS[ob.npc] = ob;
-}
+// NPCs com turno fixo (dono do mercado, professora) fecham fora do horário do
+// compromisso que atendem. A tabela vem pronta da rotina (src/data/routine.json,
+// aba Rotina do editor) — mudar o horário do turno lá muda o expediente do NPC
+// aqui, sem nenhuma lista paralela pra esquecer de atualizar.
 
 
 function buildNpcMesh(def) {
@@ -65,12 +62,12 @@ export class NPC {
     this.hasMetPlayer = false;
     this.questGiven = false;
 
-    // Ritmo dia/noite: NPC com obrigação fixa (ver NPC_OBLIGATIONS) só fica
+    // Ritmo dia/noite: NPC com obrigação fixa (ver JANELAS_DE_NPC) só fica
     // "ativo" dentro do próprio horário de turno; os demais que perambulam
     // ficam ativos de dia e voltam pra casa (parados) de noite. A checagem
     // roda só ~1x/s (com um atraso inicial aleatório pra não sincronizar
     // todo mundo no mesmo frame) — não precisa ser por frame.
-    this.obligation = NPC_OBLIGATIONS[def.id] || null;
+    this.obligation = JANELAS_DE_NPC[def.id] || null;
     this.resting = false;
     this._scheduleCheckTimer = Math.random();
   }

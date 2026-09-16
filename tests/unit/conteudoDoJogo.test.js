@@ -1,7 +1,24 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { QUESTS, NPC_DEFS, ITEM_DEFS, ITEM_CATEGORIES, WORLD_ITEM_SPOTS, FRAGMENT_SPOTS } from '../../src/data.js';
+import {
+  QUESTS, NPC_DEFS, ITEM_DEFS, ITEM_CATEGORIES, WORLD_ITEM_SPOTS, FRAGMENT_SPOTS,
+  OBLIGATIONS, HOMES, JANELAS_DE_NPC, MARCOS_DA_CENA, CITY,
+} from '../../src/data.js';
+import { validarRotina, errosDaRotina, resolverLocal } from '../../src/rotina.js';
+
+// Resolve local do mesmo jeito que data.js resolve, pra o teste checar o ponto
+// contra a cena real em vez de confiar no que data.js já calculou.
+const MUNDO_PRA_TESTE = {
+  marco: kind => {
+    const b = CITY.buildings.find(b => b.kind === kind);
+    return b ? { x: b.cx, z: b.cz, w: b.w, d: b.d } : null;
+  },
+  npc: id => {
+    const n = NPC_DEFS.find(n => n.id === id);
+    return n ? { x: n.home.x, z: n.home.z } : null;
+  },
+};
 
 // Missões e diálogos são conteúdo escrito no editor (dialogue-editor.html) e
 // gravado em arquivos de dados. Estes testes são a rede de segurança dessa
@@ -120,5 +137,44 @@ describe('coisas largadas pelo mapa', () => {
       assert.ok(missao, `${frag.id} aponta pra missão inexistente: ${frag.questId}`);
       assert.ok(missao.objectives.some(o => o.id === frag.objetivo), `${frag.id} aponta pro objetivo inexistente: ${frag.objetivo}`);
     }
+  });
+});
+
+describe('rotina publicada (src/data/routine.json)', () => {
+  const rotina = JSON.parse(readFileSync(new URL('../../src/data/routine.json', import.meta.url), 'utf8'));
+  const mundo = { npcs: new Set(NPC_DEFS.map(n => n.id)), marcos: new Set(MARCOS_DA_CENA) };
+
+  test('não tem nenhum erro de validação contra a cena de verdade', () => {
+    const erros = errosDaRotina(validarRotina(rotina, mundo));
+    assert.deepEqual(erros, [], erros.map(e => `${e.onde}: ${e.mensagem}`).join('\n'));
+  });
+
+  test('todo compromisso cai num ponto de verdade do mapa, não no fallback da praça', () => {
+    for (const ob of Object.values(OBLIGATIONS)) {
+      assert.ok(resolverLocal(rotina.obligations[ob.id].local, MUNDO_PRA_TESTE), `${ob.id} não resolve num ponto do mapa`);
+      assert.ok(Number.isFinite(ob.location.x) && Number.isFinite(ob.location.z), `${ob.id} tem local inválido`);
+    }
+  });
+
+  test('toda cama cai num ponto de verdade do mapa', () => {
+    for (const casa of Object.values(HOMES)) {
+      assert.ok(Number.isFinite(casa.sleepSpot.x) && Number.isFinite(casa.sleepSpot.z), `${casa.id} sem cama`);
+      assert.ok(MARCOS_DA_CENA.includes(casa.kind), `casa ${casa.id} aponta pro marco ${casa.kind}, que não está no mapa`);
+    }
+  });
+
+  test('o compromisso do jogador nunca cai dentro da caixa de colisão do próprio prédio', () => {
+    for (const ob of Object.values(OBLIGATIONS)) {
+      const predio = CITY.buildings.find(b => b.kind === rotina.obligations[ob.id].local?.marco);
+      if (!predio) continue;
+      const dentro = ob.location.x > predio.minX && ob.location.x < predio.maxX
+        && ob.location.z > predio.minZ && ob.location.z < predio.maxZ;
+      assert.equal(dentro, false, `${ob.id} tem o ponto de presença dentro do prédio: o jogador não alcança`);
+    }
+  });
+
+  test('todo NPC com expediente existe na cena', () => {
+    const ids = new Set(NPC_DEFS.map(n => n.id));
+    for (const id of Object.keys(JANELAS_DE_NPC)) assert.ok(ids.has(id), `expediente de um NPC que não existe: ${id}`);
   });
 });

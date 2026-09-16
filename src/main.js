@@ -337,7 +337,7 @@ class Game {
     // compromisso diário pelo curso escolhido.
     const origin = ORIGINS.operario;
     this.homeSleepSpot = HOMES[origin.home].sleepSpot;
-    this.homeKind = origin.home;
+    this.homeKind = HOMES[origin.home].kind;
 
     if (this.player) this.scene.remove(this.player.mesh);
     this.player = new Player(this.scene, this.world, this.profile.sex === 'f' ? 'female' : 'male');
