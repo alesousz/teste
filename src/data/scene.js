@@ -482,5 +482,8 @@ export const SCENE = {
     {"typeId":"Light_Ceiling","position":[2,4.75,-56],"rotY":0,"modelo":{"url":"assets/props/quaternius-house-interior/Light_Ceiling.glb","no":null,"escala":0.5,"papel":"luz"}},
     {"typeId":"Light_Ceiling","position":[4,4.75,-52],"rotY":0,"modelo":{"url":"assets/props/quaternius-house-interior/Light_Ceiling.glb","no":null,"escala":0.5,"papel":"luz"}},
     {"typeId":"spawn","position":[-3.2,2.5,-55.2],"rotY":0},
+    {"typeId":"item_no_chao","position":[-60,0,60],"rotY":0,"props":{"itemId":"snack"}},
+    {"typeId":"item_no_chao","position":[60,0,-60],"rotY":0,"props":{"itemId":"coffee"}},
+    {"typeId":"item_no_chao","position":[-56,0,55],"rotY":0,"props":{"rotulo":"o livro de Marina","questId":"livro_esquecido","objetivo":"find_book"}},
   ],
 };

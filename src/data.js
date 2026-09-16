@@ -6,22 +6,27 @@ import { CENA as SCENE } from './data/cenaAtiva.js';
 // Missões: dado de conteúdo, escrito no editor de diálogos (aba Missões)
 // e gravado em src/data/quests.json — não se mexe em código pra criar uma.
 import MISSOES_PUBLICADAS from './data/quests.json' with { type: 'json' };
+import ITENS_PUBLICADOS from './data/items.json' with { type: 'json' };
 
-// Rascunho do editor de conteúdo nesta máquina: escreveu a missão, abriu o
-// jogo, ela já está lá. Quem não tem rascunho (outra máquina, o site) joga
-// com o que está publicado em quests.json.
-function missoesDoEditor() {
+/**
+ * Rascunho do editor de conteúdo NESTA máquina: escreveu a missão (ou o item),
+ * abriu o jogo, já está lá. Quem não tem rascunho — outra máquina, o site —
+ * joga com o que está publicado. `serve` decide se o rascunho tem cara de
+ * conteúdo válido; qualquer coisa estranha cai no publicado.
+ */
+function rascunhoDeConteudo(chave, serve) {
   if (typeof location === 'undefined') return null;   // testes em Node
   try {
-    const bruto = localStorage.getItem('quest-editor-draft');
+    const bruto = localStorage.getItem(chave);
     const lido = bruto ? JSON.parse(bruto) : null;
-    if (!lido || typeof lido !== 'object') return null;
-    const validas = Object.entries(lido).filter(([id, q]) => q?.id === id && Array.isArray(q.objectives) && q.objectives.length);
-    return validas.length ? Object.fromEntries(validas) : null;
+    return lido && typeof lido === 'object' && serve(lido) ? lido : null;
   } catch {
     return null;
   }
 }
+
+const missoesDoEditor = () => rascunhoDeConteudo('quest-editor-draft', lido => Object.entries(lido)
+  .every(([id, q]) => q?.id === id && Array.isArray(q.objectives) && q.objectives.length));
 
 export const QUESTS = missoesDoEditor() ?? MISSOES_PUBLICADAS;
 
@@ -385,56 +390,53 @@ export const COURSES = {
 };
 
 // ---------------------------------------------------------------------------
-// Item de missão: o livro perdido de Marina
+// Fragmentos de memória: peças 'fragment' da cena. Cada uma diz a nota que
+// entra no diário e, se quiser, a missão e o objetivo que ela conta.
 // ---------------------------------------------------------------------------
-export const ITEM_PROPS = [
-  {
-    id: 'livro_marina',
-    type: 'book',
-    position: { x: parkA.x - 6, z: parkA.z + 5 },
-    questId: 'livro_esquecido',
-  },
-];
-
-// ---------------------------------------------------------------------------
-// Fragmentos de memória (colecionáveis fotografáveis)
-// ---------------------------------------------------------------------------
-const sceneFragments = SCENE.items
+export const FRAGMENT_SPOTS = SCENE.items
   .filter(item => item.typeId === 'fragment')
   .map((item, i) => {
     const [x, , z] = item.position;
-    return { id: `frag_${i + 1}`, position: { x, z }, note: item.props?.note || '' };
+    return {
+      id: `frag_${i + 1}`,
+      position: { x, z },
+      note: item.props?.note || '',
+      questId: item.props?.questId || 'ecos_perdidos',
+      objetivo: item.props?.objetivo || 'frags',
+    };
   });
-// Fallback de segurança — só usado se a cena não tiver nenhum fragmento.
-export const FRAGMENT_SPOTS = sceneFragments.length > 0 ? sceneFragments : [
-  { id: 'frag_1', position: { x: plaza.x + 3, z: plaza.z + 3 }, note: 'A luz da fonte da praça ao entardecer.' },
-  { id: 'frag_2', position: { x: parkA.x, z: parkA.z - 8 }, note: 'Uma árvore solitária no meio do concreto.' },
-  { id: 'frag_3', position: { x: parkB.x + 4, z: parkB.z - 3 }, note: 'Risos distantes num banco de parque.' },
-  { id: 'frag_4', position: { x: plaza.x - 10, z: plaza.z - 12 }, note: 'Um reflexo de neon numa poça d\'água.' },
-  { id: 'frag_5', position: { x: parkB.x - 6, z: parkB.z + 8 }, note: 'O silêncio raro entre duas buzinas.' },
-];
 
 // ---------------------------------------------------------------------------
-// Itens de inventário — o que um "giveItem" de diálogo entrega, e o que um
-// item largado pelo mundo (WORLD_ITEM_SPOTS) vira ao ser pego. `effect` é
-// aplicado só quando o jogador usa o item de verdade, pelo diário.
+// Itens: o que existe pra carregar no inventário, escrito no editor de
+// conteúdo (aba Itens) e gravado em src/data/items.json. O efeito só é
+// aplicado quando o jogador usa o item pelo diário.
 // ---------------------------------------------------------------------------
-export const ITEM_CATEGORIES = {
-  consumivel: { id: 'consumivel', label: 'Consumíveis', icon: '🍽' },
-};
+const itensDoEditor = () => rascunhoDeConteudo('item-editor-draft', lido => lido?.items && lido?.categories);
+const ITENS = itensDoEditor() ?? ITENS_PUBLICADOS;
 
-// `weight`/`value` são só de exibição (colunas da tabela, estilo SkyUI) —
-// não existe limite de peso pra carregar nem loja pra vender itens.
-export const ITEM_DEFS = {
-  coffee: { id: 'coffee', name: 'Café', icon: '☕', glyph: 'local_cafe', category: 'consumivel', weight: 0.2, value: 5, description: 'Recupera um pouco de energia.', effect: { type: 'restoreEnergy', amount: 25 } },
-  snack: { id: 'snack', name: 'Lanche', icon: '🥪', glyph: 'bakery_dining', category: 'consumivel', weight: 0.3, value: 8, description: 'Mata a fome rapidamente.', effect: { type: 'restoreHunger', amount: 60 } },
-  homeMeal: { id: 'homeMeal', name: 'Comida Caseira', icon: '🍲', glyph: 'lunch_dining', category: 'consumivel', weight: 0.5, value: 12, description: 'Uma refeição completa.', effect: { type: 'restoreHunger', amount: 100 } },
-};
+export const ITEM_CATEGORIES = ITENS.categories;
+export const ITEM_DEFS = ITENS.items;
 
-export const WORLD_ITEM_SPOTS = [
-  { id: 'worlditem_1', itemId: 'snack', position: { x: parkA.x - 10, z: parkA.z + 10 } },
-  { id: 'worlditem_2', itemId: 'coffee', position: { x: parkB.x + 10, z: parkB.z - 10 } },
-];
+// ---------------------------------------------------------------------------
+// Coisas largadas pelo chão: peças 'item_no_chao' da cena. Com um item
+// escolhido, ela vai pro inventário ao ser pega; com missão e objetivo, marca
+// o objetivo (é assim que o livro de Marina funciona). Dá pra ter os dois.
+// ---------------------------------------------------------------------------
+export const WORLD_ITEM_SPOTS = SCENE.items
+  .filter(item => item.typeId === 'item_no_chao')
+  .map(item => {
+    const [x, , z] = item.position;
+    const p = item.props ?? {};
+    // O id entra no save: fica estável enquanto a peça não mudar de lugar.
+    return {
+      id: `item_${p.itemId || 'missao'}_${x}_${z}`,
+      itemId: p.itemId || null,
+      rotulo: p.rotulo || null,
+      questId: p.questId || null,
+      objetivo: p.objetivo || null,
+      position: { x, z },
+    };
+  });
 
 // ---------------------------------------------------------------------------
 // Missões

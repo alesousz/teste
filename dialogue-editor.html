@@ -12,6 +12,7 @@
     <nav id="abas">
       <button class="aba ativa" data-aba="dialogos">Diálogos</button>
       <button class="aba" data-aba="missoes">Missões</button>
+      <button class="aba" data-aba="itens">Itens</button>
     </nav>
     <div id="topbar-actions">
       <span id="save-status"></span>
@@ -98,6 +99,46 @@
         <button class="btn-secondary" id="btn-add-objective">+ Objetivo</button>
 
         <button class="btn-danger" id="btn-delete-quest">Excluir esta missão</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="layout-itens" class="hidden">
+    <aside id="item-panel">
+      <h2>Itens</h2>
+      <p class="hint">O que dá pra carregar no inventário. Espalhe pela cidade com a peça “Item no chão”, no editor de mapa.</p>
+      <div id="item-list"></div>
+      <button class="btn-secondary" id="btn-add-item">+ Novo item</button>
+    </aside>
+
+    <section id="item-editor-panel">
+      <h2>Editando: <span id="editing-item-id">—</span></h2>
+      <div id="item-editor-empty" class="hint">Escolha um item na lista ou crie um novo.</div>
+      <div id="item-editor-body" class="hidden">
+        <label class="field">Nome<input type="text" id="item-name" /></label>
+        <label class="field">Ícone (emoji)<input type="text" id="item-icon" maxlength="4" /></label>
+        <label class="field">Descrição<textarea id="item-description" rows="2"></textarea></label>
+        <label class="field">
+          Categoria
+          <select id="item-category"></select>
+        </label>
+        <div class="objective-row" style="grid-template-columns:1fr 1fr;">
+          <label class="field">Peso<input type="number" id="item-weight" step="0.1" min="0" /></label>
+          <label class="field">Valor<input type="number" id="item-value" step="1" min="0" /></label>
+        </div>
+        <h3>Ao usar</h3>
+        <div class="objective-row" style="grid-template-columns:1fr 1fr;">
+          <label class="field">
+            Efeito
+            <select id="item-effect">
+              <option value="">— nada —</option>
+              <option value="restoreEnergy">Recupera energia</option>
+              <option value="restoreHunger">Mata a fome</option>
+            </select>
+          </label>
+          <label class="field">Quanto<input type="number" id="item-amount" step="5" min="0" max="100" /></label>
+        </div>
+        <button class="btn-danger" id="btn-delete-item">Excluir este item</button>
       </div>
     </section>
   </div>

@@ -26,12 +26,13 @@ code { background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px;
 .aba { background: rgba(255,255,255,0.08); color: #cfd3da; font-weight: 500; }
 .aba.ativa { background: #ffd98a; color: #1a1206; font-weight: 600; }
 
-#layout-missoes {
+#layout-missoes, #layout-itens {
   display: grid; grid-template-columns: 340px 1fr; gap: 1px;
   background: rgba(255,255,255,0.08);
   height: calc(100vh - 53px);
 }
-#quest-panel, #quest-editor-panel { background: #0d0e12; padding: 16px; overflow-y: auto; }
+#quest-panel, #quest-editor-panel, #item-panel, #item-editor-panel { background: #0d0e12; padding: 16px; overflow-y: auto; }
+#item-editor-panel .field { max-width: 520px; }
 .quest-item {
   padding: 8px 10px; border-radius: 6px; background: rgba(255,255,255,0.05);
   margin-bottom: 6px; cursor: pointer; display: flex; flex-direction: column; gap: 2px;

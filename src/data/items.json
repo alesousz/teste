@@ -1,0 +1,53 @@
+{
+  "categories": {
+    "consumivel": {
+      "id": "consumivel",
+      "label": "Consumíveis",
+      "icon": "🍽"
+    }
+  },
+  "items": {
+    "coffee": {
+      "id": "coffee",
+      "name": "Café",
+      "icon": "☕",
+      "glyph": "local_cafe",
+      "category": "consumivel",
+      "weight": 0.2,
+      "value": 5,
+      "description": "Recupera um pouco de energia.",
+      "effect": {
+        "type": "restoreEnergy",
+        "amount": 25
+      }
+    },
+    "snack": {
+      "id": "snack",
+      "name": "Lanche",
+      "icon": "🥪",
+      "glyph": "bakery_dining",
+      "category": "consumivel",
+      "weight": 0.3,
+      "value": 8,
+      "description": "Mata a fome rapidamente.",
+      "effect": {
+        "type": "restoreHunger",
+        "amount": 60
+      }
+    },
+    "homeMeal": {
+      "id": "homeMeal",
+      "name": "Comida Caseira",
+      "icon": "🍲",
+      "glyph": "lunch_dining",
+      "category": "consumivel",
+      "weight": 0.5,
+      "value": 12,
+      "description": "Uma refeição completa.",
+      "effect": {
+        "type": "restoreHunger",
+        "amount": 100
+      }
+    }
+  }
+}

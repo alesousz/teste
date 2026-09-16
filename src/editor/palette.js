@@ -2,6 +2,7 @@ import * as THREE from 'three';
 
 import * as SkeletonUtils from '../../vendor/jsm/utils/SkeletonUtils.js';
 import { construirPredioDaCidade } from '../cityLook.js';
+import { ITEM_DEFS } from '../data.js';
 // Campos que valem pra qualquer peça vinda de .glb. Escrever um texto é o
 // que faz o objeto responder ao E no jogo: o conteúdo mora na cena, não no
 // código — dá pra criar interação nova sem programar nada.
@@ -56,7 +57,7 @@ function buildLandmark(w, d, h, color, roofColor, label) {
 // por World._buildSceneModels, com altura e giro.
 export const TIPOS_QUE_O_JOGO_LE = new Set([
   'landmark_home_operario', 'landmark_home_nobre', 'landmark_job_mercado', 'landmark_school',
-  'building', 'npc', 'fragment', 'tree', 'bench', 'lamp', 'spawn',
+  'building', 'npc', 'fragment', 'tree', 'bench', 'lamp', 'spawn', 'item_no_chao',
 ]);
 
 
@@ -241,11 +242,42 @@ export const PALETTE = [
     footprint: { w: 1, d: 1 },
     defaultProps: () => ({ note: '' }),
     propFields: [
-      { key: 'note', label: 'Nota (texto do diário)', type: 'text' },
+      { key: 'note', label: 'Nota (texto do diário)', type: 'textarea' },
+      { key: 'questId', label: 'Missão que conta a foto', type: 'text' },
+      { key: 'objetivo', label: 'Objetivo que conta', type: 'text' },
     ],
     build: () => {
       const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.35, 0), new THREE.MeshStandardMaterial({ color: 0xfff2b0, emissive: 0xffe58a, emissiveIntensity: 0.9 }));
       m.position.y = 1.4;
+      return m;
+    },
+  },
+  {
+    // Coisa largada no chão pra achar. Com item, vai pro inventário; com
+    // missão e objetivo, marca o objetivo (é o caso do livro de Marina).
+    id: 'item_no_chao',
+    key: '-', category: 'Itens',
+    name: 'Item no chão',
+    footprint: { w: 1, d: 1 },
+    defaultProps: () => ({ itemId: Object.keys(ITEM_DEFS)[0] ?? '' }),
+    propFields: [
+      {
+        key: 'itemId', label: 'Item que vai pro inventário', type: 'select',
+        options: [
+          { value: '', label: '— nenhum (só marca missão) —' },
+          ...Object.values(ITEM_DEFS).map(i => ({ value: i.id, label: `${i.icon ?? ''} ${i.name}`.trim() })),
+        ],
+      },
+      { key: 'rotulo', label: 'Nome no prompt (opcional)', type: 'text' },
+      { key: 'questId', label: 'Missão (opcional)', type: 'text' },
+      { key: 'objetivo', label: 'Objetivo que conclui ao pegar', type: 'text' },
+    ],
+    build: (props) => {
+      const daMissao = !props?.itemId;
+      const m = daMissao
+        ? box(0.3, 0.05, 0.22, 0xb03a3a)
+        : box(0.32, 0.32, 0.32, 0xd9a441);
+      m.position.y = daMissao ? 0.35 : 0.6;
       return m;
     },
   },

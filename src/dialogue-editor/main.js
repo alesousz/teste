@@ -20,6 +20,7 @@ import {
 
 const DRAFT_KEY = 'dialogue-editor-draft';
 const DRAFT_KEY_MISSOES = 'quest-editor-draft';
+const DRAFT_KEY_ITENS = 'item-editor-draft';
 
 // Tipo padrão de uma condição recém-criada.
 const DEFAULT_CONDITION_TYPE = SELECTABLE_CONDITION_TYPES[0].type;
@@ -58,6 +59,8 @@ export class DialogueEditorApp {
     // Aba Missões: mesmo editor, outro arquivo de conteúdo (quests.json).
     this.quests = null;
     this.currentQuestId = null;
+    this.itens = null;
+    this.currentItemId = null;
     this.aba = 'dialogos';
 
     this._bindStaticEvents();
@@ -76,6 +79,9 @@ export class DialogueEditorApp {
 
     this.quests = this._lerRascunho(DRAFT_KEY_MISSOES) ?? await (await fetch('src/data/quests.json')).json();
     this._renderQuestList();
+
+    this.itens = this._lerRascunho(DRAFT_KEY_ITENS) ?? await (await fetch('src/data/items.json')).json();
+    this._renderItemList();
   }
 
   _lerRascunho(chave) {
@@ -108,7 +114,22 @@ export class DialogueEditorApp {
     this._avisarSalvo();
   }
 
+  _persistItens() {
+    localStorage.setItem(DRAFT_KEY_ITENS, JSON.stringify(this.itens));
+    this._avisarSalvo();
+  }
+
   async _loadFromGameData(confirmFirst = true) {
+    if (this.aba === 'itens') {
+      if (!confirm('Isso substitui o rascunho dos itens pelos que estão hoje no jogo. Continuar?')) return;
+      this.itens = await (await fetch('src/data/items.json')).json();
+      this.currentItemId = null;
+      this._persistItens();
+      this._renderItemList();
+      document.getElementById('item-editor-body').classList.add('hidden');
+      document.getElementById('item-editor-empty').classList.remove('hidden');
+      return;
+    }
     if (this.aba === 'missoes') {
       if (!confirm('Isso substitui o rascunho das missões pelas que estão hoje no jogo. Continuar?')) return;
       this.quests = await (await fetch('src/data/quests.json')).json();
@@ -152,6 +173,30 @@ export class DialogueEditorApp {
       else delete q.autoStart;
       this._persistQuests();
     });
+    document.getElementById('btn-add-item').onclick = () => this._addItem();
+    document.getElementById('btn-delete-item').onclick = () => this._deleteItem();
+    const campos = [
+      ['item-name', 'name', 'texto'], ['item-icon', 'icon', 'texto'],
+      ['item-description', 'description', 'texto'], ['item-category', 'category', 'texto'],
+      ['item-weight', 'weight', 'numero'], ['item-value', 'value', 'numero'],
+    ];
+    for (const [id, campo, tipo] of campos) {
+      document.getElementById(id).addEventListener('input', e => {
+        this._itemAtual()[campo] = tipo === 'numero' ? Number(e.target.value) : e.target.value;
+        this._persistItens();
+        this._renderItemList();
+      });
+    }
+    for (const id of ['item-effect', 'item-amount']) {
+      document.getElementById(id).addEventListener('input', () => {
+        const tipo = document.getElementById('item-effect').value;
+        const quanto = Number(document.getElementById('item-amount').value);
+        const item = this._itemAtual();
+        if (tipo) item.effect = { type: tipo, amount: quanto || 0 };
+        else delete item.effect;
+        this._persistItens();
+      });
+    }
     document.getElementById('btn-reload-game-data').onclick = () => this._loadFromGameData(true);
     document.getElementById('btn-export').onclick = () => this._exportJson();
     document.getElementById('btn-close-export').onclick = () => document.getElementById('export-modal').classList.add('hidden');
@@ -186,6 +231,80 @@ export class DialogueEditorApp {
     for (const botao of document.querySelectorAll('#abas .aba')) botao.classList.toggle('ativa', botao.dataset.aba === aba);
     document.getElementById('layout').classList.toggle('hidden', aba !== 'dialogos');
     document.getElementById('layout-missoes').classList.toggle('hidden', aba !== 'missoes');
+    document.getElementById('layout-itens').classList.toggle('hidden', aba !== 'itens');
+  }
+
+  // --- Itens ---------------------------------------------------------------------
+
+  _itemAtual() {
+    return this.itens.items[this.currentItemId];
+  }
+
+  _renderItemList() {
+    const lista = document.getElementById('item-list');
+    const itens = Object.values(this.itens.items);
+    lista.innerHTML = itens.map(i => `
+      <div class="quest-item ${i.id === this.currentItemId ? 'selected' : ''}" data-id="${i.id}">
+        <span>${escapeHtml(`${i.icon ?? ''} ${i.name || '(sem nome)'}`.trim())}</span>
+        <span class="quest-id">${escapeHtml(i.id)}${i.effect ? ' · usa' : ''}</span>
+      </div>
+    `).join('') || '<p class="hint">Nenhum item ainda.</p>';
+    for (const el of lista.querySelectorAll('.quest-item')) {
+      el.onclick = () => this._selectItem(el.dataset.id);
+    }
+  }
+
+  _selectItem(id) {
+    this.currentItemId = id;
+    const item = this.itens.items[id];
+    document.getElementById('editing-item-id').textContent = id;
+    document.getElementById('item-editor-empty').classList.toggle('hidden', !!item);
+    document.getElementById('item-editor-body').classList.toggle('hidden', !item);
+    if (!item) return;
+    const categorias = Object.values(this.itens.categories);
+    document.getElementById('item-category').innerHTML = categorias
+      .map(c => `<option value="${escapeHtml(c.id)}" ${c.id === item.category ? 'selected' : ''}>${escapeHtml(c.label)}</option>`).join('');
+    document.getElementById('item-name').value = item.name ?? '';
+    document.getElementById('item-icon').value = item.icon ?? '';
+    document.getElementById('item-description').value = item.description ?? '';
+    document.getElementById('item-weight').value = item.weight ?? 0;
+    document.getElementById('item-value').value = item.value ?? 0;
+    document.getElementById('item-effect').value = item.effect?.type ?? '';
+    document.getElementById('item-amount').value = item.effect?.amount ?? '';
+    this._renderItemList();
+  }
+
+  _addItem() {
+    const id = prompt('Id do item (sem espaço, é o que o diálogo e o mapa usam):', 'item_novo');
+    if (!id) return;
+    const limpo = id.trim().replace(/[^A-Za-z0-9_]/g, '_');
+    if (this.itens.items[limpo]) {
+      alert(`Já existe um item com o id "${limpo}".`);
+      return;
+    }
+    this.itens.items[limpo] = {
+      id: limpo,
+      name: 'Item novo',
+      icon: '📦',
+      category: Object.keys(this.itens.categories)[0] ?? 'consumivel',
+      weight: 0.1,
+      value: 1,
+      description: '',
+    };
+    this._persistItens();
+    this._selectItem(limpo);
+  }
+
+  _deleteItem() {
+    const id = this.currentItemId;
+    if (!id || !confirm(`Excluir o item "${this.itens.items[id].name}"? Quem entrega ou larga ele pelo mapa deixa de funcionar.`)) return;
+    delete this.itens.items[id];
+    this.currentItemId = null;
+    this._persistItens();
+    document.getElementById('item-editor-body').classList.add('hidden');
+    document.getElementById('item-editor-empty').classList.remove('hidden');
+    document.getElementById('editing-item-id').textContent = '—';
+    this._renderItemList();
   }
 
   _renderQuestList() {
@@ -303,17 +422,21 @@ export class DialogueEditorApp {
       [
         { caminho: 'src/data/dialogues.json', conteudo: `${JSON.stringify(this.trees, null, 2)}\n` },
         { caminho: 'src/data/quests.json', conteudo: `${JSON.stringify(this.quests, null, 2)}\n` },
+        { caminho: 'src/data/items.json', conteudo: `${JSON.stringify(this.itens, null, 2)}\n` },
       ],
-      'Diálogos e missões atualizados pelo editor de conteúdo',
+      'Diálogos, missões e itens atualizados pelo editor de conteúdo',
       avisar,
     );
   }
 
   // Baixa o arquivo da aba aberta, pronto pra trocar no projeto.
   _baixarArquivo() {
-    const [nome, dados] = this.aba === 'missoes'
-      ? ['quests.json', this.quests]
-      : ['dialogues.json', this.trees];
+    const porAba = {
+      missoes: ['quests.json', this.quests],
+      itens: ['items.json', this.itens],
+      dialogos: ['dialogues.json', this.trees],
+    };
+    const [nome, dados] = porAba[this.aba];
     const url = URL.createObjectURL(new Blob([`${JSON.stringify(dados, null, 2)}\n`], { type: 'application/json' }));
     const link = document.createElement('a');
     link.href = url;
@@ -752,10 +875,15 @@ export class DialogueEditorApp {
   // Exportar
   // -------------------------------------------------------------------
   _exportJson() {
-    const missoes = this.aba === 'missoes';
-    document.getElementById('export-output').value = JSON.stringify(missoes ? this.quests : this.trees, null, 2);
-    document.querySelector('#export-modal-inner h2').textContent = missoes ? 'JSON das missões' : 'JSON completo (todos os NPCs)';
-    document.querySelector('#export-modal-inner .hint').innerHTML = `Copie este conteúdo pra atualizar <code>src/data/${missoes ? 'quests' : 'dialogues'}.json</code> no jogo.`;
+    const porAba = {
+      missoes: ['quests', 'JSON das missões', this.quests],
+      itens: ['items', 'JSON dos itens', this.itens],
+      dialogos: ['dialogues', 'JSON completo (todos os NPCs)', this.trees],
+    };
+    const [arquivo, titulo, dados] = porAba[this.aba];
+    document.getElementById('export-output').value = JSON.stringify(dados, null, 2);
+    document.querySelector('#export-modal-inner h2').textContent = titulo;
+    document.querySelector('#export-modal-inner .hint').innerHTML = `Copie este conteúdo pra atualizar <code>src/data/${arquivo}.json</code> no jogo.`;
     document.getElementById('export-modal').classList.remove('hidden');
   }
 }

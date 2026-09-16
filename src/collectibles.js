@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FRAGMENT_SPOTS, ITEM_PROPS, WORLD_ITEM_SPOTS, CONFIG } from './data.js';
+import { FRAGMENT_SPOTS, WORLD_ITEM_SPOTS, CONFIG } from './data.js';
 
 // ---------------------------------------------------------------------------
 // Colecionáveis (fragmentos de memória) + item de missão (livro)
@@ -24,26 +24,25 @@ export class CollectibleSystem {
       this.fragments.push({ def: spot, mesh, light, collected: false });
     }
 
+    // Só pra saves antigos, que gravavam o livro separado (ver restoreItem).
     this.item = null;
-    const itemDef = ITEM_PROPS[0];
-    const bookGeo = new THREE.BoxGeometry(0.3, 0.05, 0.22);
-    const bookMat = new THREE.MeshStandardMaterial({ color: 0xb03a3a, roughness: 0.7 });
-    const bookMesh = new THREE.Mesh(bookGeo, bookMat);
-    bookMesh.position.set(itemDef.position.x, 0.35, itemDef.position.z);
-    bookMesh.rotation.y = 0.4;
-    scene.add(bookMesh);
-    this.item = { def: itemDef, mesh: bookMesh, collected: false };
 
-    // Itens de inventário largados pelo mundo (achar, em vez de comprar).
+    // Coisas largadas pelo chão, colocadas no editor de mapa: a caixinha
+    // dourada vai pro inventário; a peça que só marca objetivo de missão (o
+    // livro de Marina) é um objeto vermelho e baixo.
     this.worldItems = [];
     this.collectedWorldItemIds = new Set();
-    const worldItemGeo = new THREE.BoxGeometry(0.32, 0.32, 0.32);
+    const caixaGeo = new THREE.BoxGeometry(0.32, 0.32, 0.32);
+    const livroGeo = new THREE.BoxGeometry(0.3, 0.05, 0.22);
     for (const spot of WORLD_ITEM_SPOTS) {
-      const mat = new THREE.MeshStandardMaterial({ color: 0xd9a441, emissive: 0x5a3a10, emissiveIntensity: 0.4, roughness: 0.6 });
-      const mesh = new THREE.Mesh(worldItemGeo, mat);
-      mesh.position.set(spot.position.x, 0.6, spot.position.z);
+      const daMissao = !spot.itemId;
+      const mat = new THREE.MeshStandardMaterial(daMissao
+        ? { color: 0xb03a3a, roughness: 0.7 }
+        : { color: 0xd9a441, emissive: 0x5a3a10, emissiveIntensity: 0.4, roughness: 0.6 });
+      const mesh = new THREE.Mesh(daMissao ? livroGeo : caixaGeo, mat);
+      mesh.position.set(spot.position.x, daMissao ? 0.35 : 0.6, spot.position.z);
       scene.add(mesh);
-      this.worldItems.push({ def: spot, itemId: spot.itemId, mesh, collected: false });
+      this.worldItems.push({ def: spot, itemId: spot.itemId, mesh, collected: false, altura: mesh.position.y });
     }
   }
 
@@ -83,13 +82,10 @@ export class CollectibleSystem {
       f.mesh.position.y = 1.4 + Math.sin(performance.now() * 0.002 + f.mesh.position.x) * 0.15;
       f.light.position.y = f.mesh.position.y;
     }
-    if (this.item && !this.item.collected) {
-      this.item.mesh.rotation.y += dt * 0.4;
-    }
     for (const w of this.worldItems) {
       if (w.collected) continue;
-      w.mesh.rotation.y += dt * 0.8;
-      w.mesh.position.y = 0.6 + Math.sin(performance.now() * 0.0025 + w.mesh.position.x) * 0.1;
+      w.mesh.rotation.y += dt * (w.itemId ? 0.8 : 0.4);
+      w.mesh.position.y = w.altura + Math.sin(performance.now() * 0.0025 + w.mesh.position.x) * 0.1;
     }
   }
 
@@ -102,11 +98,15 @@ export class CollectibleSystem {
     return null;
   }
 
+  // Pegar do chão: vai pro inventário se tiver item, e marca o objetivo se a
+  // peça estiver ligada a uma missão. Os dois foram escolhidos no editor.
   collectWorldItem(worldItem) {
     worldItem.collected = true;
     this.scene.remove(worldItem.mesh);
     this.collectedWorldItemIds.add(worldItem.def.id);
-    this.inventory.addItem(worldItem.itemId);
+    if (worldItem.itemId) this.inventory.addItem(worldItem.itemId);
+    const { questId, objetivo } = worldItem.def;
+    if (questId && objetivo) this.quests.completeObjective(questId, objetivo);
   }
 
   findNearbyFragment(pos) {
@@ -118,23 +118,12 @@ export class CollectibleSystem {
     return null;
   }
 
-  findNearbyItem(pos) {
-    if (!this.item || this.item.collected) return null;
-    const d = Math.hypot(pos.x - this.item.mesh.position.x, pos.z - this.item.mesh.position.z);
-    return d < CONFIG.INTERACT_RADIUS ? this.item : null;
-  }
-
   capture(fragment, thumbnailDataUrl) {
     fragment.collected = true;
     this.collectedIds.add(fragment.def.id);
     this.scene.remove(fragment.mesh, fragment.light);
     this.photos.push({ note: fragment.def.note, thumb: thumbnailDataUrl });
-    this.quests.incrementObjective('ecos_perdidos', 'frags');
-  }
-
-  collectItem(item) {
-    item.collected = true;
-    this.scene.remove(item.mesh);
-    this.quests.completeObjective('livro_esquecido', 'find_book');
+    // Qual missão a foto conta vem da peça do fragmento, no editor.
+    this.quests.incrementObjective(fragment.def.questId, fragment.def.objetivo);
   }
 }

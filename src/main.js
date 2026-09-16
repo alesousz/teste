@@ -519,7 +519,6 @@ class Game {
       const d = Math.hypot(this.player.position.x - npc.position.x, this.player.position.z - npc.position.z);
       if (d < nearestDist) { nearestDist = d; nearestNpc = npc; }
     }
-    const nearbyItem = this.collectibles.findNearbyItem(this.player.position);
     const nearbyWorldItem = this.collectibles.findNearbyWorldItem(this.player.position);
     const nearbyFragment = this.collectibles.findNearbyFragment(this.player.position);
 
@@ -561,20 +560,14 @@ class Game {
       if (this.input.wasPressed(interactKey)) {
         this.dialogue.start(nearestNpc.def.id, this.world.isNight, nearestNpc);
       }
-    } else if (nearbyItem) {
-      this.ui.showPrompt(`${interactLabel} — Pegar o livro`);
-      promptShown = true;
-      if (this.input.wasPressed(interactKey)) {
-        this.collectibles.collectItem(nearbyItem);
-        this.ui.showToast('Você pegou o livro de Marina.');
-      }
     } else if (nearbyWorldItem) {
-      const def = ITEM_DEFS[nearbyWorldItem.itemId];
-      this.ui.showPrompt(`${interactLabel} — Pegar ${def.name}`);
+      // O nome vem do que foi escrito na peça, ou do item que ela dá.
+      const nome = nearbyWorldItem.def.rotulo || ITEM_DEFS[nearbyWorldItem.itemId]?.name || 'isso';
+      this.ui.showPrompt(`${interactLabel} — Pegar ${nome}`);
       promptShown = true;
       if (this.input.wasPressed(interactKey)) {
         this.collectibles.collectWorldItem(nearbyWorldItem);
-        this.ui.showToast(`Você pegou: ${def.name}`);
+        this.ui.showToast(`Você pegou: ${nome}`);
       }
     } else if (this._nearSleepSpot()) {
       this.ui.showPrompt(`${interactLabel} — Dormir (recuperar energia e avançar o dia)`);

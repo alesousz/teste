@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { QUESTS, NPC_DEFS } from '../../src/data.js';
+import { QUESTS, NPC_DEFS, ITEM_DEFS, ITEM_CATEGORIES, WORLD_ITEM_SPOTS, FRAGMENT_SPOTS } from '../../src/data.js';
 
 // Missões e diálogos são conteúdo escrito no editor (dialogue-editor.html) e
 // gravado em arquivos de dados. Estes testes são a rede de segurança dessa
@@ -77,6 +77,48 @@ describe('diálogos apontam pra conteúdo que existe', () => {
       for (const regra of arvore.startRules ?? []) {
         assert.ok(arvore.nodes[regra.node], `${npcId}: regra de início aponta pro nó inexistente "${regra.node}"`);
       }
+    }
+  });
+});
+
+describe('itens (src/data/items.json)', () => {
+  test('a chave do mapa é o id do item, e a categoria existe', () => {
+    for (const [chave, item] of Object.entries(ITEM_DEFS)) {
+      assert.equal(item.id, chave);
+      assert.ok(item.name?.length, `${chave} sem nome`);
+      assert.ok(ITEM_CATEGORIES[item.category], `${chave} aponta pra categoria inexistente: ${item.category}`);
+    }
+  });
+
+  test('todo efeito de item é um que o inventário sabe aplicar', () => {
+    const conhecidos = new Set(['restoreEnergy', 'restoreHunger']);
+    for (const item of Object.values(ITEM_DEFS)) {
+      if (!item.effect) continue;
+      assert.ok(conhecidos.has(item.effect.type), `${item.id} tem efeito desconhecido: ${item.effect.type}`);
+      assert.ok(item.effect.amount > 0, `${item.id} tem efeito sem quantidade`);
+    }
+  });
+});
+
+describe('coisas largadas pelo mapa', () => {
+  test('todo item no chão dá um item que existe, marca um objetivo que existe, ou os dois', () => {
+    assert.ok(WORLD_ITEM_SPOTS.length > 0, 'a cidade não tem nada pra achar no chão');
+    for (const spot of WORLD_ITEM_SPOTS) {
+      assert.ok(spot.itemId || spot.questId, `peça em ${spot.position.x},${spot.position.z} não dá item nem marca missão`);
+      if (spot.itemId) assert.ok(ITEM_DEFS[spot.itemId], `peça aponta pro item inexistente: ${spot.itemId}`);
+      if (spot.questId) {
+        const missao = QUESTS[spot.questId];
+        assert.ok(missao, `peça aponta pra missão inexistente: ${spot.questId}`);
+        assert.ok(missao.objectives.some(o => o.id === spot.objetivo), `peça aponta pro objetivo inexistente: ${spot.questId}/${spot.objetivo}`);
+      }
+    }
+  });
+
+  test('todo fragmento conta pra uma missão e um objetivo que existem', () => {
+    for (const frag of FRAGMENT_SPOTS) {
+      const missao = QUESTS[frag.questId];
+      assert.ok(missao, `${frag.id} aponta pra missão inexistente: ${frag.questId}`);
+      assert.ok(missao.objectives.some(o => o.id === frag.objetivo), `${frag.id} aponta pro objetivo inexistente: ${frag.objetivo}`);
     }
   });
 });

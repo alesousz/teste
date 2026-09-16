@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from '../../vendor/jsm/loaders/GLTFLoader.js';
-import { PALETTE, paletteById, addDynamicProps, TIPOS_QUE_O_JOGO_LE } from './palette.js?v=11';
+import { PALETTE, paletteById, addDynamicProps, TIPOS_QUE_O_JOGO_LE } from './palette.js?v=12';
 import { SCENE as GAME_SCENE } from '../data/scene.js';
 import { Historico, lote } from './historico.js';
 import {
