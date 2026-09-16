@@ -3,7 +3,6 @@
 // precisa de seed determinística: é um singleton de módulo ES.
 // A cena de scene.js ou, no Modo Viver, a que o editor de mapa gravou.
 import { CENA as SCENE } from './data/cenaAtiva.js';
-import { AP as AP_FOOTPRINT } from './data/apartment.js';
 
 export const CONFIG = {
   GRID_SIZE: 5,
@@ -56,7 +55,7 @@ const PLAZA = { ix: 2, iz: 2 };
 // Quarteirão do prédio residencial onde o jogo começa — vizinho da praça, pra
 // que a saída do prédio já caia num lugar com vida. O quarteirão é RESERVADO
 // (a geração procedural não põe nada aqui), mas de propósito NÃO entra em
-// CITY.buildings: as paredes desse prédio vêm da planta em data/apartment.js,
+// CITY.buildings: o prédio inicial é feito de peças de kit na cena,
 // e uma AABB maciça no lugar impediria o jogador de entrar nele.
 const HOME_BLOCK = { ix: 2, iz: 1 };
 const PARKS = [
@@ -229,13 +228,6 @@ export function gerarCidade(random = Math.random, { fixa = CIDADE_FIXA } = {}) {
 
 export const CITY = gerarCidade();
 
-// Canto mínimo do prédio inicial em coordenadas de mundo. A planta de
-// data/apartment.js é local (0..W, 0..D); somar esta origem leva pro mundo.
-// A fachada com a porta fica em z local = 0, virada pra rua ao sul.
-export const HOME_ORIGIN = (() => {
-  const c = blockCenter(HOME_BLOCK.ix, HOME_BLOCK.iz);
-  return { x: c.x - AP_FOOTPRINT.W / 2, z: c.z - AP_FOOTPRINT.D / 2 };
-})();
 export const BUILDING_COLOR_PALETTE = BUILDING_COLORS;
 
 // Boneco de treino de combate: fica num canto livre da praça central,

@@ -171,9 +171,7 @@ export class Player {
     // Dentro de construção a câmera se aproxima: 6,5 m atrás do personagem não
     // cabe num quarto de 3 m, e ficaria o tempo todo colada na parede. Vale
     // pro prédio inicial e pros prédios montados com kit.
-    const dentro = this.world.dentroDeConstrucao?.(this.position)
-      ?? this.world.insideHome?.(this.position.x, this.position.z)
-      ?? false;
+    const dentro = this.world.dentroDeConstrucao?.(this.position) ?? false;
     const alvoDist = dentro ? CONFIG.CAM_DIST_INDOOR : CONFIG.CAM_DIST_OUTDOOR;
     this.camDistance += (alvoDist - this.camDistance) * Math.min(1, dt * CONFIG.CAM_DIST_LERP);
 

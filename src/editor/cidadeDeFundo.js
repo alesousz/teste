@@ -5,10 +5,9 @@
 // Não é peça da cena: não dá pra clicar, mover nem apagar. O que é editável
 // (prédios, marcos, árvores, bancos) vem de scene.js como peça.
 import * as THREE from 'three';
-import { CONFIG, CITY, HOME_ORIGIN } from '../data.js';
+import { CONFIG, CITY } from '../data.js';
 import { criarAsfalto, criarChaoDaRua } from '../streetGround.js';
 import { criarTerrenoDosQuarteiroes, criarFonte, criarPostesDaRua } from '../cityLook.js';
-import { buildBuilding } from '../building.js';
 
 // Mesmo tamanho do asfalto do jogo (World._buildGround).
 export const TAMANHO_DA_CIDADE = CONFIG.GRID_SIZE * CONFIG.CELL + 40;
@@ -24,7 +23,8 @@ export function criarCidadeDeFundo() {
   const { grupo: postes, postes: lista } = criarPostesDaRua(CONFIG.GRID_SIZE, CONFIG.CELL);
   for (const p of lista) p.light.removeFromParent();
   grupo.add(postes);
-  grupo.add(buildBuilding(HOME_ORIGIN).group);
+  // O prédio inicial não entra aqui: ele é peça da cena, e o editor já o
+  // carrega junto com o resto (dá pra mexer nele).
   grupo.traverse(o => { if (o.isMesh) o.receiveShadow = true; });
   return grupo;
 }

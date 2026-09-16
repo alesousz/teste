@@ -51,7 +51,12 @@ describe('propriedades de jogo nas peças da cena', () => {
     }
   });
 
-  test('sem peça de início na cena, o jogo cai no quarto do prédio em código', () => {
-    assert.equal(SPAWN_DA_CENA, null);
+  test('a peça de início manda o jogador pro quarto do apartamento 101', () => {
+    assert.ok(SPAWN_DA_CENA, 'a cena precisa ter a peça "Início do jogo"');
+    const { x, y, z } = SPAWN_DA_CENA;
+    // Dentro do quarto do 101 e no piso do 1º andar (placa de 10 cm em 2,4 m).
+    assert.ok(x > -6 && x < -2, `x fora do quarto: ${x}`);
+    assert.ok(z > -58 && z < -54, `z fora do quarto: ${z}`);
+    assert.equal(y, 2.5);
   });
 });

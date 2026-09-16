@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG, ORIGINS, COURSES, HOMES, OBLIGATIONS, ITEM_DEFS, SPAWN_DA_CENA } from './data.js';
 import { World } from './world.js';
-import { abrirPorta } from './building.js';
 import { Phone, PHONE_DEFAULT_KEY } from './phone.js';
 import { RenderPipeline } from './render.js';
 import { PostFX, rendererEhSoftware } from './postfx.js';
@@ -389,9 +388,9 @@ class Game {
       this.player.camYaw = Math.PI;
     } else {
       // Partida nova começa DENTRO do apartamento, no quarto — é o ponto de
-      // partida dos primeiros minutos. A cena manda (peça "Início do jogo");
-      // sem ela, vale o quarto do prédio em código.
-      const s = SPAWN_DA_CENA ?? this.world.interior.spawn;
+      // partida dos primeiros minutos. Quem diz onde é a peça "Início do
+      // jogo" da cena; sem ela, o centro do mapa, pra não travar o jogo.
+      const s = SPAWN_DA_CENA ?? { x: 0, y: 0, z: 0, facing: Math.PI };
       this.player.position.set(s.x, s.y, s.z);
       this.player.facingAngle = s.facing;
       this.player.camYaw = s.facing;
@@ -522,11 +521,9 @@ class Game {
         this.ui.showPrompt(`${rotulo} — trancada`);
       } else {
         this.ui.showPrompt(`${interactLabel} — ${porta.aberta ? 'Fechar' : 'Abrir'}: ${rotulo}`);
-        // Porta de kit (World.portasKit) sabe se abrir; a do prédio inicial
-        // passa por abrirPorta.
-        if (this.input.wasPressed(interactKey) && (porta.alternar ? porta.alternar() : abrirPorta(porta))) {
+        if (this.input.wasPressed(interactKey) && porta.alternar()) {
           this.phone.advanceTutorial('interagiu');
-          if (porta.def.id === 'ap201') this.phone.advanceTutorial('saiu_do_apartamento');
+          if (porta.def.id === 'ap101') this.phone.advanceTutorial('saiu_do_apartamento');
           if (porta.def.id === 'entrada') this.phone.advanceTutorial('saiu_do_predio');
         }
       }
@@ -656,7 +653,7 @@ class Game {
         this.phone.advanceTutorial('moveu');
       }
       // Voltar ao nível da rua ainda dentro do prédio = desceu a escada.
-      if (this.world.insideHome(this.player.position.x, this.player.position.z) && this.player.position.y < 0.2) {
+      if (this.player.position.y < 0.2 && this.world.dentroDeConstrucao(this.player.position)) {
         this.phone.advanceTutorial('desceu_a_escada');
       }
       // O aviso do contra-ataque só começa quando o jogador não está mais
@@ -695,17 +692,13 @@ class Game {
     this.render.focusShadows(this.world.sun, this.player.position);
     const ambienteMudou = this.world.skyColor
       && this.render.updateEnvironment(this.world.skyColor, this.world.groundColor, this.world.dayFactor);
-    if ((ambienteMudou || this.world.homeMaterialsDirty) && this.world.homeBuilding) {
+    if (ambienteMudou || this.world.homeMaterialsDirty) {
       this.world.homeMaterialsDirty = false;
-      // Reaplicado a cada troca de ambiente e quando um modelo de móvel
-      // chega, porque materiais criados depois (ou clonados) voltariam ao
-      // padrao 1.0 e lavariam o interior.
-      // Ordem importa: a cena inteira primeiro, o prédio depois — o segundo
-      // passe sobrescreve os materiais do interior. O asfalto e as fachadas da
-      // cidade são rugosos, e com ambiente cheio devolviam o azul do céu como
-      // se fossem espelhos foscos.
+      // Reaplicado a cada troca de ambiente e quando um modelo da cena chega,
+      // porque materiais criados depois (ou clonados) voltariam ao padrão 1.0.
+      // O asfalto e as fachadas da cidade são rugosos, e com ambiente cheio
+      // devolviam o azul do céu como se fossem espelhos foscos.
       this.render.applyEnvIntensity(this.scene, this.world.cityEnvIntensity);
-      this.render.applyEnvIntensity(this.world.homeBuilding, this.world.homeEnvIntensity);
     }
 
     this.camera.position.copy(this.player.cameraPosition);

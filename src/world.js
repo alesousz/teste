@@ -1,9 +1,5 @@
 import * as THREE from 'three';
-import { CONFIG, CITY, BUILDING_COLOR_PALETTE, LANDMARK_SPECS , HOME_ORIGIN } from './data.js';
-import { Interior } from './interior.js';
-import { buildBuilding, updateDoors } from './building.js';
-import { buildApartmentProps, apartmentBoxes } from './apartmentProps.js';
-import { carregarModelosMoveis } from './propModels.js';
+import { CONFIG, CITY, BUILDING_COLOR_PALETTE, LANDMARK_SPECS } from './data.js';
 import { loadGLTF } from './assets.js';
 import { CENA as SCENE } from './data/cenaAtiva.js';
 import { modelosDaCena } from './sceneModels.js';
@@ -17,10 +13,9 @@ export class World {
   constructor(scene) {
     this.scene = scene;
     this.buildingAABBs = CITY.buildings;
-    // Prédio inicial: o único volume do mundo com interior de verdade. Ele
-    // NÃO entra em `buildingAABBs` de propósito — uma caixa maciça no lugar
-    // impediria o jogador de entrar. As paredes dele vêm do `Interior`.
-    this.interior = new Interior(HOME_ORIGIN);
+    // O prédio onde o jogo começa não está aqui: ele é feito de peças de kit
+    // na cena (ver tools/gerar-predio-inicial.mjs), com paredes, pisos,
+    // escada e portas de verdade, que entram por _buildSceneModels.
     this.windowTexturesLit = [];
     this.windowTexturesDark = [];
     this.streetLamps = [];
@@ -43,7 +38,8 @@ export class World {
     this._buildSky();
     this._buildLights();
     this._buildStreetLamps();
-    this._buildHomeBuilding();
+    // Dosagem do mapa de ambiente na cidade: ver RenderPipeline.applyEnvIntensity.
+    this.cityEnvIntensity = 0.45;
     this.timeOfDay = 0.3; // 0..1, 0 = meia-noite, 0.5 = meio-dia
     this.dayCount = 1;
   }
@@ -544,79 +540,19 @@ export class World {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   }
 
-  _buildHomeBuilding() {
-    const { group, doors } = buildBuilding(this.interior.origin);
-    this.homeBuilding = group;
-    this.doors = doors;
-
-    // Mobília: a geometria entra no mesmo grupo (e herda a translação); os
-    // volumes de colisão vão pro Interior, que os translada por conta.
-    const props = buildApartmentProps(THREE);
-    group.add(props.group);
-    this.interior.addSolids(props.solids);
-    // Móveis com modelo do Blender chegam depois; até lá (ou se falharem)
-    // ficam as caixas. Os materiais novos nascem com o ambiente cheio, então
-    // o loop precisa redosar o interior quando eles entram.
-    carregarModelosMoveis(props.group, apartmentBoxes(), loadGLTF)
-      .then(n => { if (n > 0) this.homeMaterialsDirty = true; });
-    this.homeAnchors.push(...props.anchors.map(a => ({
-      ...a,
-      x: a.x + this.interior.origin.x,
-      z: a.z + this.interior.origin.z,
-    })));
-
-    this._buildHomeLights(group);
-    this.scene.add(group);
-    // O interior recebe só uma fração do mapa de ambiente: ver
-    // RenderPipeline.applyEnvIntensity. O valor fica guardado aqui pra o
-    // pipeline aplicar assim que o ambiente existir.
-    this.homeEnvIntensity = 0.2;
-    this.cityEnvIntensity = 0.45;
-  }
-
-  // Luz interna. Sem isto o prédio é uma caixa fechada iluminada só pelo sol
-  // lá fora, e o jogador anda no escuro — é requisito de jogabilidade, não de
-  // acabamento. Sem sombra de propósito: cada luz pontual com sombra custa
-  // seis mapas, e são sete lâmpadas.
-  _buildHomeLights(group) {
-    const N = 3.2;   // altura de um pavimento
-    const pontos = [
-      // térreo
-      { x: 5.5,  y: 2.55,       z: 6.0,  cor: 0xffe6c0, i: 0.9, d: 11 },
-      { x: 13.6, y: 2.55,       z: 1.9,  cor: 0xfff0d4, i: 0.7, d: 8 },
-      // caixa de escada (vão duplo: uma luz alta cobre o lance inteiro)
-      { x: 13.6, y: N + 2.4,    z: 6.0,  cor: 0xfff0d4, i: 1.0, d: 12 },
-      // andar
-      { x: 5.5,  y: N + 2.55,   z: 10.0, cor: 0xffe6c0, i: 0.8, d: 11 },
-      { x: 1.7,  y: N + 2.5,    z: 1.9,  cor: 0xffdcb0, i: 0.85, d: 7 },  // quarto
-      { x: 4.4,  y: N + 2.5,    z: 1.9,  cor: 0xdfefff, i: 0.7, d: 5 },   // banheiro
-      { x: 2.8,  y: N + 2.5,    z: 5.9,  cor: 0xffe6c0, i: 0.95, d: 9 },  // sala
-    ];
-    this.homeLights = [];
-    for (const p of pontos) {
-      const luz = new THREE.PointLight(p.cor, p.i, p.d, 2);
-      luz.position.set(p.x, p.y, p.z);
-      luz.castShadow = false;
-      group.add(luz);
-      this.homeLights.push(luz);
-    }
-  }
-
   /** Move as folhas das portas. Chamado pelo loop do jogo. */
   updateBuilding(dt) {
-    if (this.doors) updateDoors(this.doors, dt);
     for (const p of this.portasKit) p.mixer.update(dt);
   }
 
-  /** Altura do chão sob o jogador — rua, laje ou degrau da escada. */
+  /** Altura do chão sob o jogador — a rua, ou o piso/degrau de kit acima dela. */
   supportAt(x, z, feetY) {
-    // Pisos e escadas de kit somam-se ao prédio inicial; fora de tudo, a rua.
-    return Math.max(this.interior.supportAt(x, z, feetY), apoioEm(this.superficiesKit, x, z, feetY));
+    return Math.max(0, apoioEm(this.superficiesKit, x, z, feetY));
   }
 
-  /** Altura livre acima da cabeça (laje, cobertura ou piso de kit). */
+  /** Altura livre acima da cabeça (laje de kit) — Infinity a céu aberto. */
   ceilingAt(x, z, feetY) {
-    return Math.min(this.interior.ceilingAt(x, z, feetY), tetoEm(this.superficiesKit, x, z, feetY));
+    return tetoEm(this.superficiesKit, x, z, feetY);
   }
 
   /**
@@ -627,16 +563,8 @@ export class World {
   nearestDoor(pos, maxDist = 2.2) {
     let melhor = null;
     let menor = maxDist;
-    for (const p of this.doors?.values() ?? []) {
-      const alvoY = p.level * 3.2;
-      if (Math.abs(pos.y - alvoY) > 1.6) continue;
-      const d = Math.hypot(
-        pos.x - (p.ponto.x + this.interior.origin.x),
-        pos.z - (p.ponto.z + this.interior.origin.z),
-      );
-      if (d < menor) { menor = d; melhor = p; }
-    }
-    // Portas de kit: mesmo filtro de pavimento, pela altura da base da porta.
+    // Filtro por pavimento pela altura da base da porta: sem ele, o prompt da
+    // porta do saguão apareceria pra quem está no corredor logo acima dela.
     for (const p of this.portasKit) {
       if (Math.abs(pos.y - p.mundo.y) > 1.6) continue;
       const d = Math.hypot(pos.x - p.mundo.x, pos.z - p.mundo.z);
@@ -669,15 +597,9 @@ export class World {
    * um piso de kit.
    */
   dentroDeConstrucao(pos) {
-    if (this.interior.containsXZ(pos.x, pos.z)) return true;
     if (this.superficiesKit.length === 0) return false;
     if (tetoEm(this.superficiesKit, pos.x, pos.z, pos.y) - pos.y < 4) return true;
     return apoioEm(this.superficiesKit, pos.x, pos.z, pos.y, 0.05) > 0.05;
-  }
-
-  /** O jogador está dentro da pegada do prédio inicial? */
-  insideHome(x, z) {
-    return this.interior.containsXZ(x, z);
   }
 
   // Resolve colisão circular do jogador contra todas as AABBs de edifícios.
@@ -700,7 +622,6 @@ export class World {
       if (s.porta?.aberta) continue;   // folha de porta de kit aberta
       empurrarParaFora(pos, radius, height, s);
     }
-    this.interior.resolve(pos, radius, height);
     const half = CONFIG.WORLD_HALF - 2;
     pos.x = THREE.MathUtils.clamp(pos.x, -half, half);
     pos.z = THREE.MathUtils.clamp(pos.z, -half, half);
@@ -721,9 +642,6 @@ export class World {
         if (d < closest) closest = d;
       }
     }
-    // As paredes do interior também travam a câmera — sem isso ela atravessa
-    // o prédio inteiro e mostra o lado de fora enquanto o jogador está dentro.
-    closest = Math.min(closest, this.interior.raycast(origin, dir, closest));
     // Objetos do catálogo (paredes de kit, porta fechada, móveis) e as lajes
     // dos pisos de kit também seguram a câmera.
     for (const s of this.objetosSolidos) {
@@ -736,8 +654,6 @@ export class World {
       const t = raioContraPiso(origin, dir, piso);
       if (t !== null && t < closest) closest = t;
     }
-    // A fronteira do prédio também limita: a porta é um buraco legítimo na
-    // parede, e sem isto a câmera de quem está na rua entra por ela.
-    return Math.min(closest, this.interior.boundaryDistance(origin, dir, closest));
+    return closest;
   }
 }
