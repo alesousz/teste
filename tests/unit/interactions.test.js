@@ -95,6 +95,7 @@ function makeUiRecorder() {
     calls,
     show(text, options, npcName, delta) { calls.push({ type: 'show', text, options, npcName, delta }); },
     hide() { calls.push({ type: 'hide' }); },
+    semDialogo(nome) { calls.push({ type: 'semDialogo', nome }); },
   };
 }
 
@@ -157,6 +158,12 @@ function makeDialogueSystem({ money = 100, hunger = 100, originId = 'operario', 
 }
 
 describe('DialogueSystem — início e seleção de nó', () => {
+  test('pessoa criada no editor sem árvore de diálogo não quebra o jogo', () => {
+    const { ds, ui } = makeDialogueSystem({});
+    ds.start('vizinha_nova', false, { def: { name: 'Dona Cida' } });
+    assert.equal(ds.active, false);
+    assert.deepEqual(ui.calls, [{ type: 'semDialogo', nome: 'Dona Cida' }]);
+  });
   test('start() sem regra aplicável cai no startDefault e aplica pronome do sexo', () => {
     const { ds, ui } = makeDialogueSystem({ sex: 'f' });
     ds.start('vendedor', false, {});

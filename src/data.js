@@ -256,107 +256,32 @@ function sideOf(center, kind, margin = 3) {
   return { x: center.x + spec.w / 2 + margin, z: center.z };
 }
 
-const sceneNpcHomes = {};
-for (const item of SCENE.items) {
-  if (item.typeId === 'npc' && item.props?.npcId) {
-    const [x, , z] = item.position;
-    sceneNpcHomes[item.props.npcId] = { x, z };
-  }
-}
-// Posição vem da cena do editor quando existir; o valor calculado é só um
-// fallback de segurança caso um NPC fique de fora da cena por engano.
-function npcHome(id, fallback) {
-  return sceneNpcHomes[id] ?? fallback;
-}
 
 const homeOperario = landmarkCenter('home_operario');
 const homeNobre = landmarkCenter('home_nobre');
 const jobMercado = landmarkCenter('job_mercado');
 const schoolCenter = landmarkCenter('school');
 
-export const NPC_DEFS = [
-  {
-    id: 'almeida',
-    name: 'Sr. Almeida',
-    color: 0x6b4f3a,
-    home: npcHome('almeida', { x: plaza.x - 6, z: plaza.z + 5 }),
-    wanderRadius: 4,
-    speed: 0,
-    prop: 'cart',
-  },
-  {
-    id: 'marina',
-    name: 'Marina',
-    color: 0x8a4b6b,
-    home: npcHome('marina', { x: parkA.x + 3, z: parkA.z - 4 }),
-    wanderRadius: 8,
-    speed: 1.1,
-    prop: null,
-  },
-  {
-    id: 'diego',
-    name: 'Diego',
-    color: 0x3a4a6b,
-    home: npcHome('diego', { x: plaza.x + 8, z: plaza.z - 7 }),
-    wanderRadius: 0,
-    speed: 0,
-    prop: 'phone',
-  },
-  {
-    id: 'busker',
-    name: 'Yara, a Musicista',
-    color: 0x2f6b4f,
-    home: npcHome('busker', { x: plaza.x, z: plaza.z + 10 }),
-    wanderRadius: 0,
-    speed: 0,
-    prop: 'guitar',
-  },
-  {
-    id: 'runner',
-    name: 'Caio',
-    color: 0x6b2f3a,
-    home: npcHome('runner', { x: parkB.x - 5, z: parkB.z + 6 }),
-    wanderRadius: 10,
-    speed: 2.6,
-    prop: null,
-  },
-  {
-    id: 'mae_operaria',
-    name: 'Dona Rosa',
-    color: 0x8a5a3a,
-    home: npcHome('mae_operaria', frontOf(homeOperario, 'home_operario', 3)),
-    wanderRadius: 2,
-    speed: 0,
-    prop: null,
-  },
-  {
-    id: 'seu_ivo',
-    name: 'Seu Ivo',
-    color: 0x4a6b3a,
-    home: npcHome('seu_ivo', frontOf(jobMercado, 'job_mercado', 3)),
-    wanderRadius: 1.5,
-    speed: 0.4,
-    prop: 'cart',
-  },
-  {
-    id: 'mae_nobre',
-    name: 'Dona Beatriz',
-    color: 0x6b3a5a,
-    home: npcHome('mae_nobre', frontOf(homeNobre, 'home_nobre', 3)),
-    wanderRadius: 2,
-    speed: 0,
-    prop: null,
-  },
-  {
-    id: 'professora',
-    name: 'Professora Elaine',
-    color: 0x3a5a6b,
-    home: npcHome('professora', frontOf(schoolCenter, 'school', 3)),
-    wanderRadius: 1.5,
-    speed: 0.3,
-    prop: null,
-  },
-];
+// Gente da cidade: cada peça "NPC" da cena diz quem é a pessoa (nome, cor,
+// se anda por aí, o que carrega) além de onde ela fica. Criar um NPC novo é
+// colocar a peça no editor e preencher os campos — sem passar por aqui.
+const PECAS_DE_NPC = SCENE.items.filter(item => item.typeId === 'npc' && item.props?.npcId);
+
+const numero = (v, padrao) => (Number.isFinite(v) ? v : padrao);
+
+export const NPC_DEFS = PECAS_DE_NPC.map(item => {
+  const p = item.props;
+  return {
+    id: p.npcId,
+    name: p.nome || p.npcId,
+    color: p.cor || '#6b4f3a',
+    sexo: p.sexo === 'f' ? 'f' : 'm',
+    home: { x: item.position[0], z: item.position[2] },
+    wanderRadius: numero(p.raio, 0),
+    speed: numero(p.velocidade, 0),
+    prop: p.objeto || null,
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Casa / Origem / Rotina — o núcleo do "life sim". Cada origem determina
@@ -593,10 +518,15 @@ export const LOADING_TIPS = [
 // ---------------------------------------------------------------------------
 export const RELATIONSHIP_MAX = 5;
 
-export const NPC_PROFILES = {
-  mae_operaria: { id: 'mae_operaria', name: 'Dona Rosa',   blurb: 'Família',                     role: 'Família',   place: 'Sua casa' },
-  marina:       { id: 'marina',       name: 'Marina',      blurb: 'Perdeu um livro no parque',   role: 'Conhecida', place: 'Parque Norte', quest: 'O Livro Esquecido' },
-  almeida:      { id: 'almeida',      name: 'Sr. Almeida', blurb: 'Vendedor ambulante na praça', role: 'Conhecido', place: 'Praça central' },
-  diego:        { id: 'diego',        name: 'Diego',       blurb: 'Não larga o celular',         role: 'Conhecido', place: 'Ponto de ônibus' },
-};
+// Diário › Pessoas: entra quem tem um resumo escrito na peça.
+export const NPC_PROFILES = Object.fromEntries(PECAS_DE_NPC
+  .filter(item => item.props.resumo)
+  .map(item => [item.props.npcId, {
+    id: item.props.npcId,
+    name: item.props.nome || item.props.npcId,
+    blurb: item.props.resumo,
+    role: item.props.papel || '',
+    place: item.props.lugar || '',
+    ...(item.props.missao ? { quest: item.props.missao } : {}),
+  }]));
 

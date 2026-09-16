@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { NPC_DEFS } from '../data.js';
+
 import * as SkeletonUtils from '../../vendor/jsm/utils/SkeletonUtils.js';
 import { construirPredioDaCidade } from '../cityLook.js';
 // Campos que valem pra qualquer peça vinda de .glb. Escrever um texto é o
@@ -59,8 +59,6 @@ export const TIPOS_QUE_O_JOGO_LE = new Set([
   'building', 'npc', 'fragment', 'tree', 'bench', 'lamp', 'spawn',
 ]);
 
-const NPC_COLOR_BY_ID = Object.fromEntries(NPC_DEFS.map(n => [n.id, n.color]));
-const NPC_NAME_BY_ID = Object.fromEntries(NPC_DEFS.map(n => [n.id, n.name]));
 
 export const PALETTE = [
   {
@@ -96,19 +94,42 @@ export const PALETTE = [
     key: '5', category: 'Personagens',
     name: 'NPC',
     footprint: { w: 1, d: 1 },
-    defaultProps: () => ({ npcId: NPC_DEFS[0].id }),
+    // Toda a pessoa mora na peça: criar gente nova é colocar esta peça e
+    // preencher os campos. O `npcId` é a chave que liga com a árvore de
+    // diálogo (dialogue-editor.html) e com as missões.
+    defaultProps: () => ({ npcId: 'pessoa_nova', nome: 'Pessoa nova', cor: '#6b4f3a', sexo: 'm', raio: 0, velocidade: 0 }),
     propFields: [
-      { key: 'npcId', label: 'Personagem', type: 'select', options: NPC_DEFS.map(n => ({ value: n.id, label: n.name })) },
+      { key: 'npcId', label: 'Id (liga com o diálogo)', type: 'text' },
+      { key: 'nome', label: 'Nome', type: 'text' },
+      { key: 'cor', label: 'Cor', type: 'color' },
+      {
+        key: 'sexo', label: 'Corpo', type: 'select',
+        options: [{ value: 'm', label: 'Masculino' }, { value: 'f', label: 'Feminino' }],
+      },
+      { key: 'raio', label: 'Anda até (m)', type: 'number', min: 0, max: 30, step: 0.5 },
+      { key: 'velocidade', label: 'Velocidade (m/s)', type: 'number', min: 0, max: 5, step: 0.1 },
+      {
+        key: 'objeto', label: 'Carrega', type: 'select',
+        options: [
+          { value: '', label: '— nada —' },
+          { value: 'phone', label: 'Celular' },
+          { value: 'guitar', label: 'Violão' },
+          { value: 'cart', label: 'Carrinho de ambulante' },
+        ],
+      },
+      { key: 'resumo', label: 'Resumo (Diário › Pessoas)', type: 'text' },
+      { key: 'papel', label: 'Papel (Família, Conhecido...)', type: 'text' },
+      { key: 'lugar', label: 'Onde encontrar', type: 'text' },
+      { key: 'missao', label: 'Missão ligada (opcional)', type: 'text' },
     ],
     build: (props) => {
-      const npcId = props?.npcId ?? NPC_DEFS[0].id;
+      const p = { npcId: 'pessoa_nova', nome: 'Pessoa nova', cor: '#6b4f3a', ...props };
       const g = new THREE.Group();
-      const color = NPC_COLOR_BY_ID[npcId] ?? 0x3f6fb0;
-      const body = box(0.5, 1.6, 0.3, color);
+      const body = box(0.5, 1.6, 0.3, p.cor || '#6b4f3a');
       body.position.y = 0.8;
       const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), new THREE.MeshStandardMaterial({ color: 0xe0b295 }));
       head.position.y = 1.75;
-      const sprite = labelSprite(NPC_NAME_BY_ID[npcId] ?? npcId);
+      const sprite = labelSprite(p.nome || p.npcId);
       sprite.position.y = 2.6;
       sprite.scale.set(3, 0.75, 1);
       g.add(body, head, sprite);

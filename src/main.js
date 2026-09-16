@@ -337,6 +337,7 @@ class Game {
     this.dialogue = new DialogueSystem(this.dialogueTrees, this.quests, {
       show: (text, options, npcName, delta) => this.ui.showDialogue(text, options, i => this.dialogue.choose(i), npcName, delta),
       hide: () => this.ui.hideDialogue(),
+      semDialogo: nome => this.ui.showToast(`${nome} ainda não tem o que dizer. Escreva a conversa no editor de diálogos.`),
     }, this.collectibles, this.inventory, this.needs, this.obligation, this.gameState, origin.id, this.profile.sex, this.world);
 
     // Celular: entrega a primeira mensagem e conduz o tutorial dos primeiros

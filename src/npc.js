@@ -10,10 +10,9 @@ for (const ob of Object.values(OBLIGATIONS)) {
   if (ob.npc) NPC_OBLIGATIONS[ob.npc] = ob;
 }
 
-const FEMALE_NPCS = new Set(['mae_operaria', 'mae_nobre', 'marina', 'busker', 'professora']);
 
 function buildNpcMesh(def) {
-  const variant = FEMALE_NPCS.has(def.id) ? 'female' : 'male';
+  const variant = def.sexo === 'f' ? 'female' : 'male';
   const built = buildHumanoid({ variant });
   const { group } = built;
 

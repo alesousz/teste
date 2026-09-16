@@ -164,6 +164,14 @@ export class DialogueSystem {
   }
 
   start(npcId, isNight, npc) {
+    // Pessoa criada no editor que ainda não tem árvore de diálogo: responde
+    // uma linha curta em vez de quebrar o jogo. A árvore é escrita depois, no
+    // dialogue-editor.html, com o mesmo id da peça.
+    if (!this.trees[npcId]) {
+      this.active = false;
+      this.ui.semDialogo?.(npc?.def?.name || npcId);
+      return;
+    }
     this._isNight = isNight;
     this.active = true;
     this.currentNpcId = npcId;
