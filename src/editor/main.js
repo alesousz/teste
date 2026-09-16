@@ -20,6 +20,7 @@ import {
 import { MODOS_PAREDE, ESCALA_PAREDE_BAIXA, ehParede, paredeRebaixada } from './paredes.js';
 import { criarCidadeDeFundo, TAMANHO_DA_CIDADE } from './cidadeDeFundo.js';
 import { textoDoScene } from '../data/formatoCena.js';
+import { publicarConteudo, abrirConfiguracao } from '../publicarUI.js';
 import { validarCena, CHAVE_CENA_EM_TESTE } from '../data/cenaEmTeste.js';
 
 const CHAVE_RASCUNHO = 'editor-rascunho';
@@ -1413,6 +1414,10 @@ class EditorApp {
     document.getElementById('btn-save-scene').onclick = () => this._saveScene();
     const baixar = document.getElementById('btn-baixar-scene');
     if (baixar) baixar.onclick = () => this._baixarScene();
+    const publicar = document.getElementById('btn-publicar');
+    if (publicar) publicar.onclick = () => this._publicarCena();
+    const config = document.getElementById('btn-config-publicar');
+    if (config) config.onclick = () => abrirConfiguracao();
     const viver = document.getElementById('btn-modo-viver');
     if (viver) viver.onclick = () => this._modoViver();
     // A câmera muda sem passar pelo histórico: guarda ao sair da página.
@@ -1532,6 +1537,23 @@ class EditorApp {
     }
     this._salvarRascunho();
     location.href = 'index.html?viver=1';
+  }
+
+  // Manda a cena pro repositório (ver publicar.js): vira um commit na branch
+  // configurada, sem baixar arquivo nem usar git.
+  async _publicarCena() {
+    const status = document.getElementById('publicar-status');
+    const avisar = (texto, ok) => {
+      if (!status) return;
+      status.hidden = false;
+      status.textContent = texto;
+      status.style.color = ok === false ? '#ffb4a8' : '#9fd0a8';
+    };
+    await publicarConteudo(
+      [{ caminho: 'src/data/scene.js', conteudo: textoDoScene(this._serializeScene()) }],
+      'Cena atualizada pelo editor de mapa',
+      avisar,
+    );
   }
 
   // Baixa o src/data/scene.js pronto: é só trocar o arquivo no projeto.

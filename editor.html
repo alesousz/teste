@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Editor de Cenas — Ferramenta Interna</title>
-  <link rel="stylesheet" href="editor-style.css?v=9" />
+  <link rel="stylesheet" href="editor-style.css?v=10" />
   <script type="importmap">
     {
       "imports": {
@@ -65,13 +65,16 @@
         <button id="btn-load-game-scene">Carregar cena atual do jogo</button>
         <button id="btn-export-scene">Exportar JSON</button>
         <button id="btn-baixar-scene" title="Baixa o src/data/scene.js pronto: troque o arquivo no projeto e faça o commit">Baixar scene.js</button>
+        <button id="btn-publicar" title="Envia a cena pro repositório, na branch configurada">Publicar no GitHub</button>
+        <button id="btn-config-publicar" title="Repositório, branch e token de publicação">⚙</button>
       </div>
+      <p id="publicar-status" class="hint" hidden></p>
       <div id="scene-list"></div>
       <textarea id="export-output" class="hidden" readonly></textarea>
       <p class="hint">Pressione Tab para fechar</p>
     </div>
   </div>
 
-  <script type="module" src="src/editor/main.js?v=20"></script>
+  <script type="module" src="src/editor/main.js?v=21"></script>
 </body>
 </html>

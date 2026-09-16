@@ -1,4 +1,5 @@
 import { NPC_DEFS, QUESTS, ITEM_DEFS } from '../data.js';
+import { publicarConteudo, abrirConfiguracao } from '../publicarUI.js';
 import {
   CONDITION_TYPES,
   SELECTABLE_CONDITION_TYPES,
@@ -133,6 +134,8 @@ export class DialogueEditorApp {
       botao.onclick = () => this._trocarAba(botao.dataset.aba);
     }
     document.getElementById('btn-baixar').onclick = () => this._baixarArquivo();
+    document.getElementById('btn-publicar').onclick = () => this._publicar();
+    document.getElementById('btn-config-publicar').onclick = () => abrirConfiguracao();
     document.getElementById('btn-add-quest').onclick = () => this._addQuest();
     document.getElementById('btn-add-objective').onclick = () => this._addObjective();
     document.getElementById('btn-delete-quest').onclick = () => this._deleteQuest();
@@ -285,6 +288,25 @@ export class DialogueEditorApp {
     document.getElementById('quest-editor-empty').classList.remove('hidden');
     document.getElementById('editing-quest-id').textContent = '—';
     this._renderQuestList();
+  }
+
+  // Manda diálogos e missões pro repositório de uma vez (ver publicar.js).
+  async _publicar() {
+    const status = document.getElementById('save-status');
+    const avisar = (texto, ok) => {
+      status.textContent = texto;
+      status.style.color = ok === false ? '#ffb4a8' : '#9fd0a8';
+      clearTimeout(this._statusTimer);
+      this._statusTimer = setTimeout(() => { status.textContent = ''; status.style.color = ''; }, 8000);
+    };
+    await publicarConteudo(
+      [
+        { caminho: 'src/data/dialogues.json', conteudo: `${JSON.stringify(this.trees, null, 2)}\n` },
+        { caminho: 'src/data/quests.json', conteudo: `${JSON.stringify(this.quests, null, 2)}\n` },
+      ],
+      'Diálogos e missões atualizados pelo editor de conteúdo',
+      avisar,
+    );
   }
 
   // Baixa o arquivo da aba aberta, pronto pra trocar no projeto.

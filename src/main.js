@@ -17,7 +17,7 @@ import { writeSave, clearSave, readSave, quarantineSave } from './save.js';
 import { SAVE_VERSION, SaveStatus, validateSave, saveErrorMessage } from './saveSchema.js';
 import { preloadCharacterAssets } from './assets.js';
 import { createTrainingDummy } from './combat.js';
-import { MODO_VIVER } from './data/cenaAtiva.js';
+import { MODO_VIVER, USANDO_RASCUNHO } from './data/cenaAtiva.js';
 
 class InputManager {
   constructor(canvas) {
@@ -135,7 +135,11 @@ class Game {
     await preloadCharacterAssets();
 
     this.ui.setLoadingProgress(0.5, 'Carregando diálogos');
-    this.dialogueTrees = await fetch('src/data/dialogues.json').then(r => r.json());
+    // Rascunho do editor de conteúdo nesta máquina vem antes do publicado: é
+    // o que deixa escrever a conversa e já testar no jogo, sem publicar.
+    const rascunhoDeDialogos = this._dialogosDoEditor();
+    this.dialogueTrees = rascunhoDeDialogos ?? await fetch('src/data/dialogues.json').then(r => r.json());
+    this.usandoRascunho = USANDO_RASCUNHO || !!rascunhoDeDialogos;
 
     this.ui.setLoadingProgress(0.8, 'Montando a cidade');
     this.npcs = createNpcs(this.scene, this.world);
@@ -144,6 +148,16 @@ class Game {
     this.ui.hideLoading();
     if (MODO_VIVER) this._iniciarModoViver();
     else this._showMenu();
+  }
+
+  _dialogosDoEditor() {
+    try {
+      const bruto = localStorage.getItem('dialogue-editor-draft');
+      const lido = bruto ? JSON.parse(bruto) : null;
+      return lido && typeof lido === 'object' && Object.keys(lido).length ? lido : null;
+    } catch {
+      return null;   // armazenamento bloqueado: joga com o publicado
+    }
   }
 
   // Modo Viver (editor.html → "▶ Modo Viver"): entra direto na cena do
@@ -397,6 +411,11 @@ class Game {
     }
     // No Modo Viver o tutorial do celular só atrapalharia o teste da cena.
     if (!this.modoViver) this.phone.startParentsConversation();
+    // Quem está jogando com rascunho precisa saber: o que ele vê não é o que
+    // está publicado (e ninguém mais vê isso ainda).
+    if (this.usandoRascunho && !this.modoViver) {
+      this.ui.showToast('Jogando com os rascunhos dos seus editores — publique pra valer pra todo mundo.');
+    }
     this.player.snapCamera();
     this._lastDayCount = this.world.dayCount;
     this._saveState = { status: SaveStatus.OK };

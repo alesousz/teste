@@ -5,9 +5,25 @@
 import { CENA as SCENE } from './data/cenaAtiva.js';
 // Missões: dado de conteúdo, escrito no editor de diálogos (aba Missões)
 // e gravado em src/data/quests.json — não se mexe em código pra criar uma.
-import QUESTS from './data/quests.json' with { type: 'json' };
+import MISSOES_PUBLICADAS from './data/quests.json' with { type: 'json' };
 
-export { QUESTS };
+// Rascunho do editor de conteúdo nesta máquina: escreveu a missão, abriu o
+// jogo, ela já está lá. Quem não tem rascunho (outra máquina, o site) joga
+// com o que está publicado em quests.json.
+function missoesDoEditor() {
+  if (typeof location === 'undefined') return null;   // testes em Node
+  try {
+    const bruto = localStorage.getItem('quest-editor-draft');
+    const lido = bruto ? JSON.parse(bruto) : null;
+    if (!lido || typeof lido !== 'object') return null;
+    const validas = Object.entries(lido).filter(([id, q]) => q?.id === id && Array.isArray(q.objectives) && q.objectives.length);
+    return validas.length ? Object.fromEntries(validas) : null;
+  } catch {
+    return null;
+  }
+}
+
+export const QUESTS = missoesDoEditor() ?? MISSOES_PUBLICADAS;
 
 export const CONFIG = {
   GRID_SIZE: 5,
