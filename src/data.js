@@ -112,6 +112,16 @@ for (const item of SCENE.items) {
   }
 }
 
+// Onde o jogador acorda numa partida nova: a peça "Início do jogo" da cena.
+// Sem ela, vale o quarto do prédio em código (World.interior.spawn).
+const pecaDeInicio = SCENE.items.find(item => item.typeId === 'spawn');
+export const SPAWN_DA_CENA = pecaDeInicio
+  ? {
+    x: pecaDeInicio.position[0], y: pecaDeInicio.position[1], z: pecaDeInicio.position[2],
+    facing: Number.isFinite(pecaDeInicio.rotY) ? pecaDeInicio.rotY : 0,
+  }
+  : null;
+
 function isSpecial(ix, iz) {
   if (ix === PLAZA.ix && iz === PLAZA.iz) return 'plaza';
   if (ix === HOME_BLOCK.ix && iz === HOME_BLOCK.iz) return 'predio_inicial';

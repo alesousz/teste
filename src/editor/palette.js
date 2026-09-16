@@ -2,6 +2,18 @@ import * as THREE from 'three';
 import { NPC_DEFS } from '../data.js';
 import * as SkeletonUtils from '../../vendor/jsm/utils/SkeletonUtils.js';
 import { construirPredioDaCidade } from '../cityLook.js';
+import { OBSERVACOES } from '../data/observacoes.js';
+
+// Campos que valem pra qualquer peça vinda de .glb: fazer o móvel responder
+// ao E, dar nome ao prompt e, nas portas, o id que o roteiro do jogo procura.
+const CAMPOS_DE_CENA = papel => [
+  {
+    key: 'interacao', label: 'Interação (E)', type: 'select',
+    options: [{ value: '', label: '— nenhuma —' }, ...Object.keys(OBSERVACOES).map(id => ({ value: id, label: id.replace(/_/g, ' ') }))],
+  },
+  { key: 'rotulo', label: 'Nome no prompt', type: 'text' },
+  ...(papel === 'porta' ? [{ key: 'portaId', label: 'Id da porta (roteiro)', type: 'text' }] : []),
+];
 
 // Paleta de itens do editor — agora usando as peças reais do jogo (marcos,
 // NPCs de verdade) em vez de placeholders genéricos, pra o que você desenha
@@ -48,7 +60,7 @@ function buildLandmark(w, d, h, color, roofColor, label) {
 // por World._buildSceneModels, com altura e giro.
 export const TIPOS_QUE_O_JOGO_LE = new Set([
   'landmark_home_operario', 'landmark_home_nobre', 'landmark_job_mercado', 'landmark_school',
-  'building', 'npc', 'fragment', 'tree', 'bench', 'lamp',
+  'building', 'npc', 'fragment', 'tree', 'bench', 'lamp', 'spawn',
 ]);
 
 const NPC_COLOR_BY_ID = Object.fromEntries(NPC_DEFS.map(n => [n.id, n.color]));
@@ -179,6 +191,33 @@ export const PALETTE = [
     },
   },
   {
+    // Onde o jogador acorda numa partida nova. Só existe no editor: no jogo
+    // é lido de data.js e some da cena.
+    id: 'spawn',
+    key: '-', category: 'Estruturas',
+    name: 'Início do jogo',
+    footprint: { w: 1, d: 1 },
+    build: () => {
+      const g = new THREE.Group();
+      const base = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.45, 0.45, 0.05, 20),
+        new THREE.MeshStandardMaterial({ color: 0x4ec9b0, emissive: 0x1d6b5e, emissiveIntensity: 0.6 }),
+      );
+      base.position.y = 0.03;
+      // Seta apontando pro lado pra onde o jogador vai estar olhando (-z local).
+      const seta = new THREE.Mesh(
+        new THREE.ConeGeometry(0.22, 0.6, 4),
+        new THREE.MeshStandardMaterial({ color: 0x4ec9b0, emissive: 0x1d6b5e, emissiveIntensity: 0.6 }),
+      );
+      seta.position.set(0, 0.35, -0.5);
+      seta.rotation.x = -Math.PI / 2;
+      g.add(base, seta, labelSprite('INÍCIO'));
+      g.children[2].position.y = 1.6;
+      g.children[2].scale.set(2.4, 0.6, 1);
+      return g;
+    },
+  },
+  {
     id: 'fragment',
     key: '0', category: 'Itens',
     name: 'Fragmento',
@@ -253,6 +292,9 @@ export function addDynamicProps(gltfScene, {
         name: nomeLimpo,
         footprint: { w: Math.max(1, Math.ceil(w)), d: Math.max(1, Math.ceil(d)) },
         sobreposicaoLivre,
+        // Sem defaultProps de propósito: peça sem nada configurado vai pra
+        // cena sem `props`, e o scene.js não enche de campos vazios.
+        propFields: CAMPOS_DE_CENA(papel),
         modelo: url
           ? {
             url, no: variasPecas ? child.name : null, escala,

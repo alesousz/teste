@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import { CONFIG, ORIGINS, COURSES, HOMES, OBLIGATIONS, ITEM_DEFS } from './data.js';
+import { CONFIG, ORIGINS, COURSES, HOMES, OBLIGATIONS, ITEM_DEFS, SPAWN_DA_CENA } from './data.js';
 import { World } from './world.js';
 import { abrirPorta } from './building.js';
 import { Phone, PHONE_DEFAULT_KEY } from './phone.js';
 import { RenderPipeline } from './render.js';
 import { PostFX, rendererEhSoftware } from './postfx.js';
-import { OBSERVACOES } from './data/apartment.js';
+import { OBSERVACOES } from './data/observacoes.js';
 import { Player } from './player.js';
 import { createNpcs } from './npc.js';
 import { QuestSystem, DialogueSystem } from './interactions.js';
@@ -389,8 +389,9 @@ class Game {
       this.player.camYaw = Math.PI;
     } else {
       // Partida nova começa DENTRO do apartamento, no quarto — é o ponto de
-      // partida dos primeiros minutos.
-      const s = this.world.interior.spawn;
+      // partida dos primeiros minutos. A cena manda (peça "Início do jogo");
+      // sem ela, vale o quarto do prédio em código.
+      const s = SPAWN_DA_CENA ?? this.world.interior.spawn;
       this.player.position.set(s.x, s.y, s.z);
       this.player.facingAngle = s.facing;
       this.player.camYaw = s.facing;

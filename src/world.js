@@ -32,6 +32,10 @@ export class World {
     // escadas que sustentam o jogador, portas que abrem com E.
     this.superficiesKit = [];
     this.portasKit = [];
+    // Móveis da cena com `props.interacao` (ver data/observacoes.js) e as
+    // luzes de teto que vêm com a cena.
+    this.homeAnchors = [];
+    this.luzesDaCena = [];
     this._buildGround();
     this._buildBlocks();
     this._buildProps();
@@ -232,8 +236,10 @@ export class World {
           obj.scale.copy(origem.scale).multiplyScalar(c.escala);
           obj.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
           this.scene.add(obj);
-          // Escada não colide pelas laterais: quem manda nela é a rampa.
-          const colisores = c.papel === 'escada' ? [] : this._colisoresDe(obj, url, c).map(s => ({ ...s, nome: c.typeId }));
+          // Escada não colide pelas laterais (quem manda nela é a rampa) e
+          // lustre pendurado não colide com nada.
+          const semColisao = c.papel === 'escada' || c.papel === 'luz';
+          const colisores = semColisao ? [] : this._colisoresDe(obj, url, c).map(s => ({ ...s, nome: c.typeId }));
           this.objetosSolidos.push(...colisores);
           const onde = { x: c.position[0], y: c.position[1], z: c.position[2], rotY: c.rotY };
           if (c.papel === 'piso' || c.papel === 'escada') {
@@ -241,7 +247,10 @@ export class World {
             if (caixa) this.superficiesKit.push(c.papel === 'piso' ? pisoDoKit(caixa, onde) : escadaDoKit(caixa, onde));
           } else if (c.papel === 'porta') {
             this._registrarPortaKit(obj, gltf, url, c, colisores);
+          } else if (c.papel === 'luz') {
+            this._registrarLuzDaCena(obj, c);
           }
+          if (c.interacao) this._registrarInteracao(obj, url, c);
         }
         // Materiais novos nascem com o ambiente cheio; o loop redosa.
         this.homeMaterialsDirty = true;
@@ -331,6 +340,34 @@ export class World {
     return caixa;
   }
 
+  // Lustre/plafon da cena: acende o cômodo em volta. Sem sombra de propósito
+  // — cada luz pontual com sombra custa seis mapas, e um prédio tem várias.
+  _registrarLuzDaCena(obj, c) {
+    const luz = new THREE.PointLight(0xffe6c0, 0.9, 9, 2);
+    luz.position.set(0, -0.35, 0);   // logo abaixo do modelo, que pende do teto
+    luz.castShadow = false;
+    obj.add(luz);
+    this.luzesDaCena.push(luz);
+  }
+
+  // Móvel que responde ao E: o ponto de interação é o centro da peça, e o
+  // texto vem de data/observacoes.js pelo id em `props.interacao`.
+  _registrarInteracao(obj, url, c) {
+    const caixa = this._caixaLocal(obj, url, c);
+    const lx = caixa ? (caixa.x0 + caixa.x1) / 2 : 0;
+    const lz = caixa ? (caixa.z0 + caixa.z1) / 2 : 0;
+    const cos = Math.cos(c.rotY);
+    const sin = Math.sin(c.rotY);
+    this.homeAnchors.push({
+      id: c.interacao,
+      label: c.rotulo ?? c.typeId.replace(/_/g, ' '),
+      x: c.position[0] + lx * cos + lz * sin,
+      y: c.position[1] + (caixa ? caixa.y1 : 0),
+      z: c.position[2] - lx * sin + lz * cos,
+      nivelY: c.position[1],
+    });
+  }
+
   // Porta de kit: abre e fecha com a tecla de interagir, tocando as animações
   // que vêm no modelo (`door|door|open` / `door|door|close` e as da maçaneta,
   // no Building Kit da Kenney). Aberta, a folha deixa de colidir.
@@ -358,7 +395,13 @@ export class World {
     const cos = Math.cos(c.rotY);
     const sin = Math.sin(c.rotY);
     const porta = {
-      def: { id: `kit-porta-${this.portasKit.length}`, label: 'Porta', locked: false },
+      // `portaId` e `rotulo` vêm da peça na cena: é assim que o roteiro do
+      // jogo acha a porta do apartamento e a do prédio.
+      def: {
+        id: c.portaId ?? `kit-porta-${this.portasKit.length}`,
+        label: c.rotulo ?? 'Porta',
+        locked: false,
+      },
       aberta: false,
       mundo: { x: c.position[0] + lx * cos + lz * sin, y: c.position[1], z: c.position[2] - lx * sin + lz * cos },
       mixer,
@@ -516,11 +559,11 @@ export class World {
     // o loop precisa redosar o interior quando eles entram.
     carregarModelosMoveis(props.group, apartmentBoxes(), loadGLTF)
       .then(n => { if (n > 0) this.homeMaterialsDirty = true; });
-    this.homeAnchors = props.anchors.map(a => ({
+    this.homeAnchors.push(...props.anchors.map(a => ({
       ...a,
       x: a.x + this.interior.origin.x,
       z: a.z + this.interior.origin.z,
-    }));
+    })));
 
     this._buildHomeLights(group);
     this.scene.add(group);
@@ -611,7 +654,9 @@ export class World {
     let melhor = null;
     let menor = maxDist;
     for (const a of this.homeAnchors) {
-      if (Math.abs(pos.y - (a.y > 3 ? 3.2 : 0)) > 1.6) continue;
+      // Filtro por pavimento: `nivelY` é o piso em que o móvel está (peças da
+      // cena trazem o seu); o prédio em código só tem térreo e 2º andar.
+      if (Math.abs(pos.y - (a.nivelY ?? (a.y > 3 ? 3.2 : 0))) > 1.6) continue;
       const d = Math.hypot(pos.x - a.x, pos.z - a.z);
       if (d < menor) { menor = d; melhor = a; }
     }

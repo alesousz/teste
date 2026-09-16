@@ -3,6 +3,9 @@
   "licenca": "CC0",
   "categoria": "Interior",
   "escala": 0.5,
+  "papeis": {
+    "^(Light_Ceiling|Light_Chandelier|Ceiling_Light)": "luz"
+  },
   "modelos": [
     "Bathroom_Sink.glb",
     "Bathroom_Toilet_Paper.glb",

@@ -15,9 +15,22 @@ const PREFIXO = 'assets/props/';
  * Papel de uma peça de kit de construção, vindo do índice do pacote:
  *   piso   — sustenta o jogador e é teto pra quem está embaixo;
  *   escada — rampa do chão ao topo, sem colisão lateral;
- *   porta  — abre e fecha com a tecla de interagir.
+ *   porta  — abre e fecha com a tecla de interagir;
+ *   luz    — lustre/plafon: acende o ambiente em volta.
  */
-export const PAPEIS = ['piso', 'escada', 'porta'];
+export const PAPEIS = ['piso', 'escada', 'porta', 'luz'];
+
+// Propriedades da PEÇA (não do modelo) que o jogo usa, definidas no editor:
+//   interacao — id em data/observacoes.js: o objeto passa a responder ao E;
+//   rotulo    — o nome que aparece no prompt ("Porta do 101", "Geladeira");
+//   portaId   — nome fixo de uma porta, pro roteiro do jogo achar ela.
+const TEXTO = (v, max) => v === undefined || (typeof v === 'string' && v.length <= max);
+
+function propsValidas(props) {
+  if (props === undefined || props === null) return true;
+  if (typeof props !== 'object' || Array.isArray(props)) return false;
+  return TEXTO(props.interacao, 60) && TEXTO(props.rotulo, 60) && TEXTO(props.portaId, 60);
+}
 
 function modeloValido(item) {
   const m = item.modelo;
@@ -28,6 +41,7 @@ function modeloValido(item) {
     && (m.colisao === undefined || typeof m.colisao === 'boolean')
     && (m.papel === undefined || PAPEIS.includes(m.papel))
     && Number.isFinite(escala) && escala > 0
+    && propsValidas(item.props)
     && Array.isArray(item.position) && item.position.length === 3 && item.position.every(Number.isFinite);
 }
 
@@ -56,6 +70,9 @@ export function modelosDaCena(itens) {
       // Só quando o pacote forçou: sem isso vale a regra automática.
       ...(typeof colisao === 'boolean' ? { colisao } : {}),
       ...(papel ? { papel } : {}),
+      ...(item.props?.interacao ? { interacao: item.props.interacao } : {}),
+      ...(item.props?.rotulo ? { rotulo: item.props.rotulo } : {}),
+      ...(item.props?.portaId ? { portaId: item.props.portaId } : {}),
     });
   }
   return { porArquivo, invalidos };
