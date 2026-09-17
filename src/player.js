@@ -1,11 +1,14 @@
 import * as THREE from 'three';
-import { CONFIG } from './data.js';
+import { CONFIG, clipesDoPersonagem } from './data.js';
 import { buildHumanoid } from './characterModel.js';
 
 export class Player {
-  constructor(scene, world, variant = 'male') {
+  // `conjunto` é o id do conjunto de animação (aba Animações). Vazio usa o
+  // padrão; um efeito de diálogo ou missão pode trocar depois, em jogo.
+  constructor(scene, world, variant = 'male', conjunto = null) {
     this.world = world;
-    const built = buildHumanoid({ variant });
+    this.conjunto = conjunto;
+    const built = buildHumanoid({ variant, clipes: clipesDoPersonagem(conjunto) });
     this.mesh = built.group;
     this.rig = built;
     scene.add(this.mesh);
@@ -41,6 +44,12 @@ export class Player {
 
   snapCamera() {
     this._updateCamera();
+  }
+
+  /** Troca o conjunto de animação em jogo — igual ao dos NPCs. */
+  trocarAnimacoes(id) {
+    this.conjunto = id;
+    return this.rig.trocarConjunto(clipesDoPersonagem(id));
   }
 
   applyCameraInput(dx, dy) {

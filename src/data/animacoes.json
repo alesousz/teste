@@ -1,0 +1,62 @@
+{
+  "padrao": "normal",
+  "conjuntos": {
+    "normal": {
+      "id": "normal",
+      "label": "Normal",
+      "estados": {
+        "idle": "Idle_Loop",
+        "walk": "Walk_Loop",
+        "run": "Sprint_Loop",
+        "talk": "Idle_Talking_Loop",
+        "jump": "Jump_Loop",
+        "crouchIdle": "Crouch_Idle_Loop",
+        "crouchWalk": "Crouch_Fwd_Loop"
+      },
+      "gestos": {
+        "attack": "Punch_Jab",
+        "attackCross": "Punch_Cross",
+        "hit": "Hit_Chest",
+        "dodge": "Roll"
+      }
+    },
+    "formal": {
+      "id": "formal",
+      "label": "Formal (empertigado)",
+      "estados": {
+        "idle": "Idle_Loop",
+        "walk": "Walk_Formal_Loop",
+        "run": "Jog_Fwd_Loop",
+        "talk": "Idle_Talking_Loop",
+        "jump": "Jump_Loop",
+        "crouchIdle": "Crouch_Idle_Loop",
+        "crouchWalk": "Crouch_Fwd_Loop"
+      },
+      "gestos": {
+        "attack": "Punch_Jab",
+        "attackCross": "Punch_Cross",
+        "hit": "Hit_Chest",
+        "dodge": "Roll"
+      }
+    },
+    "apressado": {
+      "id": "apressado",
+      "label": "Apressado (trotando)",
+      "estados": {
+        "idle": "Idle_Loop",
+        "walk": "Jog_Fwd_Loop",
+        "run": "Sprint_Loop",
+        "talk": "Idle_Talking_Loop",
+        "jump": "Jump_Loop",
+        "crouchIdle": "Crouch_Idle_Loop",
+        "crouchWalk": "Crouch_Fwd_Loop"
+      },
+      "gestos": {
+        "attack": "Punch_Jab",
+        "attackCross": "Punch_Cross",
+        "hit": "Hit_Chest",
+        "dodge": "Roll"
+      }
+    }
+  }
+}

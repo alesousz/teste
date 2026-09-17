@@ -2,7 +2,8 @@ import * as THREE from 'three';
 
 import * as SkeletonUtils from '../../vendor/jsm/utils/SkeletonUtils.js';
 import { construirPredioDaCidade } from '../cityLook.js';
-import { ITEM_DEFS } from '../data.js';
+import { ITEM_DEFS, ANIMACOES } from '../data.js';
+import { opcoesDeConjunto } from '../animacoes.js';
 import { MARCOS_PADRAO, TIPO_ANTIGO, TIPO_DE_MARCO, LIMITES_DO_MARCO } from '../marcos.js';
 // Campos que valem pra qualquer peça vinda de .glb. Escrever um texto é o
 // que faz o objeto responder ao E no jogo: o conteúdo mora na cena, não no
@@ -117,6 +118,12 @@ export const PALETTE = [
       },
       { key: 'raio', label: 'Anda até (m)', type: 'number', min: 0, max: 30, step: 0.5 },
       { key: 'velocidade', label: 'Velocidade (m/s)', type: 'number', min: 0, max: 5, step: 0.1 },
+      {
+        // Os conjuntos são montados na aba Animações do editor de conteúdo;
+        // aqui só se escolhe qual deles esta pessoa usa.
+        key: 'animacoes', label: 'Jeito de se mexer', type: 'select',
+        options: [{ value: '', label: `— padrão (${ANIMACOES.padrao}) —` }, ...opcoesDeConjunto(ANIMACOES)],
+      },
       {
         key: 'objeto', label: 'Carrega', type: 'select',
         options: [

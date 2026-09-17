@@ -225,6 +225,15 @@ export class DialogueSystem {
     if (effect.type === 'changeRelationship') {
       this._lastDelta = this.gameState.changeRelationship(effect.npc, effect.amount, effect.note, this.world);
     }
+    // Daqui em diante a pessoa se mexe de outro jeito. Sem `npc` escrito, é
+    // com quem está falando. Guardar no gameState é o que faz a mudança
+    // sobreviver ao save; `trocarAnimacoes` é quem mexe no boneco em cena e
+    // vem de fora (main.js), porque o diálogo não conhece os NPCs.
+    if (effect.type === 'setAnimationSet') {
+      const quem = effect.npc || this.currentNpcId;
+      this.gameState.setAnimacoes(quem, effect.set);
+      this.trocarAnimacoes?.(quem, effect.set);
+    }
   }
 
   close() {

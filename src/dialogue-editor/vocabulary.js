@@ -41,6 +41,9 @@ export const EFFECT_TYPES = [
   { type: 'setFlag', label: 'Gravar marco da história (flag)', fields: ['flag', 'value'], defaults: { value: true } },
   // amount sem valor viraria `rel += undefined` → NaN no save do jogador.
   { type: 'changeRelationship', label: 'Mudar relacionamento com um NPC', fields: ['npc', 'amount', 'note'], defaults: { amount: 1 } },
+  // Daqui em diante a pessoa se mexe de outro jeito — o conjunto vem da aba
+  // Animações. Sem `npc`, vale pra quem está falando.
+  { type: 'setAnimationSet', label: 'Trocar animações do personagem', fields: ['npc', 'set'] },
 ];
 
 // Os seis operadores de DialogueSystem._compareRelationship. Qualquer outro faz

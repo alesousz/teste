@@ -13,8 +13,12 @@ import ROTINA_PUBLICADA from './data/routine.json' with { type: 'json' };
 // Regras do mundo (dia, corpo, câmera, alcance, pulo, briga): mesmo caminho,
 // escrito na aba Regras do editor de conteúdo.
 import REGRAS_PUBLICADAS from './data/regras.json' with { type: 'json' };
+// Conjuntos de animacao: quais clipes cada personagem usa pra andar, falar,
+// socar. Escrito na aba Animacoes do editor de conteudo.
+import ANIMACOES_PUBLICADAS from './data/animacoes.json' with { type: 'json' };
 import { normalizarRotina, resolverLocal, janelasPorNpc, serveComoRotina, validarRotina } from './rotina.js';
 import { MALHA_DO_GERADOR, normalizarRegras, serveComoRegras, validarRegras } from './regras.js';
+import { normalizarAnimacoes, serveComoAnimacoes, validarAnimacoes, clipesDoConjunto } from './animacoes.js';
 import { marcosDaCena, problemasDosMarcos } from './marcos.js';
 
 /**
@@ -260,6 +264,14 @@ const [parkA, parkB] = CITY.parkCenters;
 // Gente da cidade: cada peça "NPC" da cena diz quem é a pessoa (nome, cor,
 // se anda por aí, o que carrega) além de onde ela fica. Criar um NPC novo é
 // colocar a peça no editor e preencher os campos — sem passar por aqui.
+// Conjuntos de animacao, antes dos NPCs: cada peca de NPC aponta pra um deles.
+const animacoesEscritas = rascunhoDeConteudo('animacoes-editor-draft', serveComoAnimacoes);
+const ANIMACOES_EM_USO = animacoesEscritas ?? ANIMACOES_PUBLICADAS;
+export const ANIMACOES_SAO_RASCUNHO = !!animacoesEscritas;
+export const ANIMACOES = normalizarAnimacoes(ANIMACOES_EM_USO);
+/** Os clipes que um personagem vai usar, ja com o padrao no lugar do que faltar. */
+export const clipesDoPersonagem = id => clipesDoConjunto(ANIMACOES, id);
+
 const PECAS_DE_NPC = SCENE.items.filter(item => item.typeId === 'npc' && item.props?.npcId);
 
 const numero = (v, padrao) => (Number.isFinite(v) ? v : padrao);
@@ -275,8 +287,25 @@ export const NPC_DEFS = PECAS_DE_NPC.map(item => {
     wanderRadius: numero(p.raio, 0),
     speed: numero(p.velocidade, 0),
     prop: p.objeto || null,
+    animacoes: p.animacoes || ANIMACOES.padrao,
   };
 });
+
+/** Quem cita cada conjunto de animação, pra conferência apontar o dono. */
+export function usoDosConjuntos(npcs = NPC_DEFS) {
+  const usados = new Map();
+  for (const npc of npcs) {
+    if (!npc.animacoes) continue;
+    if (!usados.has(npc.animacoes)) usados.set(npc.animacoes, []);
+    usados.get(npc.animacoes).push(npc.name || npc.id);
+  }
+  return usados;
+}
+
+// O jogo confere só o que ele enxerga (os personagens da cena); o editor
+// confere também diálogos e missões, e só lá faz sentido avisar sobre
+// conjunto que ninguém usa.
+export const ANIMACOES_PROBLEMAS = validarAnimacoes(ANIMACOES_EM_USO, { usados: usoDosConjuntos() });
 
 // ---------------------------------------------------------------------------
 // Casa / Origem / Rotina - o nucleo do "life sim": qual compromisso o

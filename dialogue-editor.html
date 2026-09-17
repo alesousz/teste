@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Editor de Diálogos — Ecos da Cidade</title>
   <link rel="stylesheet" href="dialogue-editor-style.css" />
+  <!-- A aba Animações mostra o boneco de verdade fazendo o clipe escolhido,
+       então esta página também carrega o three. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.module.js"
+      }
+    }
+  </script>
 </head>
 <body>
   <header id="topbar">
@@ -15,6 +24,7 @@
       <button class="aba" data-aba="itens">Itens</button>
       <button class="aba" data-aba="rotina">Rotina</button>
       <button class="aba" data-aba="regras">Regras</button>
+      <button class="aba" data-aba="animacoes">Animações</button>
     </nav>
     <div id="topbar-actions">
       <span id="save-status"></span>
@@ -191,6 +201,47 @@
       <h2>Conferência</h2>
       <p class="hint">Roda a cada tecla. Erro em vermelho deixa o jogo impossível de jogar como está escrito; aviso em amarelo funciona, mas provavelmente não é o que você queria. Clique pra ir até o campo.</p>
       <div id="regras-problemas"></div>
+    </aside>
+  </div>
+
+  <div id="layout-animacoes" class="hidden">
+    <aside id="animacoes-panel">
+      <h2>Conjuntos</h2>
+      <p class="hint">Um conjunto é um jeito inteiro de se mexer: parado, andando, correndo, conversando, socando. Cada personagem aponta pra um, e um diálogo pode trocar o conjunto dele no meio da história.</p>
+      <div id="animacoes-lista"></div>
+      <button class="btn-secondary" id="btn-novo-conjunto">+ Novo conjunto</button>
+
+      <h3>Quem usa este</h3>
+      <div id="animacoes-uso"></div>
+
+      <h3>Conferência</h3>
+      <p class="hint">Roda a cada mudança. Clique pra ir até o problema.</p>
+      <div id="animacoes-problemas"></div>
+    </aside>
+
+    <section id="animacoes-editor-panel">
+      <h2>Editando: <span id="editing-animacao-id">—</span></h2>
+      <div id="animacoes-editor-body"></div>
+    </section>
+
+    <aside id="animacoes-previa-panel">
+      <!-- A prévia fica presa no topo: a lista de animações é longa, e clicar
+           num clipe lá embaixo não pode tirar o boneco da tela. -->
+      <div id="animacoes-previa-topo">
+        <canvas id="animacoes-previa"></canvas>
+        <div id="animacoes-previa-corpo">
+          <select id="animacoes-variante" title="Corpo do boneco da prévia">
+            <option value="male">Corpo masculino</option>
+            <option value="female">Corpo feminino</option>
+          </select>
+        </div>
+        <p class="hint" id="animacoes-previa-info">Clique numa animação da lista pra ver o boneco fazer.</p>
+        <button id="btn-usar-clipe" disabled>Escolha uma animação e um campo</button>
+      </div>
+      <div id="animacoes-biblioteca-rolagem">
+        <h3>Animações do pacote</h3>
+        <div id="animacoes-biblioteca"></div>
+      </div>
     </aside>
   </div>
 

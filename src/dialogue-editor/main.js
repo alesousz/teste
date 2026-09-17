@@ -1,8 +1,10 @@
 import { NPC_DEFS, QUESTS, ITEM_DEFS, MARCOS_DA_CENA, LANDMARK_SPECS } from '../data.js';
 import { AbaRotina } from './rotinaAba.js';
 import { AbaRegras } from './regrasAba.js';
+import { AbaAnimacoes } from './animacoesAba.js';
 import { errosDaRotina } from '../rotina.js';
 import { errosDasRegras } from '../regras.js';
+import { errosDasAnimacoes, opcoesDeConjunto } from '../animacoes.js';
 import { publicarConteudo, abrirConfiguracao } from '../publicarUI.js';
 import {
   CONDITION_TYPES,
@@ -27,6 +29,7 @@ const DRAFT_KEY_MISSOES = 'quest-editor-draft';
 const DRAFT_KEY_ITENS = 'item-editor-draft';
 const DRAFT_KEY_ROTINA = 'routine-editor-draft';
 const DRAFT_KEY_REGRAS = 'rules-editor-draft';
+const DRAFT_KEY_ANIMACOES = 'animacoes-editor-draft';
 
 // Tipo padrão de uma condição recém-criada.
 const DEFAULT_CONDITION_TYPE = SELECTABLE_CONDITION_TYPES[0].type;
@@ -81,6 +84,10 @@ export class DialogueEditorApp {
     // Aba Regras: os números do mundo. O formulário inteiro sai do ESQUEMA
     // de regras.js, então esta aba não precisa saber nada sobre a cena.
     this.regras = new AbaRegras({ aoSalvar: dados => this._persistRegras(dados) });
+    // Aba Animações: os conjuntos de clipes. A prévia 3D entra depois, na
+    // primeira vez que a aba abre (ver _abrirPrevia) — carregar o three e os
+    // personagens só pra quem nunca abre a aba seria desperdício.
+    this.animacoes = new AbaAnimacoes({ npcs: NPC_DEFS, aoSalvar: dados => this._persistAnimacoes(dados) });
     this.aba = 'dialogos';
 
     this._bindStaticEvents();
@@ -107,6 +114,9 @@ export class DialogueEditorApp {
     this.rotina.ligarBotoes();
 
     this.regras.definir(this._lerRascunho(DRAFT_KEY_REGRAS) ?? await (await fetch('src/data/regras.json')).json());
+
+    this.animacoes.definir(this._lerRascunho(DRAFT_KEY_ANIMACOES) ?? await (await fetch('src/data/animacoes.json')).json());
+    this.animacoes.ligarBotoes();
   }
 
   _lerRascunho(chave) {
@@ -154,12 +164,61 @@ export class DialogueEditorApp {
     this._avisarSalvo();
   }
 
+  _persistAnimacoes(dados) {
+    localStorage.setItem(DRAFT_KEY_ANIMACOES, JSON.stringify(dados));
+    this._avisarSalvo();
+  }
+
+  /** Os conjuntos de animação que existem agora, pro select do efeito. */
+  _opcoesDeAnimacao() {
+    return opcoesDeConjunto(this.animacoes?.animacoes);
+  }
+
+  /**
+   * Monta a prévia 3D na primeira vez que a aba Animações abre. O módulo da
+   * prévia é o único que puxa o three nesta página, por isso entra por
+   * import dinâmico.
+   */
+  async _abrirPrevia() {
+    if (this._previaPedida) return;
+    this._previaPedida = true;
+    const canvas = document.getElementById('animacoes-previa');
+    if (!canvas) return;
+    try {
+      const { criarPrevia } = await import('./previaDeAnimacao.js');
+      const previa = await criarPrevia(canvas);
+      this.animacoes.definirPrevia(previa);
+      const variante = document.getElementById('animacoes-variante');
+      if (variante) variante.onchange = () => previa.definirVariante(variante.value);
+      // Arrastar no canvas gira o boneco: dá pra ver o gesto de lado.
+      let arrastando = null;
+      canvas.addEventListener('pointerdown', e => { arrastando = e.clientX; canvas.setPointerCapture(e.pointerId); });
+      canvas.addEventListener('pointermove', e => {
+        if (arrastando === null) return;
+        previa.girar((e.clientX - arrastando) * 0.01);
+        arrastando = e.clientX;
+      });
+      canvas.addEventListener('pointerup', e => { arrastando = null; canvas.releasePointerCapture(e.pointerId); });
+    } catch (e) {
+      const info = document.getElementById('animacoes-previa-info');
+      if (info) info.textContent = 'A prévia não carregou nesta máquina. Os conjuntos continuam funcionando; só não dá pra ver o boneco aqui.';
+      console.error('prévia de animação:', e);
+    }
+  }
+
   async _loadFromGameData(confirmFirst = true) {
     if (this.aba === 'rotina') {
       if (!confirm('Isso substitui o rascunho da rotina pela que está hoje no jogo. Continuar?')) return;
       const dados = await (await fetch('src/data/routine.json')).json();
       this.rotina.definir(dados);
       this._persistRotina(dados);
+      return;
+    }
+    if (this.aba === 'animacoes') {
+      if (!confirm('Isso substitui o rascunho das animações pelas que estão hoje no jogo. Continuar?')) return;
+      const dados = await (await fetch('src/data/animacoes.json')).json();
+      this.animacoes.definir(dados);
+      this._persistAnimacoes(dados);
       return;
     }
     if (this.aba === 'regras') {
@@ -283,10 +342,12 @@ export class DialogueEditorApp {
     document.getElementById('layout-itens').classList.toggle('hidden', aba !== 'itens');
     document.getElementById('layout-rotina').classList.toggle('hidden', aba !== 'rotina');
     document.getElementById('layout-regras').classList.toggle('hidden', aba !== 'regras');
+    document.getElementById('layout-animacoes').classList.toggle('hidden', aba !== 'animacoes');
     // A aba Rotina depende do que existe na cena e da conferência: redesenha
     // ao abrir, pra não mostrar um painel de problemas velho.
     if (aba === 'rotina') this.rotina.render();
     if (aba === 'regras') this.regras.render();
+    if (aba === 'animacoes') { this.animacoes.render(); this._abrirPrevia(); }
   }
 
   // --- Itens ---------------------------------------------------------------------
@@ -472,6 +533,7 @@ export class DialogueEditorApp {
     const erros = [
       ...errosDaRotina(this.rotina._problemas()).map(e => ({ ...e, aba: 'rotina' })),
       ...errosDasRegras(this.regras._problemas()).map(e => ({ ...e, aba: 'regras' })),
+      ...errosDasAnimacoes(this.animacoes._problemas()).map(e => ({ ...e, aba: 'animacoes' })),
     ];
     if (erros.length) {
       const lista = erros.slice(0, 5).map(e => `• ${e.onde}: ${e.mensagem}`).join('\n');
@@ -497,8 +559,9 @@ export class DialogueEditorApp {
         { caminho: 'src/data/items.json', conteudo: `${JSON.stringify(this.itens, null, 2)}\n` },
         { caminho: 'src/data/routine.json', conteudo: `${JSON.stringify(this.rotina.rotina, null, 2)}\n` },
         { caminho: 'src/data/regras.json', conteudo: `${JSON.stringify(this.regras.regras, null, 2)}\n` },
+        { caminho: 'src/data/animacoes.json', conteudo: `${JSON.stringify(this.animacoes.animacoes, null, 2)}\n` },
       ],
-      'Diálogos, missões, itens, rotina e regras atualizados pelo editor de conteúdo',
+      'Diálogos, missões, itens, rotina, regras e animações atualizados pelo editor de conteúdo',
       avisar,
     );
   }
@@ -510,6 +573,7 @@ export class DialogueEditorApp {
       itens: ['items.json', this.itens],
       rotina: ['routine.json', this.rotina.rotina],
       regras: ['regras.json', this.regras.regras],
+      animacoes: ['animacoes.json', this.animacoes.animacoes],
       dialogos: ['dialogues.json', this.trees],
     };
     const [nome, dados] = porAba[this.aba];
@@ -846,7 +910,16 @@ export class DialogueEditorApp {
       inp.oninput = () => { node.options[inp.dataset.oi].effect.value = inp.value; this._persistDraft(); };
     });
     list.querySelectorAll('[data-act="opt-effect-npc"]').forEach(sel => {
-      sel.onchange = () => { node.options[sel.dataset.oi].effect.npc = sel.value; this._persistDraft(); };
+      sel.onchange = () => {
+        const effect = node.options[sel.dataset.oi].effect;
+        // Vazio some do JSON: em "trocar animações" ele significa "quem está
+        // falando", e um npc:"" no arquivo pareceria um NPC apagado.
+        if (sel.value === '') delete effect.npc; else effect.npc = sel.value;
+        this._persistDraft();
+      };
+    });
+    list.querySelectorAll('[data-act="opt-effect-set"]').forEach(sel => {
+      sel.onchange = () => { node.options[sel.dataset.oi].effect.set = sel.value; this._persistDraft(); };
     });
     list.querySelectorAll('[data-act="opt-effect-amount"]').forEach(inp => {
       inp.oninput = () => {
@@ -927,6 +1000,21 @@ export class DialogueEditorApp {
             <label class="field">Quanto muda (negativo piora)<input type="number" data-act="opt-effect-amount" data-oi="${oi}" value="${typeof opt.effect?.amount === 'number' ? opt.effect.amount : ''}" placeholder="ex: 1 ou -1" /></label>
             <label class="field">Nota pro Diário (opcional)<input type="text" data-act="opt-effect-note" data-oi="${oi}" value="${escapeHtml(opt.effect?.note ?? '')}" placeholder="ex: Você ajudou com a caixa" /></label>
           ` : ''}
+          ${meta.type === 'setAnimationSet' ? `
+            <label class="field">Quem
+              <select data-act="opt-effect-npc" data-oi="${oi}">
+                <option value="" ${!opt.effect?.npc ? 'selected' : ''}>(quem está falando)</option>
+                <option value="player" ${opt.effect?.npc === 'player' ? 'selected' : ''}>O jogador</option>
+                ${NPC_DEFS.map(n => `<option value="${n.id}" ${n.id === opt.effect?.npc ? 'selected' : ''}>${escapeHtml(n.name)}</option>`).join('')}
+              </select>
+            </label>
+            <label class="field">Passa a usar
+              <select data-act="opt-effect-set" data-oi="${oi}">
+                <option value="">(escolha o conjunto)</option>
+                ${this._opcoesDeAnimacao().map(c => `<option value="${c.value}" ${c.value === opt.effect?.set ? 'selected' : ''}>${escapeHtml(c.label)}</option>`).join('')}
+              </select>
+            </label>
+          ` : ''}
           <div class="option-inline">
             <label class="field">Dinheiro mínimo p/ aparecer
               <input type="number" data-act="opt-minmoney" data-oi="${oi}" value="${opt.minMoney ?? ''}" placeholder="sem mínimo" />
@@ -956,6 +1044,7 @@ export class DialogueEditorApp {
       itens: ['items', 'JSON dos itens', this.itens],
       rotina: ['routine', 'JSON da rotina', this.rotina.rotina],
       regras: ['regras', 'JSON das regras do mundo', this.regras.regras],
+      animacoes: ['animacoes', 'JSON dos conjuntos de animação', this.animacoes.animacoes],
       dialogos: ['dialogues', 'JSON completo (todos os NPCs)', this.trees],
     };
     const [arquivo, titulo, dados] = porAba[this.aba];

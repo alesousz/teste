@@ -13,6 +13,24 @@ export class GameState {
     this.storyProgress = {};
     this.discoveredLocations = new Set();
     this.worldState = {};
+    // Conjunto de animação trocado em jogo (efeito de diálogo): personagem ->
+    // id do conjunto. Fica aqui, e não no NPC, pra atravessar o save: se a
+    // pessoa passou a andar diferente na missão, ela continua assim depois de
+    // fechar o jogo. Quem não está aqui usa o conjunto escrito na cena.
+    this.animacoes = {};
+  }
+
+  // -------------------------------------------------------------------
+  // Animações — o jeito de se mexer de cada personagem, quando a história
+  // mudou ele. 'player' é o próprio jogador.
+  // -------------------------------------------------------------------
+  setAnimacoes(quem, conjunto) {
+    if (!quem || typeof conjunto !== 'string') return;
+    this.animacoes[quem] = conjunto;
+  }
+
+  getAnimacoes(quem) {
+    return this.animacoes[quem] ?? null;
   }
 
   // -------------------------------------------------------------------
@@ -94,6 +112,7 @@ export class GameState {
       storyProgress: this.storyProgress,
       discoveredLocations: Array.from(this.discoveredLocations),
       worldState: this.worldState,
+      animacoes: this.animacoes,
     };
   }
 
@@ -115,5 +134,7 @@ export class GameState {
     this.storyProgress = data.storyProgress || {};
     this.discoveredLocations = new Set(data.discoveredLocations || []);
     this.worldState = data.worldState || {};
+    this.animacoes = (data.animacoes && typeof data.animacoes === 'object' && !Array.isArray(data.animacoes))
+      ? data.animacoes : {};
   }
 }

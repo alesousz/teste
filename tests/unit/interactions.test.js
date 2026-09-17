@@ -309,3 +309,44 @@ describe('DialogueSystem — condições de família/chefe/relacionamento (via _
     assert.equal(ds._evalCondition({ type: 'tipo_que_nao_existe' }, 'x', {}), false);
   });
 });
+
+describe('efeito: trocar as animações do personagem', () => {
+  test('grava no gameState e avisa quem mexe no boneco', () => {
+    const { ds, gameState } = makeDialogueSystem();
+    const trocas = [];
+    ds.trocarAnimacoes = (quem, conjunto) => trocas.push([quem, conjunto]);
+    ds.currentNpcId = 'almeida';
+
+    ds._applyEffect({ type: 'setAnimationSet', set: 'apressado' });
+    assert.equal(gameState.getAnimacoes('almeida'), 'apressado', 'sem npc escrito, vale pra quem está falando');
+    assert.deepEqual(trocas.at(-1), ['almeida', 'apressado']);
+
+    ds._applyEffect({ type: 'setAnimationSet', npc: 'player', set: 'formal' });
+    assert.equal(gameState.getAnimacoes('player'), 'formal');
+    assert.deepEqual(trocas.at(-1), ['player', 'formal']);
+  });
+
+  test('sem ninguém escutando, o efeito ainda registra a troca', () => {
+    const { ds, gameState } = makeDialogueSystem();
+    ds.currentNpcId = 'marina';
+    ds._applyEffect({ type: 'setAnimationSet', set: 'formal' });
+    assert.equal(gameState.getAnimacoes('marina'), 'formal');
+  });
+
+  test('a troca atravessa o save', () => {
+    const { ds, gameState } = makeDialogueSystem();
+    ds.currentNpcId = 'marina';
+    ds._applyEffect({ type: 'setAnimationSet', set: 'formal' });
+
+    const outro = new GameState();
+    outro.deserialize(JSON.parse(JSON.stringify(gameState.serialize())));
+    assert.equal(outro.getAnimacoes('marina'), 'formal');
+  });
+
+  test('save antigo, sem animações, não quebra', () => {
+    const g = new GameState();
+    g.deserialize({ flags: {}, npcs: {} });
+    assert.deepEqual(g.animacoes, {});
+    assert.equal(g.getAnimacoes('marina'), null);
+  });
+});

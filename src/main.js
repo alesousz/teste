@@ -356,6 +356,13 @@ class Game {
       semDialogo: nome => this.ui.showToast(`${nome} ainda não tem o que dizer. Escreva a conversa no editor de diálogos.`),
     }, this.collectibles, this.inventory, this.needs, this.obligation, this.gameState, origin.id, this.profile.sex, this.world);
 
+    // O diálogo guarda a troca de animação no gameState, mas quem conhece os
+    // bonecos em cena é aqui. 'player' é o próprio jogador.
+    this.dialogue.trocarAnimacoes = (quem, conjunto) => {
+      if (quem === 'player') return this.player?.trocarAnimacoes(conjunto);
+      return this.npcs.find(n => n.def.id === quem)?.trocarAnimacoes(conjunto);
+    };
+
     // Celular: entrega a primeira mensagem e conduz o tutorial dos primeiros
     // minutos. Guardado em gameState.worldState porque o esquema do save é
     // uma lista branca e um campo novo no topo seria descartado em silêncio.
@@ -412,6 +419,11 @@ class Game {
       // sem relacionamentos), sem perder nenhum outro dado do save antigo.
       this.gameState.deserialize(restore.gameState);
       this.phone.deserialize(this.gameState.worldState.phone);
+      // Quem mudou de jeito de andar durante a história continua mudado:
+      // sem isso, recarregar desfaria o efeito da missão.
+      for (const [quem, conjunto] of Object.entries(this.gameState.animacoes)) {
+        this.dialogue.trocarAnimacoes(quem, conjunto);
+      }
     } else if (this.modoViver?.spawn) {
       // Modo Viver: nasce no ponto que a câmera do editor olhava.
       const s = this.modoViver.spawn;

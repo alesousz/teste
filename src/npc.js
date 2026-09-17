@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { NPC_DEFS, JANELAS_DE_NPC } from './data.js';
+import { NPC_DEFS, JANELAS_DE_NPC, clipesDoPersonagem } from './data.js';
 import { buildHumanoid } from './characterModel.js';
 
 // NPCs com turno fixo (dono do mercado, professora) fecham fora do horário do
@@ -10,7 +10,7 @@ import { buildHumanoid } from './characterModel.js';
 
 function buildNpcMesh(def) {
   const variant = def.sexo === 'f' ? 'female' : 'male';
-  const built = buildHumanoid({ variant });
+  const built = buildHumanoid({ variant, clipes: clipesDoPersonagem(def.animacoes) });
   const { group } = built;
 
   if (def.prop === 'phone') {
@@ -70,6 +70,16 @@ export class NPC {
     this.obligation = JANELAS_DE_NPC[def.id] || null;
     this.resting = false;
     this._scheduleCheckTimer = Math.random();
+  }
+
+  /**
+   * Troca o conjunto de animação em jogo: é isto que uma missão ou um
+   * diálogo dispara quando a pessoa passa a se mexer de outro jeito daqui
+   * em diante (ver o efeito "Trocar animações do personagem").
+   */
+  trocarAnimacoes(id) {
+    this.def.animacoes = id;
+    return this.rig.trocarConjunto(clipesDoPersonagem(id));
   }
 
   _isActiveNow(world) {
