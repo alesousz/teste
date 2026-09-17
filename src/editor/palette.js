@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import * as SkeletonUtils from '../../vendor/jsm/utils/SkeletonUtils.js';
 import { construirPredioDaCidade } from '../cityLook.js';
 import { ITEM_DEFS } from '../data.js';
+import { MARCOS_PADRAO, TIPO_ANTIGO, TIPO_DE_MARCO, LIMITES_DO_MARCO } from '../marcos.js';
 // Campos que valem pra qualquer peça vinda de .glb. Escrever um texto é o
 // que faz o objeto responder ao E no jogo: o conteúdo mora na cena, não no
 // código — dá pra criar interação nova sem programar nada.
@@ -56,40 +57,47 @@ function buildLandmark(w, d, h, color, roofColor, label) {
 // de .glb não estão aqui: eles levam `modelo` na cena e o jogo os carrega
 // por World._buildSceneModels, com altura e giro.
 export const TIPOS_QUE_O_JOGO_LE = new Set([
-  'landmark_home_operario', 'landmark_home_nobre', 'landmark_job_mercado', 'landmark_school',
+  TIPO_DE_MARCO, ...Object.keys(TIPO_ANTIGO),
   'building', 'npc', 'fragment', 'tree', 'bench', 'lamp', 'spawn', 'item_no_chao',
 ]);
 
 
 export const PALETTE = [
   {
-    id: 'landmark_home_operario',
+    // Prédio com nome que o resto do jogo aponta: a bússola mira nele e a
+    // rotina ancora compromisso nele ("na frente do Mercado"). O id é a
+    // identidade citada por casas e compromissos — mudar ele quebra quem cita.
+    id: TIPO_DE_MARCO,
     key: '1', category: 'Estruturas',
-    name: 'Casa (Op.)',
+    name: 'Marco',
     footprint: { w: 10, d: 9 },
-    build: () => buildLandmark(10, 9, 4.5, 0xc9a876, 0x7a4a34, 'CASA'),
+    defaultProps: () => ({ kind: 'lugar_novo', label: 'LUGAR', ...MARCOS_PADRAO.job_mercado }),
+    propFields: [
+      { key: 'kind', label: 'Id (citado pela rotina)', type: 'text' },
+      { key: 'label', label: 'Placa (texto em cima)', type: 'text' },
+      { key: 'w', label: 'Largura', type: 'number', min: LIMITES_DO_MARCO.MIN, max: LIMITES_DO_MARCO.MAX, step: 1 },
+      { key: 'd', label: 'Profundidade', type: 'number', min: LIMITES_DO_MARCO.MIN, max: LIMITES_DO_MARCO.MAX, step: 1 },
+      { key: 'h', label: 'Altura', type: 'number', min: LIMITES_DO_MARCO.MIN, max: LIMITES_DO_MARCO.ALTURA_MAX, step: 0.5 },
+      { key: 'color', label: 'Cor da parede', type: 'color' },
+      { key: 'roofColor', label: 'Cor do telhado', type: 'color' },
+    ],
+    build: (props) => {
+      const p = { ...MARCOS_PADRAO.job_mercado, label: 'LUGAR', ...props };
+      return buildLandmark(p.w, p.d, p.h, p.color, p.roofColor, p.label);
+    },
   },
-  {
-    id: 'landmark_home_nobre',
-    key: '2', category: 'Estruturas',
-    name: 'Casa (Nobre)',
-    footprint: { w: 16, d: 13 },
-    build: () => buildLandmark(16, 13, 6.5, 0xf3ead9, 0x5a4636, 'CASA'),
-  },
-  {
-    id: 'landmark_job_mercado',
-    key: '3', category: 'Estruturas',
-    name: 'Mercado',
-    footprint: { w: 18, d: 12 },
-    build: () => buildLandmark(18, 12, 5, 0xd97b4a, 0xb03a3a, 'MERCADO'),
-  },
-  {
-    id: 'landmark_school',
-    key: '4', category: 'Estruturas',
-    name: 'Escola',
-    footprint: { w: 26, d: 18 },
-    build: () => buildLandmark(26, 18, 9, 0xdfe6ee, 0x3a5a7a, 'ESCOLA'),
-  },
+  // Cenas escritas antes de o marco virar peça com medidas próprias: um
+  // typeId por marco. Continuam abrindo, com as medidas de fábrica.
+  ...Object.entries(TIPO_ANTIGO).map(([typeId, kind]) => {
+    const m = MARCOS_PADRAO[kind];
+    return {
+      id: typeId,
+      key: '-', category: 'Estruturas',
+      name: `${m.label} (${kind})`,
+      footprint: { w: Math.ceil(m.w), d: Math.ceil(m.d) },
+      build: () => buildLandmark(m.w, m.d, m.h, m.color, m.roofColor, m.label),
+    };
+  }),
   {
     id: 'npc',
     key: '5', category: 'Personagens',

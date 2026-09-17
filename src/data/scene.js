@@ -9,10 +9,10 @@
 export const SCENE = {
   cidade: "fixa",
   items: [
-    {"typeId":"landmark_home_operario","position":[-100,0,0],"rotY":0},
-    {"typeId":"landmark_job_mercado","position":[-50,0,-50],"rotY":0},
-    {"typeId":"landmark_home_nobre","position":[100,0,0],"rotY":0},
-    {"typeId":"landmark_school","position":[50,0,50],"rotY":0},
+    {"typeId":"marco","position":[-100,0,0],"rotY":0,"props":{"kind":"home_operario","label":"CASA","w":10,"d":9,"h":4.5,"color":"#c9a876","roofColor":"#7a4a34"}},
+    {"typeId":"marco","position":[-50,0,-50],"rotY":0,"props":{"kind":"job_mercado","label":"MERCADO","w":18,"d":12,"h":5,"color":"#d97b4a","roofColor":"#b03a3a"}},
+    {"typeId":"marco","position":[100,0,0],"rotY":0,"props":{"kind":"home_nobre","label":"CASA","w":16,"d":13,"h":6.5,"color":"#f3ead9","roofColor":"#5a4636"}},
+    {"typeId":"marco","position":[50,0,50],"rotY":0,"props":{"kind":"school","label":"ESCOLA","w":26,"d":18,"h":9,"color":"#dfe6ee","roofColor":"#3a5a7a"}},
     {"typeId":"npc","position":[-6,0,5],"rotY":0,"props":{"npcId":"almeida","nome":"Sr. Almeida","cor":"#6b4f3a","sexo":"m","raio":4,"velocidade":0,"objeto":"cart","resumo":"Vendedor ambulante na praça","papel":"Conhecido","lugar":"Praça central"}},
     {"typeId":"npc","position":[-47,0,46],"rotY":0,"props":{"npcId":"marina","nome":"Marina","cor":"#8a4b6b","sexo":"f","raio":8,"velocidade":1.1,"resumo":"Perdeu um livro no parque","papel":"Conhecida","lugar":"Parque Norte","missao":"O Livro Esquecido"}},
     {"typeId":"npc","position":[8,0,-7],"rotY":0,"props":{"npcId":"diego","nome":"Diego","cor":"#3a4a6b","sexo":"m","raio":0,"velocidade":0,"objeto":"phone","resumo":"Não larga o celular","papel":"Conhecido","lugar":"Ponto de ônibus"}},

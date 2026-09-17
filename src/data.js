@@ -11,6 +11,7 @@ import ITENS_PUBLICADOS from './data/items.json' with { type: 'json' };
 // arquivo de conteudo escrito na aba Rotina do editor.
 import ROTINA_PUBLICADA from './data/routine.json' with { type: 'json' };
 import { normalizarRotina, resolverLocal, janelasPorNpc, serveComoRotina, validarRotina } from './rotina.js';
+import { marcosDaCena, problemasDosMarcos } from './marcos.js';
 
 /**
  * Rascunho do editor de conteúdo NESTA máquina: escreveu a missão (ou o item),
@@ -93,20 +94,19 @@ const PARKS = [
   { ix: 3, iz: 1 },
 ];
 
-const LANDMARK_SPECS = {
-  home_operario: { w: 10, d: 9, h: 4.5, color: 0xc9a876, roofColor: 0x7a4a34, label: 'CASA' },
-  home_nobre: { w: 16, d: 13, h: 6.5, color: 0xf3ead9, roofColor: 0x5a4636, label: 'CASA' },
-  job_mercado: { w: 18, d: 12, h: 5, color: 0xd97b4a, roofColor: 0xb03a3a, label: 'MERCADO' },
-  school: { w: 26, d: 18, h: 9, color: 0xdfe6ee, roofColor: 0x3a5a7a, label: 'ESCOLA' },
-};
-export { LANDMARK_SPECS };
+// Marcos: peças da cena com identidade e medidas próprias (ver marcos.js).
+// Criar um marco novo — uma padaria, um posto — é colocar a peça no editor de
+// mapa e dar um id; nada aqui precisa mudar.
+const MARCOS = marcosDaCena(SCENE.items);
 
-const LANDMARK_TYPE_TO_KIND = {
-  landmark_home_operario: 'home_operario',
-  landmark_home_nobre: 'home_nobre',
-  landmark_job_mercado: 'job_mercado',
-  landmark_school: 'school',
-};
+/** Medidas e aparência de cada marco, pelo id dele. */
+export const LANDMARK_SPECS = Object.fromEntries(Object.entries(MARCOS).map(([kind, m]) => [
+  kind,
+  { w: m.w, d: m.d, h: m.h, color: m.color, roofColor: m.roofColor, label: m.label },
+]));
+
+/** Id repetido ou vazio entre os marcos — a mesma conferência da rotina. */
+export const MARCOS_PROBLEMAS = problemasDosMarcos(SCENE.items);
 
 // Cada marco/prédio customizado da cena "reserva" o quarteirão mais perto da
 // posição escolhida, pra geração procedural não colocar um prédio aleatório
@@ -123,22 +123,20 @@ function blockIndexFromPos(x, z) {
 // carregamento, como antes (tools/fixar-cidade.mjs grava uma versão fixa).
 const CIDADE_FIXA = SCENE.cidade === 'fixa';
 
-const sceneLandmarks = {}; // kind -> {cx,cz,ix,iz}
+const sceneLandmarks = Object.fromEntries(Object.entries(MARCOS)
+  .map(([kind, m]) => [kind, { cx: m.x, cz: m.z, ...blockIndexFromPos(m.x, m.z) }]));
+
 const sceneBuildings = []; // prédios da cena: {cx,cz,w,d,h,color,estilo,semente,ix,iz}
 for (const item of SCENE.items) {
-  const kind = LANDMARK_TYPE_TO_KIND[item.typeId];
+  if (item.typeId !== 'building') continue;
   const [x, , z] = item.position;
-  if (kind) {
-    sceneLandmarks[kind] = { cx: x, cz: z, ...blockIndexFromPos(x, z) };
-  } else if (item.typeId === 'building') {
-    sceneBuildings.push({
-      cx: x, cz: z, ...blockIndexFromPos(x, z),
-      w: item.props?.w ?? 6, d: item.props?.d ?? 6, h: item.props?.h ?? 8,
-      color: item.props?.color ?? '#b9c4cc',
-      // 'cidade': fachada com janelas e toldo, como os prédios gerados.
-      estilo: item.props?.estilo ?? 'liso', semente: item.props?.semente ?? 0,
-    });
-  }
+  sceneBuildings.push({
+    cx: x, cz: z, ...blockIndexFromPos(x, z),
+    w: item.props?.w ?? 6, d: item.props?.d ?? 6, h: item.props?.h ?? 8,
+    color: item.props?.color ?? '#b9c4cc',
+    // 'cidade': fachada com janelas e toldo, como os prédios gerados.
+    estilo: item.props?.estilo ?? 'liso', semente: item.props?.semente ?? 0,
+  });
 }
 
 // Onde o jogador acorda numa partida nova: a peça "Início do jogo" da cena.
@@ -165,12 +163,15 @@ function isSpecial(ix, iz) {
 const BUILDING_COLORS = [0xb9c4cc, 0xc9b6a3, 0x9fb3c8, 0xd9cba8, 0xa8a8a8, 0x8fa998, 0xc7a9a0];
 
 // Lote de um marco e de um prédio da cena, com a caixa de colisão.
+// O lote leva as medidas e as cores junto: quem desenha (world.js) não precisa
+// consultar tabela nenhuma, e cada marco pode ser diferente do outro.
 function loteDoMarco(kind, pos) {
-  const spec = LANDMARK_SPECS[kind];
+  const m = MARCOS[kind];
   return {
-    minX: pos.cx - spec.w / 2, maxX: pos.cx + spec.w / 2,
-    minZ: pos.cz - spec.d / 2, maxZ: pos.cz + spec.d / 2,
-    h: spec.h, cx: pos.cx, cz: pos.cz, w: spec.w, d: spec.d, kind,
+    minX: pos.cx - m.w / 2, maxX: pos.cx + m.w / 2,
+    minZ: pos.cz - m.d / 2, maxZ: pos.cz + m.d / 2,
+    h: m.h, cx: pos.cx, cz: pos.cz, w: m.w, d: m.d, kind,
+    color: m.color, roofColor: m.roofColor, label: m.label,
   };
 }
 

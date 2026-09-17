@@ -2,6 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG, CITY, gerarCidade, LANDMARK_SPECS } from '../../src/data.js';
 import { SCENE } from '../../src/data/scene.js';
+import { ehMarco } from '../../src/marcos.js';
 import { textoDoScene } from '../../src/data/formatoCena.js';
 
 function sorteador(semente) {
@@ -38,7 +39,7 @@ describe('cidade fixa', () => {
   test('todo marco e prédio da cena vira lote com colisão, sem sortear nada', () => {
     const nuncaSorteia = () => { throw new Error('cidade fixa não sorteia'); };
     const cidade = gerarCidade(nuncaSorteia, { fixa: true });
-    const marcos = SCENE.items.filter(i => i.typeId.startsWith('landmark_')).length;
+    const marcos = SCENE.items.filter(i => ehMarco(i.typeId)).length;
     const predios = SCENE.items.filter(i => i.typeId === 'building').length;
     assert.ok(predios > 0, 'a cena fixa tem prédios');
     assert.equal(cidade.buildings.length, marcos + predios);

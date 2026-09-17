@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CONFIG, CITY, BUILDING_COLOR_PALETTE, LANDMARK_SPECS } from './data.js';
+import { CONFIG, CITY, BUILDING_COLOR_PALETTE } from './data.js';
 import { loadGLTF } from './assets.js';
 import { CENA as SCENE } from './data/cenaAtiva.js';
 import { modelosDaCena } from './sceneModels.js';
@@ -67,16 +67,17 @@ export class World {
     }
   }
 
+  // Cor, telhado e placa vêm do próprio lote (a peça da cena decide), não de
+  // uma tabela no código: dois marcos podem ser bem diferentes.
   _addLandmark(b) {
-    const spec = LANDMARK_SPECS[b.kind];
-    const bodyMat = new THREE.MeshStandardMaterial({ color: spec.color, roughness: 0.85 });
+    const bodyMat = new THREE.MeshStandardMaterial({ color: b.color, roughness: 0.85 });
     const body = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), bodyMat);
     body.position.set(b.cx, b.h / 2, b.cz);
     body.castShadow = true;
     body.receiveShadow = true;
     this.scene.add(body);
 
-    const roofMat = new THREE.MeshStandardMaterial({ color: spec.roofColor, roughness: 0.9 });
+    const roofMat = new THREE.MeshStandardMaterial({ color: b.roofColor, roughness: 0.9 });
     const roofRadius = Math.max(b.w, b.d) / 1.7;
     const roof = new THREE.Mesh(new THREE.ConeGeometry(roofRadius, b.h * 0.5, 4), roofMat);
     roof.position.set(b.cx, b.h + b.h * 0.25, b.cz);
@@ -84,7 +85,7 @@ export class World {
     roof.castShadow = true;
     this.scene.add(roof);
 
-    const label = this._makeLabelSprite(spec.label);
+    const label = this._makeLabelSprite(b.label);
     label.position.set(b.cx, b.h + b.h * 0.6 + 1.2, b.cz);
     this.scene.add(label);
   }
