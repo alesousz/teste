@@ -65,3 +65,13 @@ export function collectConsoleErrors(page) {
   });
   return errors;
 }
+
+/**
+ * As regras do mundo que a página está usando (src/data/regras.json, ou o
+ * rascunho da aba Regras). O teste pergunta pro jogo em vez de repetir o
+ * número: publicar um dano diferente não pode deixar o e2e vermelho por
+ * motivo bobo.
+ */
+export async function regrasDaPagina(page) {
+  return page.evaluate(() => import('/src/data.js').then(m => ({ ...m.CONFIG })));
+}

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { startGameRunning, collectConsoleErrors } from './helpers.js';
+import { startGameRunning, collectConsoleErrors, regrasDaPagina } from './helpers.js';
 
 async function positionPlayerAtDummy(page) {
   await page.evaluate(() => {
@@ -42,7 +42,8 @@ test('não esquivar do telegraph resulta em dano do contra-ataque', async ({ pag
   await page.waitForFunction(() => window.__game.dummy.telegraphActive, { timeout: 5000 });
   await page.waitForFunction(() => !window.__game.dummy.telegraphActive, { timeout: 5000 });
   const hpAfter = await page.evaluate(() => window.__game.player.hp);
-  expect(hpAfter).toBe(hpBefore - 8);
+  const { DUMMY_COUNTER_DAMAGE } = await regrasDaPagina(page);
+  expect(hpAfter).toBe(hpBefore - DUMMY_COUNTER_DAMAGE);
 });
 
 test('um soco isolado tira o dano normal do boneco', async ({ page }) => {
@@ -51,7 +52,8 @@ test('um soco isolado tira o dano normal do boneco', async ({ page }) => {
   await page.waitForFunction(() => window.__game.player.isAttacking, { timeout: 5000 });
   await page.waitForFunction(() => !window.__game.player.isAttacking, { timeout: 5000 });
   const hp1 = await page.evaluate(() => window.__game.dummy.hp);
-  expect(hp0 - hp1).toBe(12);
+  const { PUNCH_DAMAGE } = await regrasDaPagina(page);
+  expect(hp0 - hp1).toBe(PUNCH_DAMAGE);
 });
 
 // A janela de combo dura 0.4s de tempo de jogo. Fazer isso pelo relógio real
@@ -89,10 +91,11 @@ test('segundo soco dentro da janela de combo usa o dano de combo; fora dela, o d
     return { firstDamage, comboWindowOpen, comboDamage, afterWindowDamage };
   });
 
-  expect(result.firstDamage).toBe(12);
+  const { PUNCH_DAMAGE, PUNCH_COMBO_DAMAGE } = await regrasDaPagina(page);
+  expect(result.firstDamage).toBe(PUNCH_DAMAGE);
   expect(result.comboWindowOpen).toBe(true);
-  expect(result.comboDamage).toBe(18);
-  expect(result.afterWindowDamage).toBe(12);
+  expect(result.comboDamage).toBe(PUNCH_COMBO_DAMAGE);
+  expect(result.afterWindowDamage).toBe(PUNCH_DAMAGE);
 });
 
 test('agachado: bloqueia ataque, esquiva e pulo; solta ao levantar', async ({ page }) => {

@@ -12,12 +12,15 @@
 // mapa faria um carro a 45° bloquear um quadrado bem maior que ele.
 //
 // Sem three.js: o World percorre os vértices e aplica o resultado.
+import { CONFIG } from './data.js';
 
-// VAO_MINIMO: um vão ao longo da peça mais estreito que o corpo do jogador
-// (diâmetro 0,76 m = 2 × CONFIG.PLAYER_RADIUS, conferido no teste) é fechado —
-// ele não passaria mesmo, e colisores soltos (pernas de mesa) só o fariam
-// enroscar. Vãos maiores, como o de uma porta numa parede, ficam livres.
-export const FAIXA = { MIN: 0.1, MAX: 1.7, ALTURA_MINIMA: 0.7, VAO_MINIMO: 0.76 };
+// VAO_MINIMO: um vão ao longo da peça mais estreito que o corpo do jogador é
+// fechado — ele não passaria mesmo, e colisores soltos (pernas de mesa) só o
+// fariam enroscar. Vãos maiores, como o de uma porta numa parede, ficam
+// livres. Sai da largura do corpo em vez de estar escrito à mão, porque a
+// largura virou regra editável (aba Regras): se ela engordar e o vão não
+// acompanhar, o jogador cresce e os vãos continuam do tamanho antigo.
+export const FAIXA = { MIN: 0.1, MAX: 1.7, ALTURA_MINIMA: 0.7, VAO_MINIMO: 2 * CONFIG.PLAYER_RADIUS };
 
 const novoRetangulo = () => ({ x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity });
 

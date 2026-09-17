@@ -38,8 +38,33 @@ code { background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px;
   background: rgba(255,255,255,0.08);
   height: calc(100vh - 53px);
 }
+/* Regras não tem lista: são todos os campos de uma vez, em cartões por
+   assunto, com a conferência fixa à direita como na Rotina. */
+#layout-regras {
+  display: grid; grid-template-columns: 1fr 320px; gap: 1px;
+  background: rgba(255,255,255,0.08);
+  height: calc(100vh - 53px);
+}
 #quest-panel, #quest-editor-panel, #item-panel, #item-editor-panel,
-#rotina-panel, #rotina-editor-panel, #rotina-problemas-panel { background: #0d0e12; padding: 16px; overflow-y: auto; }
+#rotina-panel, #rotina-editor-panel, #rotina-problemas-panel,
+#regras-panel, #regras-problemas-panel { background: #0d0e12; padding: 16px; overflow-y: auto; }
+
+#regras-panel { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; align-content: start; }
+.regras-grupo { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 12px 14px; }
+.regras-grupo h3 { margin: 0 0 10px; }
+.regra-campo { margin-bottom: 14px; }
+.regra-campo label { display: block; font-size: 0.82em; margin-bottom: 4px; }
+.regra-unidade { color: #8992a0; }
+.regra-linha { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.regra-linha input { width: 100%; }
+.regra-padrao { font-size: 0.72em; padding: 4px 8px; }
+.regra-padrao[disabled] { opacity: 0.35; cursor: default; }
+.regra-dica { margin: 4px 0 2px; }
+/* A frase de consequência é o que faz o número dizer alguma coisa pra quem
+   não programa — por isso ela é mais visível que a dica, não menos. */
+.regra-frase { margin: 0; font-size: 0.78em; color: #9fd0a8; line-height: 1.35; min-height: 1em; }
+.regras-travado { border: 1px dashed rgba(255,255,255,0.14); background: transparent; }
+.regras-malha { margin: 8px 0 0; padding-left: 18px; font-size: 0.78em; color: #8992a0; }
 #rotina-editor-panel .field { max-width: 560px; }
 #rotina-panel button[data-novo] { width: 100%; margin-bottom: 4px; }
 

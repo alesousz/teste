@@ -271,9 +271,12 @@ export class UI {
     this.clockEl.textContent = world.getFormattedTime();
     this.dayEl.textContent = `Dia ${world.dayCount}`;
 
-    const setBar = (fill, valueEl, value, lowAt) => {
+    // A barra mostra o número cru, mas a largura é a fração do máximo: vida e
+    // estamina máximas são regra editável (aba Regras), e com 200 de vida a
+    // largura crua em % passaria do fim da barra.
+    const setBar = (fill, valueEl, value, lowAt, max = 100) => {
       const v = Math.max(0, Math.round(value));
-      fill.style.width = `${v}%`;
+      fill.style.width = `${Math.min(100, Math.max(0, (value / max) * 100))}%`;
       fill.classList.toggle('low', value <= lowAt);
       if (valueEl) {
         valueEl.textContent = v;
@@ -282,8 +285,8 @@ export class UI {
     };
 
     if (player) {
-      setBar(this.hpFill, this.hpValue, player.hp, 30);
-      setBar(this.staminaFill, this.staminaValue, player.stamina, CONFIG.PUNCH_STAMINA_COST);
+      setBar(this.hpFill, this.hpValue, player.hp, CONFIG.PLAYER_MAX_HP * 0.3, CONFIG.PLAYER_MAX_HP);
+      setBar(this.staminaFill, this.staminaValue, player.stamina, CONFIG.PUNCH_STAMINA_COST, CONFIG.PLAYER_MAX_STAMINA);
     }
     if (needs) {
       setBar(this.energyFill, this.energyValue, needs.energy, 15);

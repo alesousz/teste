@@ -10,7 +10,11 @@ import ITENS_PUBLICADOS from './data/items.json' with { type: 'json' };
 // Rotina (compromissos, casas, origens, cursos): mesmo caminho das missoes -
 // arquivo de conteudo escrito na aba Rotina do editor.
 import ROTINA_PUBLICADA from './data/routine.json' with { type: 'json' };
+// Regras do mundo (dia, corpo, câmera, alcance, pulo, briga): mesmo caminho,
+// escrito na aba Regras do editor de conteúdo.
+import REGRAS_PUBLICADAS from './data/regras.json' with { type: 'json' };
 import { normalizarRotina, resolverLocal, janelasPorNpc, serveComoRotina, validarRotina } from './rotina.js';
+import { MALHA_DO_GERADOR, normalizarRegras, serveComoRegras, validarRegras } from './regras.js';
 import { marcosDaCena, problemasDosMarcos } from './marcos.js';
 
 /**
@@ -35,41 +39,19 @@ const missoesDoEditor = () => rascunhoDeConteudo('quest-editor-draft', lido => O
 
 export const QUESTS = missoesDoEditor() ?? MISSOES_PUBLICADAS;
 
-export const CONFIG = {
-  GRID_SIZE: 5,
-  BLOCK_SIZE: 40,
-  ROAD_WIDTH: 10,
-  DAY_LENGTH_SECONDS: 480, // duração de um ciclo dia/noite completo
-  PLAYER_SPEED_WALK: 3.2,
-  PLAYER_SPEED_RUN: 6.5,
-  PLAYER_SPEED_CROUCH: 1.8,
-  // 0,76 m de diâmetro: passa nos vãos de porta de 0,88–0,90 m do Building
-  // Kit (decisão de 13/09/2026; era 0,45).
-  PLAYER_RADIUS: 0.38,
-  PLAYER_HEIGHT: 1.7,          // altura do corpo usada na colisão
-  CAM_DIST_OUTDOOR: 6.5,       // câmera na rua
-  CAM_DIST_INDOOR: 2.5,        // câmera dentro do prédio: 6,5 m não cabe num quarto
-  CAM_DIST_LERP: 4.5,          // velocidade da transição entre as duas
-  INTERACT_RADIUS: 3.2,
-  PHOTO_RADIUS: 3.5,
-  GRAVITY: 18,
-  JUMP_SPEED: 6.5,
-  PUNCH_RANGE: 1.8,
-  PUNCH_DAMAGE: 12,
-  PUNCH_COMBO_WINDOW: 0.4,
-  PUNCH_COMBO_DAMAGE: 18,
-  PLAYER_MAX_STAMINA: 100,
-  PUNCH_STAMINA_COST: 15,
-  DODGE_STAMINA_COST: 30,
-  STAMINA_REGEN_RATE: 25,
-  DUMMY_MAX_HP: 100,
-  DUMMY_RESPAWN_DELAY: 1.4,
-  PLAYER_MAX_HP: 100,
-  DUMMY_COUNTER_CHANCE: 0.3,
-  DUMMY_COUNTER_DAMAGE: 8,
-  COUNTER_TELEGRAPH_DURATION: 0.8,
-  PLAYER_KO_RECOVER_DELAY: 2,
-};
+// Regras do mundo — velocidade, câmera, alcance, pulo, briga e duração do dia.
+// Não ficam mais escritas aqui: vêm de src/data/regras.json (ou do rascunho da
+// aba Regras, nesta máquina), passadas pelo normalizar, que prende cada número
+// na faixa que o jogo aguenta.
+//
+// GRID_SIZE, BLOCK_SIZE e ROAD_WIDTH entram por MALHA_DO_GERADOR, de dentro do
+// código: não são regra do mundo, são parâmetro do gerador que sorteia a
+// cidade — e somem no dia em que a cidade virar desenho no editor de mapa.
+const regrasEscritas = rascunhoDeConteudo('rules-editor-draft', serveComoRegras);
+const REGRAS_EM_USO = regrasEscritas ?? REGRAS_PUBLICADAS;
+export const REGRAS_SAO_RASCUNHO = !!regrasEscritas;
+export const REGRAS_PROBLEMAS = validarRegras(REGRAS_EM_USO);
+export const CONFIG = { ...MALHA_DO_GERADOR, ...normalizarRegras(REGRAS_EM_USO) };
 CONFIG.CELL = CONFIG.BLOCK_SIZE + CONFIG.ROAD_WIDTH;
 CONFIG.WORLD_HALF = (CONFIG.GRID_SIZE * CONFIG.CELL) / 2;
 

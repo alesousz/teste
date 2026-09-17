@@ -1,6 +1,8 @@
 import { NPC_DEFS, QUESTS, ITEM_DEFS, MARCOS_DA_CENA, LANDMARK_SPECS } from '../data.js';
 import { AbaRotina } from './rotinaAba.js';
+import { AbaRegras } from './regrasAba.js';
 import { errosDaRotina } from '../rotina.js';
+import { errosDasRegras } from '../regras.js';
 import { publicarConteudo, abrirConfiguracao } from '../publicarUI.js';
 import {
   CONDITION_TYPES,
@@ -24,6 +26,7 @@ const DRAFT_KEY = 'dialogue-editor-draft';
 const DRAFT_KEY_MISSOES = 'quest-editor-draft';
 const DRAFT_KEY_ITENS = 'item-editor-draft';
 const DRAFT_KEY_ROTINA = 'routine-editor-draft';
+const DRAFT_KEY_REGRAS = 'rules-editor-draft';
 
 // Tipo padrão de uma condição recém-criada.
 const DEFAULT_CONDITION_TYPE = SELECTABLE_CONDITION_TYPES[0].type;
@@ -75,6 +78,9 @@ export class DialogueEditorApp {
         : kind,
       aoSalvar: dados => this._persistRotina(dados),
     });
+    // Aba Regras: os números do mundo. O formulário inteiro sai do ESQUEMA
+    // de regras.js, então esta aba não precisa saber nada sobre a cena.
+    this.regras = new AbaRegras({ aoSalvar: dados => this._persistRegras(dados) });
     this.aba = 'dialogos';
 
     this._bindStaticEvents();
@@ -99,6 +105,8 @@ export class DialogueEditorApp {
 
     this.rotina.definir(this._lerRascunho(DRAFT_KEY_ROTINA) ?? await (await fetch('src/data/routine.json')).json());
     this.rotina.ligarBotoes();
+
+    this.regras.definir(this._lerRascunho(DRAFT_KEY_REGRAS) ?? await (await fetch('src/data/regras.json')).json());
   }
 
   _lerRascunho(chave) {
@@ -141,12 +149,24 @@ export class DialogueEditorApp {
     this._avisarSalvo();
   }
 
+  _persistRegras(dados) {
+    localStorage.setItem(DRAFT_KEY_REGRAS, JSON.stringify(dados));
+    this._avisarSalvo();
+  }
+
   async _loadFromGameData(confirmFirst = true) {
     if (this.aba === 'rotina') {
       if (!confirm('Isso substitui o rascunho da rotina pela que está hoje no jogo. Continuar?')) return;
       const dados = await (await fetch('src/data/routine.json')).json();
       this.rotina.definir(dados);
       this._persistRotina(dados);
+      return;
+    }
+    if (this.aba === 'regras') {
+      if (!confirm('Isso substitui o rascunho das regras pelas que estão hoje no jogo. Continuar?')) return;
+      const dados = await (await fetch('src/data/regras.json')).json();
+      this.regras.definir(dados);
+      this._persistRegras(dados);
       return;
     }
     if (this.aba === 'itens') {
@@ -262,9 +282,11 @@ export class DialogueEditorApp {
     document.getElementById('layout-missoes').classList.toggle('hidden', aba !== 'missoes');
     document.getElementById('layout-itens').classList.toggle('hidden', aba !== 'itens');
     document.getElementById('layout-rotina').classList.toggle('hidden', aba !== 'rotina');
+    document.getElementById('layout-regras').classList.toggle('hidden', aba !== 'regras');
     // A aba Rotina depende do que existe na cena e da conferência: redesenha
     // ao abrir, pra não mostrar um painel de problemas velho.
     if (aba === 'rotina') this.rotina.render();
+    if (aba === 'regras') this.regras.render();
   }
 
   // --- Itens ---------------------------------------------------------------------
@@ -447,13 +469,17 @@ export class DialogueEditorApp {
     // Publicar é o que chega em quem só joga. Rascunho quebrado pode existir
     // (ainda está sendo escrito); publicado quebrado, não — então aqui a
     // conferência vira uma pergunta, com o primeiro erro por extenso.
-    const erros = errosDaRotina(this.rotina._problemas());
+    const erros = [
+      ...errosDaRotina(this.rotina._problemas()).map(e => ({ ...e, aba: 'rotina' })),
+      ...errosDasRegras(this.regras._problemas()).map(e => ({ ...e, aba: 'regras' })),
+    ];
     if (erros.length) {
       const lista = erros.slice(0, 5).map(e => `• ${e.onde}: ${e.mensagem}`).join('\n');
       const resto = erros.length > 5 ? `\n…e mais ${erros.length - 5}.` : '';
-      if (!confirm(`A rotina tem ${erros.length} erro(s):\n\n${lista}${resto}\n\nPublicar assim mesmo?`)) {
-        this._trocarAba('rotina');
-        for (const botao of document.querySelectorAll('#abas .aba')) botao.classList.toggle('ativa', botao.dataset.aba === 'rotina');
+      if (!confirm(`O conteúdo tem ${erros.length} erro(s):\n\n${lista}${resto}\n\nPublicar assim mesmo?`)) {
+        const aba = erros[0].aba;
+        this._trocarAba(aba);
+        for (const botao of document.querySelectorAll('#abas .aba')) botao.classList.toggle('ativa', botao.dataset.aba === aba);
         return;
       }
     }
@@ -470,8 +496,9 @@ export class DialogueEditorApp {
         { caminho: 'src/data/quests.json', conteudo: `${JSON.stringify(this.quests, null, 2)}\n` },
         { caminho: 'src/data/items.json', conteudo: `${JSON.stringify(this.itens, null, 2)}\n` },
         { caminho: 'src/data/routine.json', conteudo: `${JSON.stringify(this.rotina.rotina, null, 2)}\n` },
+        { caminho: 'src/data/regras.json', conteudo: `${JSON.stringify(this.regras.regras, null, 2)}\n` },
       ],
-      'Diálogos, missões, itens e rotina atualizados pelo editor de conteúdo',
+      'Diálogos, missões, itens, rotina e regras atualizados pelo editor de conteúdo',
       avisar,
     );
   }
@@ -482,6 +509,7 @@ export class DialogueEditorApp {
       missoes: ['quests.json', this.quests],
       itens: ['items.json', this.itens],
       rotina: ['routine.json', this.rotina.rotina],
+      regras: ['regras.json', this.regras.regras],
       dialogos: ['dialogues.json', this.trees],
     };
     const [nome, dados] = porAba[this.aba];
@@ -927,6 +955,7 @@ export class DialogueEditorApp {
       missoes: ['quests', 'JSON das missões', this.quests],
       itens: ['items', 'JSON dos itens', this.itens],
       rotina: ['routine', 'JSON da rotina', this.rotina.rotina],
+      regras: ['regras', 'JSON das regras do mundo', this.regras.regras],
       dialogos: ['dialogues', 'JSON completo (todos os NPCs)', this.trees],
     };
     const [arquivo, titulo, dados] = porAba[this.aba];

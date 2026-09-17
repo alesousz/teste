@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { CONFIG, ORIGINS, COURSES, HOMES, OBLIGATIONS, ITEM_DEFS, SPAWN_DA_CENA, ROTINA_E_RASCUNHO, ROTINA_PROBLEMAS } from './data.js';
+import { CONFIG, ORIGINS, COURSES, HOMES, OBLIGATIONS, ITEM_DEFS, SPAWN_DA_CENA, ROTINA_E_RASCUNHO, ROTINA_PROBLEMAS, REGRAS_SAO_RASCUNHO, REGRAS_PROBLEMAS } from './data.js';
 import { errosDaRotina } from './rotina.js';
+import { errosDasRegras } from './regras.js';
 import { World } from './world.js';
 import { Phone, PHONE_DEFAULT_KEY } from './phone.js';
 import { RenderPipeline } from './render.js';
@@ -374,6 +375,12 @@ class Game {
       const erros = errosDaRotina(ROTINA_PROBLEMAS);
       if (erros.length) {
         this.ui.showToast(`Rotina do editor com ${erros.length} erro(s): ${erros[0].onde} — ${erros[0].mensagem}`);
+      }
+    }
+    if (REGRAS_SAO_RASCUNHO) {
+      const erros = errosDasRegras(REGRAS_PROBLEMAS);
+      if (erros.length) {
+        this.ui.showToast(`Regras do editor com ${erros.length} erro(s): ${erros[0].onde} — ${erros[0].mensagem}`);
       }
     }
 
