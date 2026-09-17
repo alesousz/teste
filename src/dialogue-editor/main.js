@@ -1,5 +1,6 @@
 import { NPC_DEFS, QUESTS, ITEM_DEFS, MARCOS_DA_CENA, LANDMARK_SPECS } from '../data.js';
 import { AbaRotina } from './rotinaAba.js';
+import { errosDaRotina } from '../rotina.js';
 import { publicarConteudo, abrirConfiguracao } from '../publicarUI.js';
 import {
   CONDITION_TYPES,
@@ -443,6 +444,19 @@ export class DialogueEditorApp {
 
   // Manda diálogos e missões pro repositório de uma vez (ver publicar.js).
   async _publicar() {
+    // Publicar é o que chega em quem só joga. Rascunho quebrado pode existir
+    // (ainda está sendo escrito); publicado quebrado, não — então aqui a
+    // conferência vira uma pergunta, com o primeiro erro por extenso.
+    const erros = errosDaRotina(this.rotina._problemas());
+    if (erros.length) {
+      const lista = erros.slice(0, 5).map(e => `• ${e.onde}: ${e.mensagem}`).join('\n');
+      const resto = erros.length > 5 ? `\n…e mais ${erros.length - 5}.` : '';
+      if (!confirm(`A rotina tem ${erros.length} erro(s):\n\n${lista}${resto}\n\nPublicar assim mesmo?`)) {
+        this._trocarAba('rotina');
+        for (const botao of document.querySelectorAll('#abas .aba')) botao.classList.toggle('ativa', botao.dataset.aba === 'rotina');
+        return;
+      }
+    }
     const status = document.getElementById('save-status');
     const avisar = (texto, ok) => {
       status.textContent = texto;

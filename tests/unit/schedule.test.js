@@ -136,3 +136,64 @@ describe('ObligationSystem — processDayEnd', () => {
     assert.deepEqual(copy.serialize(), ob.serialize());
   });
 });
+
+describe('ObligationSystem — avisos de horário', () => {
+  test('o compromisso avisa uma vez quando a janela abre', () => {
+    const ob = new ObligationSystem(makeDef());
+    const longe = { x: 500, z: 500 };
+    assert.equal(ob.update(7.9, longe), null, 'antes da hora não avisa');
+    const aviso = ob.update(8, longe);
+    assert.match(aviso, /Turno no Mercado/);
+    assert.equal(ob.update(8.1, longe), null, 'o mesmo aviso não se repete a cada frame');
+  });
+
+  test('avisa de novo perto do fim, com os minutos que faltam', () => {
+    const ob = new ObligationSystem(makeDef({ startHour: 8, endHour: 14 }));
+    const longe = { x: 500, z: 500 };
+    ob.update(8, longe);                       // consome o aviso de abertura
+    assert.equal(ob.update(12, longe), null, 'duas horas antes ainda não');
+    const aviso = ob.update(13.5, longe);
+    assert.match(aviso, /30 min/);
+    assert.match(aviso, /Turno no Mercado/);
+    assert.equal(ob.update(13.9, longe), null, 'só uma vez');
+  });
+
+  test('quem já cumpriu não é avisado de mais nada', () => {
+    const ob = new ObligationSystem(makeDef());
+    ob.update(8, { x: 0, z: 0 });              // chegou no lugar: cumpriu
+    assert.equal(ob.attendedToday, true);
+    assert.equal(ob.update(13.5, { x: 0, z: 0 }), null);
+  });
+
+  test('compromisso perdido (inativo) não avisa', () => {
+    const ob = new ObligationSystem(makeDef());
+    ob.active = false;
+    assert.equal(ob.update(8, { x: 500, z: 500 }), null);
+  });
+
+  test('a virada do dia libera os avisos de novo', () => {
+    const ob = new ObligationSystem(makeDef());
+    const longe = { x: 500, z: 500 };
+    ob.update(8, longe);
+    ob.processDayEnd(1, new NeedsSystem(100));
+    assert.equal(ob.warnedStart, false);
+    assert.match(ob.update(8, longe), /Turno no Mercado/);
+  });
+
+  test('os avisos entram no save: carregar no meio do turno não repete o de abertura', () => {
+    const ob = new ObligationSystem(makeDef());
+    ob.update(8, { x: 500, z: 500 });
+    const copia = new ObligationSystem(makeDef());
+    copia.deserialize(JSON.parse(JSON.stringify(ob.serialize())));
+    assert.equal(copia.warnedStart, true);
+    assert.equal(copia.update(8.5, { x: 500, z: 500 }), null);
+  });
+
+  test('janela curta ainda avisa da abertura sem inventar minutos negativos', () => {
+    const ob = new ObligationSystem(makeDef({ startHour: 8, endHour: 8.5 }));
+    const longe = { x: 500, z: 500 };
+    assert.match(ob.update(8, longe), /Começou agora/);
+    const fim = ob.update(8.4, longe);
+    assert.match(fim, /^Falta [1-9]\d* min/);
+  });
+});

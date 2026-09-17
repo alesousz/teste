@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { CONFIG, ORIGINS, COURSES, HOMES, OBLIGATIONS, ITEM_DEFS, SPAWN_DA_CENA } from './data.js';
+import { CONFIG, ORIGINS, COURSES, HOMES, OBLIGATIONS, ITEM_DEFS, SPAWN_DA_CENA, ROTINA_E_RASCUNHO, ROTINA_PROBLEMAS } from './data.js';
+import { errosDaRotina } from './rotina.js';
 import { World } from './world.js';
 import { Phone, PHONE_DEFAULT_KEY } from './phone.js';
 import { RenderPipeline } from './render.js';
@@ -366,6 +367,16 @@ class Game {
       onNotify: msg => this.ui.showToast(`Nova mensagem — ${msg.from}`),
     });
 
+    // Rascunho da aba Rotina com erro: o jogo abre (os valores foram presos em
+    // limites seguros), mas quem escreveu precisa saber que não é isso que ele
+    // escreveu. Quem só joga o publicado nunca vê esta mensagem.
+    if (ROTINA_E_RASCUNHO) {
+      const erros = errosDaRotina(ROTINA_PROBLEMAS);
+      if (erros.length) {
+        this.ui.showToast(`Rotina do editor com ${erros.length} erro(s): ${erros[0].onde} — ${erros[0].mensagem}`);
+      }
+    }
+
     this.ui.hideMenu();
     this.ui.hud.classList.remove('hidden');
     this.running = true;
@@ -678,7 +689,10 @@ class Game {
       }
       this._handleInteractionPrompt();
       this.needs.update(dt);
-      this.obligation.update(this.world.timeOfDay * 24, this.player.position);
+      // O compromisso avisa quando abre e quando está pra fechar: faltar por
+      // não ter visto a hora passar não é desafio, é falta de informação.
+      const aviso = this.obligation.update(this.world.timeOfDay * 24, this.player.position);
+      if (aviso) this.ui.showToast(aviso);
     } else {
       this.input.consumeMouseDelta();
     }

@@ -10,7 +10,7 @@ import ITENS_PUBLICADOS from './data/items.json' with { type: 'json' };
 // Rotina (compromissos, casas, origens, cursos): mesmo caminho das missoes -
 // arquivo de conteudo escrito na aba Rotina do editor.
 import ROTINA_PUBLICADA from './data/routine.json' with { type: 'json' };
-import { normalizarRotina, resolverLocal, janelasPorNpc, serveComoRotina } from './rotina.js';
+import { normalizarRotina, resolverLocal, janelasPorNpc, serveComoRotina, validarRotina } from './rotina.js';
 
 /**
  * Rascunho do editor de conteúdo NESTA máquina: escreveu a missão (ou o item),
@@ -304,7 +304,12 @@ export const NPC_DEFS = PECAS_DE_NPC.map(item => {
 // de mapa move o compromisso junto.
 // ---------------------------------------------------------------------------
 const rotinaDoEditor = () => rascunhoDeConteudo('routine-editor-draft', serveComoRotina);
-export const ROTINA = normalizarRotina(rotinaDoEditor() ?? ROTINA_PUBLICADA);
+const rotinaEscrita = rotinaDoEditor();
+// Verdade sobre de onde veio a rotina desta partida: com rascunho, quem está
+// jogando é o autor testando o que escreveu, e ele precisa saber se o que
+// carregou tem erro (ver ROTINA_PROBLEMAS, usado pelo toast em main.js).
+export const ROTINA_E_RASCUNHO = !!rotinaEscrita;
+export const ROTINA = normalizarRotina(rotinaEscrita ?? ROTINA_PUBLICADA);
 
 // Marcos que existem de fato na cena: o editor lista estes e a validacao
 // recusa compromisso apontando pra um marco que ninguem colocou no mapa.
@@ -341,6 +346,14 @@ export const COURSES = ROTINA.courses;
 // Horario de funcionamento de cada NPC com compromisso (npc.js usa pra fechar
 // o lugar fora do turno). Sai do mesmo dado, sem tabela paralela.
 export const JANELAS_DE_NPC = janelasPorNpc(OBLIGATIONS);
+
+// A mesma conferência que o editor mostra, agora contra a cena de verdade.
+// O jogo não se recusa a abrir por causa disso — normalizarRotina já garantiu
+// que dá pra jogar —, mas quem está com rascunho aberto vê o aviso na tela.
+export const ROTINA_PROBLEMAS = validarRotina(rotinaEscrita ?? ROTINA_PUBLICADA, {
+  npcs: new Set(NPC_DEFS.map(n => n.id)),
+  marcos: new Set(MARCOS_DA_CENA),
+});
 
 // ---------------------------------------------------------------------------
 // Fragmentos de memória: peças 'fragment' da cena. Cada uma diz a nota que

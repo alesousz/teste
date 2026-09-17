@@ -211,5 +211,9 @@ function normalizeObligation(value) {
     misses: intAtLeast(ob.misses, 0),
     active: bool(ob.active),
     lastProcessedDay: ob.lastProcessedDay === null ? null : intAtLeast(ob.lastProcessedDay, 0),
+    // Avisos de horário já dados hoje. Sem eles no save, carregar no meio do
+    // turno mostraria de novo o "começou agora" de uma hora atrás.
+    warnedStart: bool(ob.warnedStart),
+    warnedEnd: bool(ob.warnedEnd),
   });
 }

@@ -6,6 +6,12 @@ import { defineConfig, devices } from '@playwright/test';
 // baixa a mesma versão pinada em package.json antes de rodar isso.
 const chromiumPath = process.env.PLAYWRIGHT_CHROMIUM_PATH;
 
+// Porta configurável (E2E_PORT) porque `reuseExistingServer` confia em quem já
+// estiver na porta: com outro programa na 8080, a suíte inteira roda contra a
+// página errada e falha por timeout, sem dizer o motivo.
+const PORTA = process.env.E2E_PORT || 8080;
+const BASE_URL = `http://localhost:${PORTA}`;
+
 export default defineConfig({
   testDir: './tests/e2e',
   // O boot do jogo gera a cidade proceduralmente (25 quarteirões, prédios
@@ -29,7 +35,7 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
   use: {
-    baseURL: 'http://localhost:8080',
+    baseURL: BASE_URL,
     trace: 'retain-on-failure',
     launchOptions: {
       args: ['--use-gl=swiftshader'],
@@ -37,8 +43,8 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: 'npx http-server -c-1 -p 8080 .',
-    url: 'http://localhost:8080/index.html',
+    command: `npx http-server -c-1 -p ${PORTA} .`,
+    url: `${BASE_URL}/index.html`,
     reuseExistingServer: !process.env.CI,
     timeout: 20_000,
   },

@@ -1,4 +1,9 @@
 import { CONFIG } from './data.js';
+import { horaParaTexto as horaDoDia } from './rotina.js';
+
+// Quanto antes do fim da janela o jogo avisa que o compromisso vai fechar.
+// Uma hora: dá tempo de atravessar a cidade a pé.
+const AVISO_ANTES_DO_FIM = 1;
 
 // Acompanha o compromisso fixo (emprego ou escola) determinado pela origem
 // do personagem: presença numa janela de horário, com consequência real
@@ -10,17 +15,39 @@ export class ObligationSystem {
     this.misses = 0;
     this.active = true;
     this.lastProcessedDay = null;
+    // Avisos já dados hoje: zeram na virada do dia, junto com a presença.
+    this.warnedStart = false;
+    this.warnedEnd = false;
   }
 
   isInWindow(hourFloat) {
     return hourFloat >= this.def.startHour && hourFloat < this.def.endHour;
   }
 
+  /**
+   * Roda a cada frame. Devolve um aviso pra mostrar num toast quando o dia
+   * vira uma dessas duas horas, ou null — o jogador perdia o turno sem nada
+   * na tela ter mudado, e a consequência só aparecia na virada do dia.
+   * Cada aviso sai uma vez por dia; entrar no lugar antes disso cala os dois.
+   */
   update(hourFloat, playerPos) {
-    if (!this.active || this.attendedToday) return;
-    if (!this.isInWindow(hourFloat)) return;
-    const d = Math.hypot(playerPos.x - this.def.location.x, playerPos.z - this.def.location.z);
-    if (d < CONFIG.INTERACT_RADIUS + 3) this.attendedToday = true;
+    if (!this.active || this.attendedToday) return null;
+
+    let aviso = null;
+    if (this.isInWindow(hourFloat)) {
+      if (!this.warnedStart) {
+        this.warnedStart = true;
+        aviso = `Começou agora: ${this.def.label}. Vai até ${horaDoDia(this.def.endHour)}.`;
+      } else if (!this.warnedEnd && hourFloat >= this.def.endHour - AVISO_ANTES_DO_FIM) {
+        this.warnedEnd = true;
+        const faltam = Math.max(1, Math.round((this.def.endHour - hourFloat) * 60));
+        aviso = `Falta ${faltam} min pra fechar: ${this.def.label}.`;
+      }
+
+      const d = Math.hypot(playerPos.x - this.def.location.x, playerPos.z - this.def.location.z);
+      if (d < CONFIG.INTERACT_RADIUS + 3) this.attendedToday = true;
+    }
+    return aviso;
   }
 
   // Chamado uma vez quando o dia `dayIndex` termina (virada de meia-noite ou
@@ -53,6 +80,8 @@ export class ObligationSystem {
       }
     }
     this.attendedToday = false;
+    this.warnedStart = false;
+    this.warnedEnd = false;
     return result;
   }
 
@@ -62,6 +91,8 @@ export class ObligationSystem {
       misses: this.misses,
       active: this.active,
       lastProcessedDay: this.lastProcessedDay,
+      warnedStart: this.warnedStart,
+      warnedEnd: this.warnedEnd,
     };
   }
 
@@ -71,5 +102,7 @@ export class ObligationSystem {
     this.misses = data.misses ?? 0;
     this.active = data.active ?? true;
     this.lastProcessedDay = data.lastProcessedDay ?? null;
+    this.warnedStart = data.warnedStart ?? false;
+    this.warnedEnd = data.warnedEnd ?? false;
   }
 }
