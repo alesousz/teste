@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   normalizarRotina, validarRotina, errosDaRotina, resolverLocal,
   janelasPorNpc, serveComoRotina, descreverLocal, ANCORAS,
-  horaParaTexto, textoParaHora,
+  horaParaTexto, textoParaHora, dentroDaJanela, paradaAgora,
 } from '../../src/rotina.js';
 
 // A rotina é escrita à mão na aba Rotina do editor. Estes testes são a rede
@@ -168,10 +168,10 @@ describe('normalizarRotina — nada do que o autor digita vira partida quebrada'
     assert.equal(normalizarRotina(bruta).obligations.turno.id, 'turno');
   });
 
-  test('rotina vazia ou lixo devolve as quatro seções vazias sem lançar', () => {
+  test('rotina vazia ou lixo devolve as cinco seções vazias sem lançar', () => {
     for (const lixo of [null, undefined, 42, 'texto', [], {}]) {
       const r = normalizarRotina(lixo);
-      assert.deepEqual(Object.keys(r).sort(), ['courses', 'homes', 'obligations', 'origins']);
+      assert.deepEqual(Object.keys(r).sort(), ['agendas', 'courses', 'homes', 'obligations', 'origins']);
     }
   });
 
@@ -301,4 +301,108 @@ describe('ANCORAS', () => {
     assert.ok(ANCORAS.length >= 3);
     for (const a of ANCORAS) assert.ok(a.value && a.label);
   });
+});
+
+describe('agenda: o dia de cada pessoa', () => {
+  const agendaBoa = () => ({
+    obligations: { turno: { id: 'turno', label: 'Turno', startHour: 8, endHour: 14, local: { marco: 'job_mercado' } } },
+    homes: { casa: { id: 'casa', kind: 'home_operario', local: { marco: 'home_operario' } } },
+    origins: {}, courses: { eng: { id: 'eng', label: 'Eng', obligation: 'turno' } },
+    agendas: {
+      ivo: {
+        id: 'ivo', npc: 'ivo',
+        paradas: [
+          { id: 'dia', label: 'No mercado', de: 7, ate: 20, local: { marco: 'job_mercado' }, raio: 2 },
+          { id: 'noite', label: 'Em casa', de: 20, ate: 7, local: { marco: 'home_operario' }, raio: 0, animacoes: 'sentado' },
+        ],
+      },
+    },
+  });
+
+  test('janela normal e janela que atravessa a meia-noite', () => {
+    assert.equal(dentroDaJanela(9, 8, 12), true);
+    assert.equal(dentroDaJanela(12, 8, 12), false, 'a hora do fim já é da próxima parada');
+    assert.equal(dentroDaJanela(23, 22, 6), true);
+    assert.equal(dentroDaJanela(3, 22, 6), true);
+    assert.equal(dentroDaJanela(12, 22, 6), false);
+    assert.equal(dentroDaJanela(8, 8, 8), false, 'janela vazia nunca acontece');
+  });
+
+  test('a parada de agora é a primeira da lista que pega a hora', () => {
+    const { agendas } = normalizarRotina(agendaBoa());
+    assert.equal(paradaAgora(agendas.ivo, 10).label, 'No mercado');
+    assert.equal(paradaAgora(agendas.ivo, 23).label, 'Em casa');
+    assert.equal(paradaAgora(agendas.ivo, 3).label, 'Em casa');
+    assert.equal(paradaAgora(null, 10), null);
+  });
+
+  test('parada sem nada escrito ganha padrão e não quebra o dia', () => {
+    const { agendas } = normalizarRotina({ agendas: { x: { paradas: [{}] } } });
+    const p = agendas.x.paradas[0];
+    assert.equal(p.id, 'parada_1');
+    assert.equal(p.raio, 0);
+    assert.equal(p.animacoes, '');
+    assert.deepEqual(p.local, { marco: '', ancora: 'frente', margem: 3 });
+  });
+
+  test('agenda de quem não está no mapa é erro', () => {
+    const problemas = validarRotina(agendaBoa(), { npcs: new Set(['outro']), marcos: new Set(['job_mercado', 'home_operario']) });
+    const p = problemas.find(x => x.tipo === 'agenda' && x.campo === 'npc');
+    assert.equal(p.nivel, 'erro');
+    assert.match(p.mensagem, /não está no mapa/);
+  });
+
+  test('parada que começa e termina na mesma hora é erro, com o nome dela', () => {
+    const bruta = agendaBoa();
+    bruta.agendas.ivo.paradas[0].ate = 7;
+    const p = validarRotina(bruta).find(x => x.campo === 'parada_0');
+    assert.equal(p.nivel, 'erro');
+    assert.match(p.mensagem, /"No mercado" começa e termina/);
+    assert.match(p.mensagem, /nunca acontece/);
+  });
+
+  test('duas paradas na mesma hora avisam qual vale', () => {
+    const bruta = agendaBoa();
+    bruta.agendas.ivo.paradas.push({ label: 'Na praça', de: 10, ate: 12, local: { marco: 'job_mercado' } });
+    const p = validarRotina(bruta).find(x => x.campo === 'parada_2');
+    assert.equal(p.nivel, 'aviso');
+    assert.match(p.mensagem, /vale "No mercado"/);
+  });
+
+  test('conjunto de animação que não existe é erro na parada', () => {
+    const problemas = validarRotina(agendaBoa(), { conjuntos: new Set(['normal']) });
+    const p = problemas.find(x => x.campo === 'parada_1');
+    assert.equal(p.nivel, 'erro');
+    assert.match(p.mensagem, /"sentado", que não existe/);
+    // Sem a lista de conjuntos (testes sem cena), não há o que conferir.
+    assert.equal(validarRotina(agendaBoa()).some(x => /conjunto de animação/.test(x.mensagem)), false);
+  });
+
+  test('agenda vazia avisa, mas não é erro: a pessoa só fica onde está', () => {
+    const bruta = agendaBoa();
+    bruta.agendas.ivo.paradas = [];
+    const p = validarRotina(bruta).find(x => x.tipo === 'agenda');
+    assert.equal(p.nivel, 'aviso');
+    assert.match(p.mensagem, /fica o dia inteiro/);
+  });
+
+  test('parada sem lugar escolhido é erro', () => {
+    const bruta = agendaBoa();
+    bruta.agendas.ivo.paradas[0].local = {};
+    const p = validarRotina(bruta).find(x => x.tipo === 'agenda' && x.campo === 'local');
+    assert.equal(p.nivel, 'erro');
+    assert.match(p.mensagem, /"No mercado"/);
+  });
+});
+
+test('duas agendas pra mesma pessoa é erro: o jogo só segue uma', () => {
+  const bruta = {
+    agendas: {
+      ivo_dia: { id: 'ivo_dia', npc: 'ivo', paradas: [{ label: 'A', de: 8, ate: 12, local: { marco: 'job_mercado' } }] },
+      ivo_noite: { id: 'ivo_noite', npc: 'ivo', paradas: [{ label: 'B', de: 20, ate: 8, local: { marco: 'job_mercado' } }] },
+    },
+  };
+  const p = validarRotina(bruta).find(x => x.id === 'ivo_noite' && x.campo === 'npc');
+  assert.equal(p.nivel, 'erro');
+  assert.match(p.mensagem, /já tem a agenda "ivo_dia"/);
 });

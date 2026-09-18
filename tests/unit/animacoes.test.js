@@ -152,7 +152,7 @@ describe('o arquivo publicado e o jogo', () => {
   });
 
   test('as opções do select saem dos conjuntos que existem', () => {
-    assert.deepEqual(opcoesDeConjunto(ANIMACOES).map(o => o.value).sort(), ['apressado', 'formal', 'normal']);
+    assert.deepEqual(opcoesDeConjunto(ANIMACOES).map(o => o.value).sort(), ['apressado', 'formal', 'normal', 'sentado']);
   });
 });
 

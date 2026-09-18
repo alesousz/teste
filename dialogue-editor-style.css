@@ -49,6 +49,18 @@ code { background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px;
 #rotina-panel, #rotina-editor-panel, #rotina-problemas-panel,
 #regras-panel, #regras-problemas-panel { background: #0d0e12; padding: 16px; overflow-y: auto; }
 
+/* Uma parada da agenda: um bloco por linha do dia da pessoa. */
+.parada {
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+  padding: 10px 12px; margin: 8px 0; background: rgba(255,255,255,0.03);
+}
+.parada-topo { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; margin-bottom: 6px; }
+.parada-topo input { width: 100%; }
+.parada-topo button { padding: 4px 9px; }
+.parada .field { margin-bottom: 6px; }
+.parada.campo-com-erro { border-color: #a04040; }
+.parada.campo-com-aviso { border-color: #8a6f28; }
+
 /* Animações: conjuntos à esquerda, o conjunto aberto no meio, e à direita o
    boneco com a biblioteca de clipes — a parte que faz a escolha ser visual. */
 #layout-animacoes {

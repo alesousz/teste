@@ -236,3 +236,66 @@ describe('aba Rotina — o que a lista mostra', () => {
     assert.equal(aba._piorNivel(problemas, 'course', 'medicina'), null);
   });
 });
+
+describe('aba Rotina — agendas', () => {
+  test('agenda nova nasce com o dia partido em dois: fora de casa e em casa', () => {
+    const { aba, salvou } = montar({ prompt: 'seu_ivo' });
+    aba._novo('agenda');
+    const agenda = salvou().agendas.seu_ivo;
+    assert.equal(agenda.npc, 'seu_ivo');
+    assert.equal(agenda.paradas.length, 2);
+    assert.equal(agenda.paradas[0].de, 8);
+    assert.equal(agenda.paradas[1].ate, 8, 'a noite fecha o ciclo atravessando a meia-noite');
+    assert.ok(agenda.paradas[1].local.marco.startsWith('home'));
+  });
+
+  test('a lista mostra quantas paradas o dia tem', () => {
+    const { aba } = montar({ prompt: 'seu_ivo' });
+    aba._novo('agenda');
+    assert.match(aba._resumo('agenda', aba.rotina.agendas.seu_ivo), /2 parada\(s\)/);
+    assert.equal(aba._resumo('agenda', { paradas: [] }), 'sem parada nenhuma');
+  });
+
+  test('o formulário desenha uma linha por parada, com hora, lugar e jeito de se mexer', () => {
+    const { aba, doc } = montar({ prompt: 'seu_ivo' });
+    aba._novo('agenda');
+    aba.selecionar('agenda', 'seu_ivo');
+    const html = doc.getElementById('rotina-editor-body').innerHTML;
+    assert.equal((html.match(/data-parada="/g) || []).length, 2);
+    assert.match(html, /data-pcampo="de"/);
+    assert.match(html, /data-pcampo="animacoes"/);
+    assert.match(html, /data-plocal="marco"/);
+    assert.match(html, /\+ Nova parada/);
+  });
+
+  test('o select de jeito de se mexer oferece os conjuntos que existem', () => {
+    const documento = novoDoc({ prompt: 'seu_ivo' });
+    const aba = new AbaRotina({
+      npcs: [{ id: 'seu_ivo', name: 'Seu Ivo' }],
+      marcos: ['home_operario', 'job_mercado'],
+      conjuntos: () => [{ value: 'sentado', label: 'Sentado (em casa)' }],
+      doc: documento,
+    });
+    aba.definir(rotinaBase());
+    aba._novo('agenda');
+    aba.selecionar('agenda', 'seu_ivo');
+    const html = documento.getElementById('rotina-editor-body').innerHTML;
+    assert.match(html, /Sentado \(em casa\)/);
+    assert.match(html, /— o de sempre dele —/);
+  });
+
+  test('conjunto apagado não some do select: vira opção quebrada, à vista', () => {
+    const documento = novoDoc();
+    const aba = new AbaRotina({
+      npcs: [{ id: 'seu_ivo', name: 'Seu Ivo' }],
+      marcos: ['home_operario'],
+      conjuntos: () => [{ value: 'normal', label: 'Normal' }],
+      doc: documento,
+    });
+    const rotina = rotinaBase();
+    rotina.agendas = { seu_ivo: { id: 'seu_ivo', npc: 'seu_ivo', paradas: [{ label: 'Noite', de: 20, ate: 8, local: { marco: 'home_operario' }, animacoes: 'sumiu' }] } };
+    aba.definir(rotina);
+    aba.selecionar('agenda', 'seu_ivo');
+    assert.match(documento.getElementById('rotina-editor-body').innerHTML, /⛔ sumiu \(não existe\)/);
+  });
+});

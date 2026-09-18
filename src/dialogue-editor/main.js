@@ -79,6 +79,9 @@ export class DialogueEditorApp {
       nomeDoMarco: kind => LANDMARK_SPECS[kind]?.label
         ? `${LANDMARK_SPECS[kind].label.charAt(0)}${LANDMARK_SPECS[kind].label.slice(1).toLowerCase()} (${kind})`
         : kind,
+      // Os conjuntos vêm da aba Animações, viva: criar um lá aparece aqui na
+      // hora, sem recarregar a página.
+      conjuntos: () => this._opcoesDeAnimacao(),
       aoSalvar: dados => this._persistRotina(dados),
     });
     // Aba Regras: os números do mundo. O formulário inteiro sai do ESQUEMA
@@ -87,7 +90,11 @@ export class DialogueEditorApp {
     // Aba Animações: os conjuntos de clipes. A prévia 3D entra depois, na
     // primeira vez que a aba abre (ver _abrirPrevia) — carregar o three e os
     // personagens só pra quem nunca abre a aba seria desperdício.
-    this.animacoes = new AbaAnimacoes({ npcs: NPC_DEFS, aoSalvar: dados => this._persistAnimacoes(dados) });
+    this.animacoes = new AbaAnimacoes({
+      npcs: NPC_DEFS,
+      usosExtras: () => this._conjuntosPedidosPelasAgendas(),
+      aoSalvar: dados => this._persistAnimacoes(dados),
+    });
     this.aba = 'dialogos';
 
     this._bindStaticEvents();
@@ -172,6 +179,19 @@ export class DialogueEditorApp {
   /** Os conjuntos de animação que existem agora, pro select do efeito. */
   _opcoesDeAnimacao() {
     return opcoesDeConjunto(this.animacoes?.animacoes);
+  }
+
+  /** Conjuntos que alguma parada de agenda pede, e de quem é a parada. */
+  _conjuntosPedidosPelasAgendas() {
+    const agendas = this.rotina?.rotina?.agendas ?? {};
+    const pedidos = [];
+    for (const a of Object.values(agendas)) {
+      const nome = NPC_DEFS.find(n => n.id === a.npc)?.name ?? a.npc ?? a.id;
+      for (const p of a.paradas ?? []) {
+        if (p?.animacoes) pedidos.push({ conjunto: p.animacoes, quem: `${nome} (${p.label || 'uma parada'})` });
+      }
+    }
+    return pedidos;
   }
 
   /**

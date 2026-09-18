@@ -37,6 +37,7 @@ export const ROTULO_DE_TIPO = {
   course: 'curso',
   home: 'casa',
   origin: 'origem',
+  agenda: 'agenda',
   rotina: 'rotina',
 };
 
@@ -202,6 +203,71 @@ const mapa = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
  * Rotina pronta pro jogo: todas as chaves presentes, todo valor dentro de
  * limite, toda referência apontando pra algo que existe.
  */
+const MAX_PARADAS = 12;
+const MAX_RAIO = 30;
+
+/**
+ * A hora está dentro da janela? Janela que termina antes de começar atravessa
+ * a meia-noite — é como se escreve "em casa, das 22h às 6h".
+ */
+export function dentroDaJanela(hora, de, ate) {
+  if (de === ate) return false;             // janela vazia: nunca acontece
+  return de < ate ? (hora >= de && hora < ate) : (hora >= de || hora < ate);
+}
+
+/** A janela em pedaços dentro do dia — quem atravessa a meia-noite vira dois. */
+const pedacosDaJanela = ({ de, ate }) => (de < ate ? [[de, ate]] : [[de, 24], [0, ate]]);
+
+/** Duas janelas pegam a mesma hora? Usado só pra avisar o autor. */
+export function pegaJunto(a, b) {
+  for (const [ai, af] of pedacosDaJanela(a)) {
+    for (const [bi, bf] of pedacosDaJanela(b)) {
+      if (ai < bf && bi < af) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Uma parada da agenda: onde a pessoa fica, de que hora a que hora, com que
+ * raio de perambulação e (se quiser) que jeito de se mexer enquanto está lá.
+ */
+function normalizarParada(bruta, indice) {
+  const p = mapa(bruta);
+  return {
+    id: texto(p.id) || `parada_${indice + 1}`,
+    label: texto(p.label, ''),
+    de: hora(p.de, 8),
+    ate: hora(p.ate, 12),
+    local: normalizarLocal(p.local),
+    raio: numero(p.raio, 0, 0, MAX_RAIO),
+    // Vazio = continua com o conjunto do próprio personagem.
+    animacoes: texto(p.animacoes, ''),
+  };
+}
+
+/**
+ * A agenda de um personagem: a lista de paradas do dia dele, na ordem em que
+ * foram escritas. Duas paradas que pegam a mesma hora não são erradas — vale
+ * a primeira da lista, e a conferência avisa.
+ */
+function normalizarAgenda(id, bruta) {
+  const a = mapa(bruta);
+  const lista = Array.isArray(a.paradas) ? a.paradas.slice(0, MAX_PARADAS) : [];
+  return {
+    id,
+    npc: texto(a.npc, id),
+    label: texto(a.label, ''),
+    paradas: lista.map((p, i) => normalizarParada(p, i)),
+  };
+}
+
+/** Onde o personagem está a esta hora — ou null, que quer dizer "em casa". */
+export function paradaAgora(agenda, horaDoDia) {
+  const paradas = agenda?.paradas ?? [];
+  return paradas.find(p => dentroDaJanela(horaDoDia, p.de, p.ate)) ?? null;
+}
+
 export function normalizarRotina(bruta) {
   const raiz = mapa(bruta);
   const obrigacoes = {};
@@ -216,7 +282,10 @@ export function normalizarRotina(bruta) {
   const cursos = {};
   for (const [id, c] of Object.entries(mapa(raiz.courses))) cursos[id] = normalizarCurso(id, mapa(c), obrigacoes);
 
-  return { obligations: obrigacoes, homes: casas, origins: origens, courses: cursos };
+  const agendas = {};
+  for (const [id, a] of Object.entries(mapa(raiz.agendas))) agendas[id] = normalizarAgenda(id, a);
+
+  return { obligations: obrigacoes, homes: casas, origins: origens, courses: cursos, agendas };
 }
 
 /**
@@ -249,13 +318,14 @@ export function janelasPorNpc(obrigacoes) {
  * `mundo.npcs` e `mundo.marcos` são conjuntos de ids que existem na cena;
  * sem eles, as referências não são checadas (nos testes de unidade, por ex.).
  */
-export function validarRotina(bruta, { npcs = null, marcos = null } = {}) {
+export function validarRotina(bruta, { npcs = null, marcos = null, conjuntos = null } = {}) {
   const problemas = [];
   const raiz = mapa(bruta);
   const obrigacoes = mapa(raiz.obligations);
   const casas = mapa(raiz.homes);
   const origens = mapa(raiz.origins);
   const cursos = mapa(raiz.courses);
+  const agendas = mapa(raiz.agendas);
 
   // Cada problema carrega tipo+id pra conferência do editor levar o autor
   // direto ao campo errado, em vez de só descrever onde ele está.
@@ -355,6 +425,61 @@ export function validarRotina(bruta, { npcs = null, marcos = null } = {}) {
     if (!usadas.has(id) && !usadaPorOrigem) {
       aviso('obligation', id, null, `"${mapa(cru).label || id}" não é usado por nenhum curso nem origem: ninguém vai cumprir ele.`);
     }
+  }
+
+  // Agendas: o dia de cada personagem, parada por parada.
+  const donos = new Map();
+  for (const [id, cru] of Object.entries(agendas)) {
+    const a = mapa(cru);
+    const npc = texto(a.npc, id);
+    if (npcs && !npcs.has(npc)) {
+      erro('agenda', id, 'npc', `A agenda é de "${npc}", que não está no mapa. Coloque a peça do NPC ou apague a agenda.`);
+    }
+    // Duas agendas pra mesma pessoa: o jogo só consegue seguir uma, e a outra
+    // sumiria sem dizer nada.
+    if (donos.has(npc)) {
+      erro('agenda', id, 'npc', `"${npc}" já tem a agenda "${donos.get(npc)}". Cada pessoa segue uma agenda só — junte as paradas numa delas.`);
+    } else {
+      donos.set(npc, id);
+    }
+    const paradas = Array.isArray(a.paradas) ? a.paradas : [];
+    if (!paradas.length) {
+      aviso('agenda', id, null, 'Agenda sem nenhuma parada: a pessoa fica o dia inteiro onde a peça dela está.');
+      continue;
+    }
+
+    const cobertas = [];
+    paradas.forEach((cruParada, i) => {
+      const p = mapa(cruParada);
+      const onde = texto(p.label).trim() || `parada ${i + 1}`;
+      checarLocal('agenda', id, p.local, `"${onde}"`);
+
+      const de = p.de;
+      const ate = p.ate;
+      if (!eNumero(de) || !eNumero(ate)) {
+        erro('agenda', id, `parada_${i}`, `"${onde}" está sem horário: escreva de que hora a que hora.`);
+        return;
+      }
+      if (de === ate) {
+        erro('agenda', id, `parada_${i}`, `"${onde}" começa e termina às ${horaParaTexto(de)}: essa parada nunca acontece.`);
+        return;
+      }
+      if (de < 0 || de > 24 || ate < 0 || ate > 24) {
+        erro('agenda', id, `parada_${i}`, `"${onde}" tem horário fora do dia: use de 0 a 24.`);
+        return;
+      }
+      if (p.animacoes && conjuntos && !conjuntos.has(p.animacoes)) {
+        erro('agenda', id, `parada_${i}`, `"${onde}" usa o conjunto de animação "${p.animacoes}", que não existe. Crie ele na aba Animações ou deixe vazio.`);
+      }
+
+      // Duas paradas na mesma hora não quebram nada — vale a primeira da
+      // lista —, mas quase sempre é engano de quem escreveu.
+      const conflito = cobertas.find(c => pegaJunto(c, { de, ate }));
+      if (conflito) {
+        aviso('agenda', id, `parada_${i}`, `"${onde}" pega a mesma hora de "${conflito.onde}": das duas, vale "${conflito.onde}", que vem antes na lista.`);
+      }
+      cobertas.push({ de, ate, onde });
+    });
   }
 
   return problemas;

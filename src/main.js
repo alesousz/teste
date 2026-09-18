@@ -716,7 +716,9 @@ class Game {
       this.input.consumeMouseDelta();
     }
 
-    for (const npc of this.npcs) npc.update(uiBlocking ? 0 : dt);
+    // A posição do jogador vai junto: é ela que decide se um NPC pode trocar
+    // de lugar sem ninguém ver, quando a agenda dele muda de parada.
+    for (const npc of this.npcs) npc.update(uiBlocking ? 0 : dt, this.player.position);
     this.collectibles.update(uiBlocking ? 0 : dt);
     this.world.update(uiBlocking ? 0 : dt);
     this.world.updateBuilding(uiBlocking ? 0 : dt);

@@ -4,7 +4,11 @@
       "id": "job_mercado",
       "type": "job",
       "label": "Turno no Mercado",
-      "local": { "marco": "job_mercado", "ancora": "frente", "margem": 3 },
+      "local": {
+        "marco": "job_mercado",
+        "ancora": "frente",
+        "margem": 3
+      },
       "npc": "seu_ivo",
       "startHour": 8,
       "endHour": 14,
@@ -18,7 +22,11 @@
       "id": "school",
       "type": "school",
       "label": "Aula na Escola",
-      "local": { "marco": "school", "ancora": "frente", "margem": 3 },
+      "local": {
+        "marco": "school",
+        "ancora": "frente",
+        "margem": 3
+      },
       "npc": "professora",
       "startHour": 8,
       "endHour": 14,
@@ -32,7 +40,11 @@
       "id": "course_medicina",
       "type": "school",
       "label": "Aula de Medicina",
-      "local": { "marco": "school", "ancora": "frente", "margem": 3 },
+      "local": {
+        "marco": "school",
+        "ancora": "frente",
+        "margem": 3
+      },
       "npc": "professora",
       "startHour": 8,
       "endHour": 14,
@@ -46,7 +58,11 @@
       "id": "course_direito",
       "type": "school",
       "label": "Aula de Direito",
-      "local": { "marco": "school", "ancora": "frente", "margem": 3 },
+      "local": {
+        "marco": "school",
+        "ancora": "frente",
+        "margem": 3
+      },
       "npc": "professora",
       "startHour": 8,
       "endHour": 14,
@@ -60,7 +76,11 @@
       "id": "course_engenharia",
       "type": "school",
       "label": "Aula de Engenharia",
-      "local": { "marco": "school", "ancora": "frente", "margem": 3 },
+      "local": {
+        "marco": "school",
+        "ancora": "frente",
+        "margem": 3
+      },
       "npc": "professora",
       "startHour": 8,
       "endHour": 14,
@@ -75,12 +95,20 @@
     "home_operario": {
       "id": "home_operario",
       "kind": "home_operario",
-      "local": { "marco": "home_operario", "ancora": "lado", "margem": 3 }
+      "local": {
+        "marco": "home_operario",
+        "ancora": "lado",
+        "margem": 3
+      }
     },
     "home_nobre": {
       "id": "home_nobre",
       "kind": "home_nobre",
-      "local": { "marco": "home_nobre", "ancora": "lado", "margem": 3 }
+      "local": {
+        "marco": "home_nobre",
+        "ancora": "lado",
+        "margem": 3
+      }
     }
   },
   "origins": {
@@ -130,6 +158,87 @@
       "startMoney": 60,
       "obligation": "course_engenharia",
       "note": "Faltar à aula três vezes te tira do curso — e a família comenta."
+    }
+  },
+  "agendas": {
+    "seu_ivo": {
+      "id": "seu_ivo",
+      "npc": "seu_ivo",
+      "label": "",
+      "paradas": [
+        {
+          "id": "manha",
+          "label": "Vendendo na porta do mercado",
+          "de": 7,
+          "ate": 14,
+          "local": {
+            "marco": "job_mercado",
+            "ancora": "frente",
+            "margem": 4
+          },
+          "raio": 2.5,
+          "animacoes": ""
+        },
+        {
+          "id": "tarde",
+          "label": "Na saída da escola",
+          "de": 14,
+          "ate": 20,
+          "local": {
+            "marco": "school",
+            "ancora": "frente",
+            "margem": 4
+          },
+          "raio": 2.5,
+          "animacoes": ""
+        },
+        {
+          "id": "noite",
+          "label": "Sentado em casa",
+          "de": 20,
+          "ate": 7,
+          "local": {
+            "marco": "home_operario",
+            "ancora": "lado",
+            "margem": 3
+          },
+          "raio": 0,
+          "animacoes": "sentado"
+        }
+      ]
+    },
+    "marina": {
+      "id": "marina",
+      "npc": "marina",
+      "label": "",
+      "paradas": [
+        {
+          "id": "manha",
+          "label": "Resolvendo coisas no mercado",
+          "de": 9,
+          "ate": 13,
+          "local": {
+            "marco": "job_mercado",
+            "ancora": "lado",
+            "margem": 4
+          },
+          "raio": 4,
+          "animacoes": ""
+        },
+        {
+          "id": "noite",
+          "label": "Em casa",
+          "de": 21,
+          "ate": 9,
+          "local": {
+            "marco": "home_operario",
+            "ancora": "frente",
+            "margem": 4
+          },
+          "raio": 0,
+          "animacoes": "sentado"
+        }
+      ]
     }
   }
 }

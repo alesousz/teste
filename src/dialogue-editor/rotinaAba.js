@@ -18,7 +18,7 @@ import {
 
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const SECOES = ['obligation', 'course', 'home', 'origin'];
+const SECOES = ['obligation', 'course', 'home', 'origin', 'agenda'];
 
 /** Onde cada tipo mora dentro do routine.json. */
 const COLECAO = {
@@ -26,6 +26,7 @@ const COLECAO = {
   course: 'courses',
   home: 'homes',
   origin: 'origins',
+  agenda: 'agendas',
 };
 
 /**
@@ -41,6 +42,7 @@ const QUEM_USA = {
   home: (rotina, id) => Object.values(rotina.origins).filter(o => o.home === id).map(o => `origem "${o.label || o.id}"`),
   course: () => [],
   origin: () => [],
+  agenda: () => [],
 };
 
 // Campos de cada tipo, na ordem em que aparecem. `campo` é a chave que a
@@ -79,11 +81,18 @@ const FORMULARIOS = {
     { prop: 'startMoney', campo: 'startMoney', label: 'Dinheiro no bolso (R$)', tipo: 'inteiro', min: 0, meia: true },
     { prop: 'familyNpc', campo: 'familyNpc', label: 'NPC da família', tipo: 'npc', meia: true },
   ],
+  agenda: [
+    { prop: 'npc', campo: 'npc', label: 'De quem é esta agenda', tipo: 'npc', dica: 'A pessoa que vai cumprir as paradas abaixo.' },
+    { tipo: 'paradas', campo: 'paradas', label: 'O dia dela, parada por parada' },
+  ],
 };
 
 const TITULO_DA_SECAO = {
-  obligation: 'Compromisso', course: 'Curso', home: 'Casa', origin: 'Origem',
+  obligation: 'Compromisso', course: 'Curso', home: 'Casa', origin: 'Origem', agenda: 'Agenda',
 };
+
+/** Uma parada nova nasce cobrindo a tarde: é o horário mais provável. */
+const PARADA_NOVA = () => ({ label: 'Nova parada', de: 13, ate: 18, local: { marco: '', ancora: 'frente', margem: 3 }, raio: 0, animacoes: '' });
 
 export class AbaRotina {
   /**
@@ -91,10 +100,13 @@ export class AbaRotina {
    * deles que saem os selects: só dá pra escolher NPC e prédio que existem.
    * `aoSalvar` grava o rascunho.
    */
-  constructor({ npcs = [], marcos = [], nomeDoMarco = k => k, aoSalvar = () => {}, doc = document } = {}) {
+  constructor({ npcs = [], marcos = [], nomeDoMarco = k => k, conjuntos = () => [], aoSalvar = () => {}, doc = document } = {}) {
     this.npcs = npcs;
     this.marcos = marcos;
     this.nomeDoMarco = nomeDoMarco;
+    // Os conjuntos de animação que existem agora (aba Animações). Função, e
+    // não lista pronta: criar um conjunto lá tem que aparecer aqui na hora.
+    this.conjuntos = conjuntos;
     this.aoSalvar = aoSalvar;
     this.doc = doc;
     this.rotina = null;
@@ -136,6 +148,12 @@ export class AbaRotina {
       return ob ? `${ob.label || item.obligation} · ${horaParaTexto(ob.startHour ?? 8)}` : `sem compromisso (${item.obligation ?? '—'})`;
     }
     if (tipo === 'home') return descreverLocal(item.local, this.nomeDoMarco);
+    if (tipo === 'agenda') {
+      const paradas = Array.isArray(item.paradas) ? item.paradas : [];
+      if (!paradas.length) return 'sem parada nenhuma';
+      const primeira = paradas[0];
+      return `${paradas.length} parada(s) · ${horaParaTexto(primeira.de ?? 0)} ${primeira.label || descreverLocal(primeira.local, this.nomeDoMarco)}`;
+    }
     const casa = this.rotina.homes[item.home];
     return `${casa ? this.nomeDoMarco(casa.kind) : 'sem casa'} · R$${item.startMoney ?? 0}`;
   }
@@ -232,6 +250,53 @@ export class AbaRotina {
           </select>
           <input type="number" data-local="margem" min="0" max="20" step="0.5" value="${Number.isFinite(local.margem) ? local.margem : 3}" title="Distância da parede, em metros" />
         </div>
+      </div>`;
+    }
+
+    // Lista de paradas: o único campo que repete. Cada parada é uma linha com
+    // horário, lugar no mapa, raio e (se quiser) o jeito de se mexer ali.
+    if (def.tipo === 'paradas') {
+      const paradas = Array.isArray(item.paradas) ? item.paradas : [];
+      const conjuntos = this.conjuntos();
+      const linhas = paradas.map((p, i) => {
+        const local = p.local && typeof p.local === 'object' ? p.local : {};
+        const classeP = nivelPorCampo[`parada_${i}`] === 'erro' ? ' campo-com-erro'
+          : nivelPorCampo[`parada_${i}`] === 'aviso' ? ' campo-com-aviso' : '';
+        return `<div class="parada${classeP}" data-campo="parada_${i}" data-parada="${i}">
+          <div class="parada-topo">
+            <input type="text" data-pcampo="label" value="${escapeHtml(p.label ?? '')}" placeholder="O que ela faz aqui" />
+            <button class="btn-secondary" data-parada-acao="subir" title="Subir na lista"${i === 0 ? ' disabled' : ''}>↑</button>
+            <button class="btn-secondary" data-parada-acao="remover" title="Remover esta parada">✕</button>
+          </div>
+          <div class="linha-tripla">
+            <label class="field">Das<input type="time" step="300" data-pcampo="de" value="${horaParaTexto(p.de ?? 8)}" /></label>
+            <label class="field">Às<input type="time" step="300" data-pcampo="ate" value="${horaParaTexto(p.ate ?? 12)}" /></label>
+            <label class="field">Anda até (m)<input type="number" min="0" max="30" step="0.5" data-pcampo="raio" value="${Number.isFinite(p.raio) ? p.raio : 0}" /></label>
+          </div>
+          <div class="linha-tripla">
+            <select data-plocal="marco">
+              <option value="">— escolha um prédio —</option>
+              ${this.marcos.map(k => `<option value="${escapeHtml(k)}"${k === local.marco ? ' selected' : ''}>${escapeHtml(this.nomeDoMarco(k))}</option>`).join('')}
+              ${local.marco && !this.marcos.includes(local.marco) ? `<option value="${escapeHtml(local.marco)}" selected>⛔ ${escapeHtml(local.marco)} (fora do mapa)</option>` : ''}
+            </select>
+            <select data-plocal="ancora">
+              ${ANCORAS.map(a => `<option value="${a.value}"${a.value === (local.ancora ?? 'frente') ? ' selected' : ''}>${escapeHtml(a.label)}</option>`).join('')}
+            </select>
+            <input type="number" data-plocal="margem" min="0" max="20" step="0.5" value="${Number.isFinite(local.margem) ? local.margem : 3}" title="Distância da parede, em metros" />
+          </div>
+          <label class="field">Jeito de se mexer aqui
+            <select data-pcampo="animacoes">
+              <option value="">— o de sempre dele —</option>
+              ${conjuntos.map(c => `<option value="${escapeHtml(c.value)}"${c.value === p.animacoes ? ' selected' : ''}>${escapeHtml(c.label)}</option>`).join('')}
+              ${p.animacoes && !conjuntos.some(c => c.value === p.animacoes) ? `<option value="${escapeHtml(p.animacoes)}" selected>⛔ ${escapeHtml(p.animacoes)} (não existe)</option>` : ''}
+            </select>
+          </label>
+        </div>`;
+      }).join('');
+      return `<div class="field${classe}" data-campo="${def.campo}">${escapeHtml(def.label)}
+        <p class="hint">Vale a primeira parada da lista que pega a hora. Horário que termina antes de começar atravessa a meia-noite (22:00 às 06:00 = a noite inteira). Fora de toda parada, a pessoa volta pra onde a peça dela está.</p>
+        ${linhas || '<p class="hint">Nenhuma parada ainda: ela fica o dia todo onde a peça dela está.</p>'}
+        <button class="btn-secondary" data-parada-acao="nova">+ Nova parada</button>
       </div>`;
     }
 
@@ -353,6 +418,60 @@ export class AbaRotina {
       if (el.tagName === 'INPUT') el.addEventListener('input', () => el.dispatchEvent(new Event('change', { bubbles: false })));
     }
 
+    // Paradas da agenda: campos e botões de cada linha.
+    for (const el of corpo.querySelectorAll('[data-pcampo]')) {
+      const i = Number(el.closest('[data-parada]').dataset.parada);
+      const campo = el.dataset.pcampo;
+      const aplicar = () => {
+        const p = item.paradas[i];
+        if (!p) return;
+        if (campo === 'de' || campo === 'ate') {
+          const h = textoParaHora(el.value);
+          if (h === null) return;         // meio de digitação: espera terminar
+          p[campo] = h;
+        } else if (campo === 'raio') {
+          const n = Number(el.value);
+          p.raio = Number.isFinite(n) ? n : 0;
+        } else {
+          p[campo] = el.value;
+        }
+        this._salvar();
+        this._renderProblemas(this._problemas());
+      };
+      el.addEventListener('input', aplicar);
+      el.addEventListener('change', () => { aplicar(); this.render(); });
+    }
+
+    for (const el of corpo.querySelectorAll('[data-plocal]')) {
+      const linha = el.closest('[data-parada]');
+      el.addEventListener('change', () => {
+        const p = item.paradas[Number(linha.dataset.parada)];
+        if (!p) return;
+        const margem = Number(linha.querySelector('[data-plocal="margem"]').value);
+        p.local = {
+          marco: linha.querySelector('[data-plocal="marco"]').value,
+          ancora: linha.querySelector('[data-plocal="ancora"]').value,
+          margem: Number.isFinite(margem) ? margem : 3,
+        };
+        mudou();
+      });
+      if (el.tagName === 'INPUT') el.addEventListener('input', () => el.dispatchEvent(new Event('change', { bubbles: false })));
+    }
+
+    for (const el of corpo.querySelectorAll('[data-parada-acao]')) {
+      const linha = el.closest('[data-parada]');
+      const i = linha ? Number(linha.dataset.parada) : -1;
+      el.onclick = () => {
+        item.paradas ??= [];
+        if (el.dataset.paradaAcao === 'nova') item.paradas.push(PARADA_NOVA());
+        if (el.dataset.paradaAcao === 'remover') item.paradas.splice(i, 1);
+        if (el.dataset.paradaAcao === 'subir' && i > 0) {
+          [item.paradas[i - 1], item.paradas[i]] = [item.paradas[i], item.paradas[i - 1]];
+        }
+        mudou();
+      };
+    }
+
     corpo.querySelector('[data-acao="excluir"]').onclick = () => this._excluir();
     corpo.querySelector('[data-acao="duplicar"]').onclick = () => this._duplicar();
   }
@@ -363,6 +482,7 @@ export class AbaRotina {
     return validarRotina(this.rotina, {
       npcs: new Set(this.npcs.map(n => n.id)),
       marcos: new Set(this.marcos),
+      conjuntos: new Set(this.conjuntos().map(c => c.value)),
     });
   }
 
@@ -413,10 +533,17 @@ export class AbaRotina {
   }
 
   _novo(tipo) {
+    // A agenda é a de alguém: o id dela é o id da pessoa, então a sugestão é
+    // o primeiro NPC da cena que ainda não tem uma.
+    const semAgenda = this.npcs.find(n => !this.rotina.agendas?.[n.id]);
     const sugestao = {
       obligation: 'compromisso_novo', course: 'curso_novo', home: 'casa_nova', origin: 'origem_nova',
+      agenda: semAgenda?.id ?? this.npcs[0]?.id ?? 'pessoa',
     }[tipo];
-    const digitado = this.doc.defaultView.prompt(`Id do ${ROTULO_DE_TIPO[tipo]} (sem espaço, é o que o resto da rotina usa):`, sugestao);
+    const pergunta = tipo === 'agenda'
+      ? 'Id da pessoa que vai ter agenda (o mesmo id do NPC no mapa):'
+      : `Id do ${ROTULO_DE_TIPO[tipo]} (sem espaço, é o que o resto da rotina usa):`;
+    const digitado = this.doc.defaultView.prompt(pergunta, sugestao);
     if (!digitado) return;
     const id = this._idLivre(tipo, digitado);
     if (!id) {
@@ -443,6 +570,18 @@ export class AbaRotina {
     } else if (tipo === 'home') {
       const marco = this.marcos.find(k => k.startsWith('home')) ?? this.marcos[0] ?? '';
       this.rotina.homes[id] = { id, kind: marco, local: { marco, ancora: 'lado', margem: 3 } };
+    } else if (tipo === 'agenda') {
+      // Nasce com o dia partido em dois — fora de casa e em casa — porque
+      // agenda de uma parada só não muda nada em relação a não ter agenda.
+      const casa = this.marcos.find(k => k.startsWith('home')) ?? this.marcos[0] ?? '';
+      const fora = this.marcos.find(k => !k.startsWith('home')) ?? casa;
+      this.rotina.agendas[id] = {
+        id, npc: id, label: '',
+        paradas: [
+          { label: 'Durante o dia', de: 8, ate: 20, local: { marco: fora, ancora: 'frente', margem: 3 }, raio: 3, animacoes: '' },
+          { label: 'Em casa', de: 20, ate: 8, local: { marco: casa, ancora: 'lado', margem: 3 }, raio: 0, animacoes: '' },
+        ],
+      };
     } else {
       this.rotina.origins[id] = {
         id, label: 'Origem nova', shortDesc: '', startMoney: 60,

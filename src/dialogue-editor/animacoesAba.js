@@ -28,8 +28,12 @@ export class AbaAnimacoes {
    * cada conjunto. `previa` é o boneco 3D; sem ela a aba funciona igual, só
    * não mostra nada se mexendo.
    */
-  constructor({ npcs = [], aoSalvar = () => {}, doc = document, previa = null } = {}) {
+  constructor({ npcs = [], usosExtras = () => [], aoSalvar = () => {}, doc = document, previa = null } = {}) {
     this.npcs = npcs;
+    // Quem mais cita um conjunto além da peça do NPC — hoje, as paradas da
+    // agenda (aba Rotina). Sem isso a aba acusaria de "ninguém usa" um
+    // conjunto que só a agenda pede.
+    this.usosExtras = usosExtras;
     this.aoSalvar = aoSalvar;
     this.doc = doc;
     this.previa = previa;
@@ -59,14 +63,17 @@ export class AbaAnimacoes {
     this.aoSalvar(this.animacoes);
   }
 
-  /** Quem cita cada conjunto: personagem da cena por enquanto. */
+  /** Quem cita cada conjunto: a peça de cada NPC e as paradas das agendas. */
   _usoPorConjunto() {
     const uso = new Map();
-    for (const npc of this.npcs) {
-      const id = idLimpo(npc.animacoes || this.animacoes?.padrao || ID_PADRAO);
+    const anotar = (conjunto, quem) => {
+      const id = idLimpo(conjunto);
+      if (!id) return;
       if (!uso.has(id)) uso.set(id, []);
-      uso.get(id).push(npc.name || npc.id);
-    }
+      if (!uso.get(id).includes(quem)) uso.get(id).push(quem);
+    };
+    for (const npc of this.npcs) anotar(npc.animacoes || this.animacoes?.padrao || ID_PADRAO, npc.name || npc.id);
+    for (const extra of this.usosExtras()) anotar(extra.conjunto, extra.quem);
     return uso;
   }
 

@@ -291,21 +291,26 @@ export const NPC_DEFS = PECAS_DE_NPC.map(item => {
   };
 });
 
-/** Quem cita cada conjunto de animação, pra conferência apontar o dono. */
-export function usoDosConjuntos(npcs = NPC_DEFS) {
+/**
+ * Quem cita cada conjunto de animação, pra conferência apontar o dono: a peça
+ * do NPC no mapa e as paradas da agenda dele (uma parada pode pedir um jeito
+ * de se mexer só enquanto ele está ali).
+ */
+export function usoDosConjuntos(npcs = NPC_DEFS, agendas = null) {
   const usados = new Map();
-  for (const npc of npcs) {
-    if (!npc.animacoes) continue;
-    if (!usados.has(npc.animacoes)) usados.set(npc.animacoes, []);
-    usados.get(npc.animacoes).push(npc.name || npc.id);
+  const anotar = (conjunto, quem) => {
+    if (!conjunto) return;
+    if (!usados.has(conjunto)) usados.set(conjunto, []);
+    if (!usados.get(conjunto).includes(quem)) usados.get(conjunto).push(quem);
+  };
+  for (const npc of npcs) anotar(npc.animacoes, npc.name || npc.id);
+  for (const a of Object.values(agendas ?? ROTINA.agendas)) {
+    const nome = npcs.find(n => n.id === a.npc)?.name ?? a.npc;
+    for (const p of a.paradas ?? []) anotar(p.animacoes, `${nome} (${p.label || p.id})`);
   }
   return usados;
 }
 
-// O jogo confere só o que ele enxerga (os personagens da cena); o editor
-// confere também diálogos e missões, e só lá faz sentido avisar sobre
-// conjunto que ninguém usa.
-export const ANIMACOES_PROBLEMAS = validarAnimacoes(ANIMACOES_EM_USO, { usados: usoDosConjuntos() });
 
 // ---------------------------------------------------------------------------
 // Casa / Origem / Rotina - o nucleo do "life sim": qual compromisso o
@@ -359,12 +364,27 @@ export const COURSES = ROTINA.courses;
 // o lugar fora do turno). Sai do mesmo dado, sem tabela paralela.
 export const JANELAS_DE_NPC = janelasPorNpc(OBLIGATIONS);
 
+// Agenda de cada personagem: as paradas do dia dele, com o ponto do mapa já
+// resolvido. Quem não tem agenda continua como antes — fica em volta da peça
+// dele e "fecha" fora do turno (JANELAS_DE_NPC).
+export const AGENDAS = Object.fromEntries(Object.values(ROTINA.agendas).map(a => [
+  a.npc,
+  { ...a, paradas: a.paradas.map(p => ({ ...p, ponto: pontoDoLocal(p.local) })) },
+]));
+
 // A mesma conferência que o editor mostra, agora contra a cena de verdade.
 // O jogo não se recusa a abrir por causa disso — normalizarRotina já garantiu
 // que dá pra jogar —, mas quem está com rascunho aberto vê o aviso na tela.
+// O jogo confere só o que ele enxerga (os personagens da cena e as agendas
+// deles); o editor confere também diálogos e missões, e só lá faz sentido
+// avisar sobre conjunto que ninguém usa. Fica depois da ROTINA porque as
+// paradas da agenda também citam conjunto.
+export const ANIMACOES_PROBLEMAS = validarAnimacoes(ANIMACOES_EM_USO, { usados: usoDosConjuntos() });
+
 export const ROTINA_PROBLEMAS = validarRotina(rotinaEscrita ?? ROTINA_PUBLICADA, {
   npcs: new Set(NPC_DEFS.map(n => n.id)),
   marcos: new Set(MARCOS_DA_CENA),
+  conjuntos: new Set(Object.keys(ANIMACOES.conjuntos)),
 });
 
 // ---------------------------------------------------------------------------

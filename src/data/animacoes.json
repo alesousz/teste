@@ -57,6 +57,25 @@
         "hit": "Hit_Chest",
         "dodge": "Roll"
       }
+    },
+    "sentado": {
+      "id": "sentado",
+      "label": "Sentado (em casa)",
+      "estados": {
+        "idle": "Sitting_Idle_Loop",
+        "walk": "Walk_Loop",
+        "run": "Sprint_Loop",
+        "talk": "Sitting_Talking_Loop",
+        "jump": "Jump_Loop",
+        "crouchIdle": "Crouch_Idle_Loop",
+        "crouchWalk": "Crouch_Fwd_Loop"
+      },
+      "gestos": {
+        "attack": "Punch_Jab",
+        "attackCross": "Punch_Cross",
+        "hit": "Hit_Chest",
+        "dodge": "Roll"
+      }
     }
   }
 }

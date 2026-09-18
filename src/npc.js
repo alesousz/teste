@@ -1,6 +1,14 @@
 import * as THREE from 'three';
-import { NPC_DEFS, JANELAS_DE_NPC, clipesDoPersonagem } from './data.js';
+import { NPC_DEFS, JANELAS_DE_NPC, AGENDAS, clipesDoPersonagem } from './data.js';
+import { paradaAgora } from './rotina.js';
 import { buildHumanoid } from './characterModel.js';
+
+// A que distância do jogador dá pra trocar alguém de lugar sem ninguém ver.
+// É a primeira forma de fazer a agenda acontecer: em vez de calcular caminho
+// pelas ruas, quem está longe some e reaparece na próxima parada. Perto do
+// jogador ninguém se teleporta — quem tem perna vai andando, e quem não tem
+// espera o jogador se afastar.
+const DISTANCIA_PRA_SUMIR = 45;
 
 // NPCs com turno fixo (dono do mercado, professora) fecham fora do horário do
 // compromisso que atendem. A tabela vem pronta da rotina (src/data/routine.json,
@@ -70,6 +78,22 @@ export class NPC {
     this.obligation = JANELAS_DE_NPC[def.id] || null;
     this.resting = false;
     this._scheduleCheckTimer = Math.random();
+
+    // Agenda: as paradas do dia (aba Rotina). Quem não tem uma continua com o
+    // comportamento de sempre — em volta da própria peça, o dia todo.
+    this.agenda = AGENDAS[def.id] ?? null;
+    this.parada = null;
+    this.viajando = false;
+    // O conjunto de animação escrito na peça é o de sempre; o da parada vale
+    // enquanto ele está lá; o que uma missão trocou manda em todos, porque é
+    // uma mudança na pessoa, não no que ela está fazendo agora.
+    this.conjuntoDaCena = def.animacoes;
+    this.conjuntoDaHistoria = null;
+    this.centro = { x: def.home.x, z: def.home.z };
+    this.raio = def.wanderRadius;
+    // No primeiro quadro ele já nasce onde a agenda manda — ninguém vê a
+    // troca, porque o jogo ainda não começou a desenhar.
+    if (this.agenda) this._verificarAgenda(null, true);
   }
 
   /**
@@ -78,6 +102,7 @@ export class NPC {
    * em diante (ver o efeito "Trocar animações do personagem").
    */
   trocarAnimacoes(id) {
+    this.conjuntoDaHistoria = id;
     this.def.animacoes = id;
     return this.rig.trocarConjunto(clipesDoPersonagem(id));
   }
@@ -92,29 +117,86 @@ export class NPC {
   }
 
   _pickNewTarget() {
-    if (this.resting) {
-      this.target = new THREE.Vector3(this.def.home.x, 0, this.def.home.z);
+    if (this.resting || this.raio <= 0) {
+      this.target = new THREE.Vector3(this.centro.x, 0, this.centro.z);
       return;
     }
-    if (this.def.wanderRadius <= 0) return;
     const angle = Math.random() * Math.PI * 2;
-    const r = Math.random() * this.def.wanderRadius;
+    const r = Math.random() * this.raio;
     this.target = new THREE.Vector3(
-      this.def.home.x + Math.cos(angle) * r,
+      this.centro.x + Math.cos(angle) * r,
       0,
-      this.def.home.z + Math.sin(angle) * r
+      this.centro.z + Math.sin(angle) * r
     );
   }
 
-  update(dt) {
+  // --- Agenda ---------------------------------------------------------------
+
+  _pontoDe(parada) {
+    return parada?.ponto ?? { x: this.def.home.x, z: this.def.home.z };
+  }
+
+  _longeDoJogador(ponto, jogador) {
+    if (!jogador) return true;
+    return Math.hypot(ponto.x - jogador.x, ponto.z - jogador.z) > DISTANCIA_PRA_SUMIR;
+  }
+
+  /**
+   * Qual conjunto de animação vale agora. A ordem importa: o que uma missão
+   * trocou é uma mudança na pessoa e manda em tudo; a parada só decide como
+   * ela se mexe enquanto está ali (sentada em casa, empurrando o carrinho).
+   */
+  _aplicarAnimacaoDaParada() {
+    const id = this.conjuntoDaHistoria || this.parada?.animacoes || this.conjuntoDaCena;
+    if (!id || id === this.def.animacoes) return;
+    this.def.animacoes = id;
+    this.rig.trocarConjunto(clipesDoPersonagem(id));
+  }
+
+  /**
+   * Onde ele deveria estar a esta hora. Se já está lá, não faz nada; se não,
+   * some e reaparece (longe do jogador), vai andando (se tiver perna), ou
+   * espera o jogador virar as costas.
+   */
+  _verificarAgenda(jogador, inicial = false) {
+    const hora = (this.world?.timeOfDay ?? 0) * 24;
+    const nova = paradaAgora(this.agenda, hora);
+    const mudou = nova !== this.parada;
+    this.parada = nova;
+    this.centro = this._pontoDe(nova);
+    this.raio = nova ? nova.raio : this.def.wanderRadius;
+    if (mudou || inicial) this._aplicarAnimacaoDaParada();
+
+    const distancia = Math.hypot(this.position.x - this.centro.x, this.position.z - this.centro.z);
+    if (distancia <= this.raio + 1) { this.viajando = false; return; }
+
+    const some = inicial
+      || (this._longeDoJogador(this.position, jogador) && this._longeDoJogador(this.centro, jogador));
+    if (some) {
+      this.position.set(this.centro.x, 0, this.centro.z);
+      this.mesh.position.copy(this.position);
+      this.viajando = false;
+      this.waitTimer = 0;
+      this._pickNewTarget();
+    } else if (this.def.speed > 0) {
+      this.viajando = true;
+      this.target.set(this.centro.x, 0, this.centro.z);
+    }
+  }
+
+  update(dt, jogador = null) {
     this._scheduleCheckTimer -= dt;
     if (this._scheduleCheckTimer <= 0) {
       this._scheduleCheckTimer = 1 + Math.random() * 0.5;
-      const shouldRest = !this._isActiveNow(this.world);
-      if (shouldRest !== this.resting) {
-        this.resting = shouldRest;
-        this._pickNewTarget();
-        this.waitTimer = 0;
+      if (this.agenda) {
+        this._verificarAgenda(jogador);
+      } else {
+        const shouldRest = !this._isActiveNow(this.world);
+        if (shouldRest !== this.resting) {
+          this.resting = shouldRest;
+          this._pickNewTarget();
+          this.waitTimer = 0;
+        }
       }
     }
 
@@ -124,6 +206,7 @@ export class NPC {
       toTarget.y = 0;
       const dist = toTarget.length();
       if (dist < 0.3) {
+        this.viajando = false;
         this.waitTimer -= dt;
         if (this.waitTimer <= 0) {
           this._pickNewTarget();
