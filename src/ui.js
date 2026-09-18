@@ -1,7 +1,8 @@
-import { CONFIG, QUESTS, ITEM_CATEGORIES, COURSES, KEYBIND_ACTIONS, FIXED_CONTROLS, DEFAULT_KEYBINDS, LOADING_SHOTS, LOADING_TIPS, NPC_PROFILES, RELATIONSHIP_MAX, landmarkCenter } from './data.js';
+import { CONFIG, QUESTS, ITEM_CATEGORIES, COURSES, KEYBIND_ACTIONS, FIXED_CONTROLS, DEFAULT_KEYBINDS, LOADING_SHOTS, LOADING_TIPS, NPC_PROFILES, RELATIONSHIP_MAX, landmarkCenter, t } from './data.js';
 // O horário do compromisso é escrito no editor e pode ter meia hora (8.5):
 // formatar com padStart mostrava "18.5:00" na tela de criação e no HUD.
 import { horaParaTexto } from './rotina.js';
+import { escapeHtml } from './phone.js';
 
 // Bússola: abertura de 180° e os pontos cardeais em português. Na prática,
 // player.facingAngle é 0 = +Z (não -Z): targetAngle em player.js vem de
@@ -96,6 +97,9 @@ export class UI {
     this._markerEls = new Map();
     this.targetBar = document.getElementById('target-bar');
     this.targetName = document.getElementById('target-name');
+    // O nome do alvo e o unico nome de entidade preso na marcacao: o boneco
+    // de treino nao e peca da cena, entao nao existe peca pra carregar ele.
+    if (this.targetName) this.targetName.textContent = t('alvo.nome');
     this.targetHpText = document.getElementById('target-hp-text');
     this.targetFill = document.getElementById('target-fill');
 
@@ -260,7 +264,9 @@ export class UI {
     if (this.pauseSub) {
       const status = this.scheduleBox.querySelector('.schedule-status')?.textContent;
       const label = this.scheduleBox.querySelector('.schedule-label')?.textContent;
-      const duty = label && status ? `${label}: ${status.toLowerCase()}` : null;
+      // Sem toLowerCase: o estado do compromisso agora é texto do autor, e a
+      // pausa não reescreve o que ele digitou.
+      const duty = label && status ? `${label}: ${status}` : null;
       this.pauseSub.textContent = [duty, `${this.moneyValue.textContent} no bolso`].filter(Boolean).join(' · ');
     }
     this.pauseMenu.classList.remove('hidden');
@@ -297,11 +303,11 @@ export class UI {
       const hour = world.timeOfDay * 24;
       const def = obligation.def;
       let status, cls;
-      if (!obligation.active) { status = 'Dispensado(a)'; cls = 'missed'; }
-      else if (obligation.attendedToday) { status = 'Cumprido hoje'; cls = 'done'; }
-      else if (hour >= def.startHour && hour < def.endHour) { status = 'Agora — vá até lá!'; cls = 'active'; }
-      else if (hour < def.startHour) { status = `Começa às ${horaParaTexto(def.startHour)}`; cls = ''; }
-      else { status = 'Faltou hoje'; cls = 'missed'; }
+      if (!obligation.active) { status = t('compromisso.dispensado'); cls = 'missed'; }
+      else if (obligation.attendedToday) { status = t('compromisso.cumprido'); cls = 'done'; }
+      else if (hour >= def.startHour && hour < def.endHour) { status = t('compromisso.agora'); cls = 'active'; }
+      else if (hour < def.startHour) { status = t('compromisso.comeca', { hora: horaParaTexto(def.startHour) }); cls = ''; }
+      else { status = t('compromisso.faltou'); cls = 'missed'; }
       const hours = `${horaParaTexto(def.startHour)} – ${horaParaTexto(def.endHour)}`;
       this.scheduleBox.innerHTML =
         `<div class="schedule-label">${def.label}</div>` +
@@ -312,11 +318,11 @@ export class UI {
     const objectives = questSystem.getActiveObjectivesSummary();
     if (objectives.length === 0) {
       this.objectiveBox.innerHTML =
-        '<div class="objective-quest"><div class="objective-kicker">SEM MISSÕES ATIVAS</div></div>';
+        `<div class="objective-quest"><div class="objective-kicker">${escapeHtml(t('vazio.hud.sem_missao'))}</div></div>`;
     } else {
       this.objectiveBox.innerHTML = objectives.slice(0, 3).map((o, i) => `
         <div class="objective-quest">
-          ${i === 0 ? '<div class="objective-kicker">MISSÃO ATIVA</div>' : ''}
+          ${i === 0 ? `<div class="objective-kicker">${escapeHtml(t('vazio.hud.missao_ativa'))}</div>` : ''}
           <div class="objective-title">${o.quest}</div>
           <div class="objective-text">${o.text}</div>
         </div>
@@ -434,7 +440,7 @@ export class UI {
           ${s.done ? `<p class="quest-reward">${q.reward}</p>` : ''}
         </div>
       `;
-    }).join('') || '<p class="item-menu-empty">Nenhuma missão iniciada ainda.</p>';
+    }).join('') || `<p class="item-menu-empty">${escapeHtml(t('vazio.missoes'))}</p>`;
 
     // Fotos primeiro, depois os slots que faltam — dá noção de progresso.
     const emptySlots = Math.max(0, fragments.length - photos.length);
@@ -523,7 +529,7 @@ export class UI {
           <span class="item-menu-row-num item-menu-col-value">R$${def.value}</span>
         </div>
       `).join('')
-      : '<p class="item-menu-empty">Nenhum item guardado ainda.</p>';
+      : `<p class="item-menu-empty">${escapeHtml(t('vazio.itens'))}</p>`;
     this.itemMenuRows.querySelectorAll('[data-item]').forEach(el => {
       el.onclick = () => { this._itemMenuSelectedId = el.dataset.item; this._renderItemMenuBody(); };
     });
@@ -819,7 +825,7 @@ export class UI {
     const people = this._peopleList();
 
     if (!people.length) {
-      this.peopleRows.innerHTML = '<p class="item-menu-empty">Você ainda não conversou com ninguém.</p>';
+      this.peopleRows.innerHTML = `<p class="item-menu-empty">${escapeHtml(t('vazio.pessoas'))}</p>`;
       this.peopleDetail.innerHTML = '';
       return;
     }
@@ -845,7 +851,7 @@ export class UI {
             <span class="people-log-when">Dia ${e.day}</span>
             <span>${e.text}</span>
           </div>`).join('')
-      : '<div class="people-log-entry"><span>Nada anotado ainda.</span></div>';
+      : `<div class="people-log-entry"><span>${escapeHtml(t('vazio.pessoas_log'))}</span></div>`;
 
     this.peopleDetail.innerHTML = `
       <div class="people-detail-head">

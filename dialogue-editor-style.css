@@ -49,6 +49,44 @@ code { background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px;
 #rotina-panel, #rotina-editor-panel, #rotina-problemas-panel,
 #regras-panel, #regras-problemas-panel { background: #0d0e12; padding: 16px; overflow-y: auto; }
 
+/* Textos: a voz do jogo. Cartões por assunto, com a prévia montada embaixo
+   de cada campo — é ela que ensina o contrato sem precisar explicá-lo. */
+#layout-textos {
+  display: grid; grid-template-columns: 1fr 340px; gap: 1px;
+  background: rgba(255,255,255,0.08);
+  height: calc(100vh - 53px);
+}
+#textos-panel, #textos-problemas-panel { background: #0d0e12; padding: 16px; overflow-y: auto; }
+#textos-panel { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; align-content: start; }
+.textos-grupo { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 12px 14px; }
+.textos-grupo h3 { margin: 0 0 6px; }
+.textos-grupo h4 { margin: 0 0 6px; font-size: 0.82em; color: #aeb6c0; }
+.textos-largo { grid-column: 1 / -1; }
+.textos-lado-a-lado { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.textos-campo { margin-bottom: 14px; border: 1px solid transparent; border-radius: 6px; padding: 6px 8px; }
+.textos-campo.destacado { border-color: #6b8ab0; }
+.textos-campo-topo { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.textos-campo-topo label { font-size: 0.82em; }
+.textos-campo textarea, .textos-passo textarea, .textos-dica textarea, .textos-mensagem textarea { width: 100%; margin-top: 4px; }
+.textos-padrao { font-size: 0.72em; padding: 4px 8px; }
+.textos-padrao[disabled] { opacity: 0.35; cursor: default; }
+.textos-buracos { margin: 4px 0 0; display: flex; gap: 6px; flex-wrap: wrap; }
+.textos-buraco {
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.72em; padding: 2px 7px;
+  border-radius: 4px; background: rgba(107,138,176,0.18); border: 1px solid rgba(107,138,176,0.4); color: #cfe0f5;
+}
+/* A prévia é o equivalente da frase de consequência da aba Regras. */
+.textos-previa { margin: 4px 0 0; font-size: 0.8em; color: #9fd0a8; line-height: 1.35; min-height: 1em; }
+.textos-travado { color: #7d8794; }
+.textos-passo, .textos-dica, .textos-mensagem {
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+  padding: 8px 10px; margin-bottom: 8px; background: rgba(255,255,255,0.03);
+}
+.textos-passo-topo, .textos-mensagem-topo { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; }
+.textos-mensagem-topo { grid-template-columns: 70px 1fr auto; }
+.textos-passo-topo button, .textos-mensagem-topo button, .textos-dica button { padding: 4px 9px; }
+.textos-dica { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start; }
+
 /* Uma parada da agenda: um bloco por linha do dia da pessoa. */
 .parada {
   border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;

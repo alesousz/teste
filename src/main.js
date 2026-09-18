@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CONFIG, ORIGINS, COURSES, HOMES, OBLIGATIONS, ITEM_DEFS, SPAWN_DA_CENA, ROTINA_E_RASCUNHO, ROTINA_PROBLEMAS, REGRAS_SAO_RASCUNHO, REGRAS_PROBLEMAS } from './data.js';
+import { CONFIG, FIXED_CONTROLS, ORIGINS, COURSES, HOMES, OBLIGATIONS, ITEM_DEFS, SPAWN_DA_CENA, ROTINA_E_RASCUNHO, ROTINA_PROBLEMAS, REGRAS_SAO_RASCUNHO, REGRAS_PROBLEMAS, TEXTOS, TEXTOS_SAO_RASCUNHO, TEXTOS_PROBLEMAS, t, definirSexoDosTextos } from './data.js';
 import { errosDaRotina } from './rotina.js';
 import { errosDasRegras } from './regras.js';
 import { World } from './world.js';
@@ -366,13 +366,19 @@ class Game {
     // Celular: entrega a primeira mensagem e conduz o tutorial dos primeiros
     // minutos. Guardado em gameState.worldState porque o esquema do save é
     // uma lista branca e um campo novo no topo seria descartado em silêncio.
+    // A partir daqui os moldes sabem o sexo do personagem, pra {{m:|f:|x:}}.
+    definirSexoDosTextos(this.profile.sex);
+
     this.phone = new Phone({
       sex: this.profile.sex,
+      passos: TEXTOS.tutorial,
+      abertura: TEXTOS.abertura,
+      textoVazio: t('vazio.celular'),
       getKeyLabel: acao => this.ui.getBindingLabel(acao),
       getTimeLabel: () => this.world.getFormattedTime(),
       onOpen: () => { if (document.pointerLockElement) document.exitPointerLock(); },
       onMessageRead: () => this.phone.advanceTutorial('leu_mensagem'),
-      onNotify: msg => this.ui.showToast(`Nova mensagem — ${msg.from}`),
+      onNotify: msg => this.ui.showToast(t('toast.mensagem', { contato: msg.from })),
     });
 
     // Rascunho da aba Rotina com erro: o jogo abre (os valores foram presos em
@@ -481,6 +487,21 @@ class Game {
     });
   }
 
+  /**
+   * O recado com a tecla na frente. A tecla sai SEMPRE do sistema de atalhos
+   * — inclusive a do soco, que antes estava escrita na frase ("Clique com o
+   * botão esquerdo") e mentia pra quem remapeasse. O molde guarda só a
+   * frase: o formato "TECLA — frase" é o que o HUD lê pra desenhar a
+   * teclinha, e não pode ser problema de quem escreve o texto.
+   */
+  _recado(acao, chave, valores) {
+    const rebindavel = this.ui.getBindingLabel(acao);
+    const fixa = FIXED_CONTROLS.find(c => c.label === 'Socar')?.device;
+    const tecla = rebindavel && rebindavel !== '—' ? rebindavel : (acao === 'attack' ? fixa : '');
+    const frase = t(chave, valores);
+    return tecla ? `${tecla} — ${frase}` : frase;
+  }
+
   _sleep() {
     const endedDay = this.world.dayCount;
     const result = this.obligation.processDayEnd(endedDay, this.needs);
@@ -513,14 +534,14 @@ class Game {
   }
 
   _onQuestChange() {
-    this.ui.showToast('Diário atualizado');
+    this.ui.showToast(t('toast.diario'));
     if (this.ui.isJournalOpen()) this.ui.renderJournal(this.quests, this.collectibles, this.gameState);
   }
 
   _useItem(itemId) {
     const def = ITEM_DEFS[itemId];
     if (this.inventory.useItem(itemId, this.needs)) {
-      this.ui.showToast(`Usou: ${def.name}`);
+      this.ui.showToast(t('toast.item.usou', { item: def.name }));
       if (this.ui.isItemMenuOpen()) this.ui.renderItemMenu(this.inventory, this.needs, this._boundUseItem, this._boundDiscardItem);
     }
   }
@@ -528,7 +549,7 @@ class Game {
   _discardItem(itemId) {
     const def = ITEM_DEFS[itemId];
     if (this.inventory.discardItem(itemId)) {
-      this.ui.showToast(`Descartou: ${def.name}`);
+      this.ui.showToast(t('toast.item.descartou', { item: def.name }));
       if (this.ui.isItemMenuOpen()) this.ui.renderItemMenu(this.inventory, this.needs, this._boundUseItem, this._boundDiscardItem);
     }
   }
@@ -539,7 +560,7 @@ class Game {
     // O aviso de contra-ataque tem prioridade sobre qualquer outro prompt —
     // é a janela real pra esquivar, então precisa ficar bem visível.
     if (this.dummy.telegraphActive) {
-      this.ui.showPrompt(`${this.ui.getBindingLabel('dodge')} — Esquivar do contra-ataque!`, true);
+      this.ui.showPrompt(this._recado('dodge', 'prompt.esquiva'), true);
       return;
     }
 
@@ -566,9 +587,9 @@ class Game {
     if (porta) {
       const rotulo = porta.def.label;
       if (porta.def.locked) {
-        this.ui.showPrompt(`${rotulo} — trancada`);
+        this.ui.showPrompt(t('prompt.porta.trancada', { porta: rotulo }));
       } else {
-        this.ui.showPrompt(`${interactLabel} — ${porta.aberta ? 'Fechar' : 'Abrir'}: ${rotulo}`);
+        this.ui.showPrompt(this._recado('interact', porta.aberta ? 'prompt.porta.fechar' : 'prompt.porta.abrir', { porta: rotulo }));
         if (this.input.wasPressed(interactKey) && porta.alternar()) {
           this.phone.advanceTutorial('interagiu');
           if (porta.def.id === 'ap101') this.phone.advanceTutorial('saiu_do_apartamento');
@@ -577,7 +598,7 @@ class Game {
       }
       promptShown = true;
     } else if (objeto) {
-      this.ui.showPrompt(`${interactLabel} — ${objeto.label}`);
+      this.ui.showPrompt(this._recado('interact', 'prompt.objeto', { objeto: objeto.label }));
       promptShown = true;
       if (this.input.wasPressed(interactKey)) {
         // O texto é escrito na peça, no editor de mapa.
@@ -585,7 +606,7 @@ class Game {
         this.phone.advanceTutorial('interagiu');
       }
     } else if (nearestNpc) {
-      this.ui.showPrompt(`${interactLabel} — Falar com ${nearestNpc.def.name}`);
+      this.ui.showPrompt(this._recado('interact', 'prompt.npc', { pessoa: nearestNpc.def.name }));
       promptShown = true;
       if (this.input.wasPressed(interactKey)) {
         this.dialogue.start(nearestNpc.def.id, this.world.isNight, nearestNpc);
@@ -593,28 +614,28 @@ class Game {
     } else if (nearbyWorldItem) {
       // O nome vem do que foi escrito na peça, ou do item que ela dá.
       const nome = nearbyWorldItem.def.rotulo || ITEM_DEFS[nearbyWorldItem.itemId]?.name || 'isso';
-      this.ui.showPrompt(`${interactLabel} — Pegar ${nome}`);
+      this.ui.showPrompt(this._recado('interact', 'prompt.item', { item: nome }));
       promptShown = true;
       if (this.input.wasPressed(interactKey)) {
         this.collectibles.collectWorldItem(nearbyWorldItem);
-        this.ui.showToast(`Você pegou: ${nome}`);
+        this.ui.showToast(t('toast.item.pegou', { item: nome }));
       }
     } else if (this._nearSleepSpot()) {
-      this.ui.showPrompt(`${interactLabel} — Dormir (recuperar energia e avançar o dia)`);
+      this.ui.showPrompt(this._recado('interact', 'prompt.dormir'));
       promptShown = true;
       if (this.input.wasPressed(interactKey)) this._sleep();
     } else if (Math.hypot(this.player.position.x - this.dummy.position.x, this.player.position.z - this.dummy.position.z) < CONFIG.PUNCH_RANGE + 1) {
-      this.ui.showPrompt('Clique com o botão esquerdo — Socar o boneco de treino');
+      this.ui.showPrompt(this._recado('attack', 'prompt.boneco'));
       promptShown = true;
     }
 
     if (nearbyFragment) {
-      if (!promptShown) { this.ui.showPrompt(`${photoLabel} — Fotografar este instante`); promptShown = true; }
+      if (!promptShown) { this.ui.showPrompt(this._recado('photo', 'prompt.foto')); promptShown = true; }
       if (this.input.wasPressed(photoKey)) {
         const thumb = this._captureThumbnail();
         this.collectibles.capture(nearbyFragment, thumb);
         this.ui.flashPhoto();
-        this.ui.showToast('Fragmento capturado.');
+        this.ui.showToast(t('toast.fragmento'));
       }
     }
 

@@ -16,9 +16,13 @@ import REGRAS_PUBLICADAS from './data/regras.json' with { type: 'json' };
 // Conjuntos de animacao: quais clipes cada personagem usa pra andar, falar,
 // socar. Escrito na aba Animacoes do editor de conteudo.
 import ANIMACOES_PUBLICADAS from './data/animacoes.json' with { type: 'json' };
+// A voz do jogo: dicas, recados, conversa de abertura e textos de painel
+// vazio. Escrito na aba Textos do editor de conteudo.
+import TEXTOS_PUBLICADOS from './data/textos.json' with { type: 'json' };
 import { normalizarRotina, resolverLocal, janelasPorNpc, serveComoRotina, validarRotina } from './rotina.js';
 import { MALHA_DO_GERADOR, normalizarRegras, serveComoRegras, validarRegras } from './regras.js';
 import { normalizarAnimacoes, serveComoAnimacoes, validarAnimacoes, clipesDoConjunto } from './animacoes.js';
+import { normalizarTextos, serveComoTextos, validarTextos, criarTexto } from './textos.js';
 import { marcosDaCena, problemasDosMarcos } from './marcos.js';
 
 /**
@@ -272,6 +276,25 @@ export const ANIMACOES = normalizarAnimacoes(ANIMACOES_EM_USO);
 /** Os clipes que um personagem vai usar, ja com o padrao no lugar do que faltar. */
 export const clipesDoPersonagem = id => clipesDoConjunto(ANIMACOES, id);
 
+// A voz do jogo. Mesmo caminho dos outros conteudos: publicado, com o
+// rascunho local na frente quando existe.
+const textosEscritos = rascunhoDeConteudo('textos-editor-draft', serveComoTextos);
+const TEXTOS_EM_USO = textosEscritos ?? TEXTOS_PUBLICADOS;
+export const TEXTOS_SAO_RASCUNHO = !!textosEscritos;
+export const TEXTOS = normalizarTextos(TEXTOS_EM_USO);
+export const TEXTOS_PROBLEMAS = validarTextos(TEXTOS_EM_USO, { publicado: TEXTOS_PUBLICADOS });
+
+// O sexo do personagem so existe depois da criacao, e os moldes aceitam
+// {{m:|f:|x:}} como os dialogos. Em vez de passar o sexo em cada chamada de
+// `t` (sao dezenas de pontos, e todos esqueceriam), o jogo avisa uma vez
+// quando a partida comeca. Sem aviso, vale o masculino - a mesma regra de
+// desempate de interactions.js e phone.js.
+let sexoDoJogador = null;
+export const definirSexoDosTextos = sexo => { sexoDoJogador = sexo; };
+
+/** O texto que o jogador le: t('toast.item.pegou', { item: 'um cafe' }). */
+export const t = (chave, valores) => criarTexto(TEXTOS, { sexo: sexoDoJogador })(chave, valores);
+
 const PECAS_DE_NPC = SCENE.items.filter(item => item.typeId === 'npc' && item.props?.npcId);
 
 const numero = (v, padrao) => (Number.isFinite(v) ? v : padrao);
@@ -484,16 +507,9 @@ export const LOADING_SHOTS = [
   'assets/loading/predios-alvorada.jpg',
 ];
 
-export const LOADING_TIPS = [
-  'Faltar ao compromisso do dia tem consequência: primeiro vem o aviso, depois a demissão ou a expulsão do curso.',
-  'Dormir em casa recupera a energia toda e avança para a manhã seguinte.',
-  'Fragmentos de memória brilham em dourado. Chegue perto e pressione a tecla de foto.',
-  'Ficar exausto deixa você mais lento e sem poder correr. Um café resolve por um tempo.',
-  'Alguns NPCs só têm certas conversas depois que a noite cai.',
-  'A bússola no topo mostra sua casa e o compromisso do dia; os pontos dourados são fragmentos.',
-  'O peso e o valor dos itens são só informação — não existe limite de carga.',
-  'O jogo salva sozinho a cada 20 segundos e quando você pausa.',
-];
+// As dicas da tela de carregamento agora sao conteudo (aba Textos). O nome
+// exportado fica igual de proposito: ui.js nao precisa mudar uma linha.
+export const LOADING_TIPS = TEXTOS.dicas;
 
 // ---------------------------------------------------------------------------
 // Diário › Pessoas: quem aparece na aba e o que mostrar sobre cada um.

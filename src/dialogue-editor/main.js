@@ -1,10 +1,12 @@
-import { NPC_DEFS, QUESTS, ITEM_DEFS, MARCOS_DA_CENA, LANDMARK_SPECS } from '../data.js';
+import { NPC_DEFS, QUESTS, ITEM_DEFS, MARCOS_DA_CENA, LANDMARK_SPECS, KEYBIND_ACTIONS, DEFAULT_KEYBINDS } from '../data.js';
 import { AbaRotina } from './rotinaAba.js';
 import { AbaRegras } from './regrasAba.js';
 import { AbaAnimacoes } from './animacoesAba.js';
+import { AbaTextos } from './textosAba.js';
 import { errosDaRotina } from '../rotina.js';
 import { errosDasRegras } from '../regras.js';
 import { errosDasAnimacoes, opcoesDeConjunto } from '../animacoes.js';
+import { errosDosTextos } from '../textos.js';
 import { publicarConteudo, abrirConfiguracao } from '../publicarUI.js';
 import {
   CONDITION_TYPES,
@@ -30,6 +32,17 @@ const DRAFT_KEY_ITENS = 'item-editor-draft';
 const DRAFT_KEY_ROTINA = 'routine-editor-draft';
 const DRAFT_KEY_REGRAS = 'rules-editor-draft';
 const DRAFT_KEY_ANIMACOES = 'animacoes-editor-draft';
+const DRAFT_KEY_TEXTOS = 'textos-editor-draft';
+
+// Rótulo da tecla de fábrica de cada ação, pra prévia do tutorial mostrar
+// "E" e não o código "KeyE". O jogo usa o que o jogador configurou; o editor
+// mostra o padrão, que é o que vale pra quem abre o jogo pela primeira vez.
+const rotuloDaTeclaPadrao = acao => {
+  if (acao === 'phone') return 'M';
+  const codigo = DEFAULT_KEYBINDS[acao];
+  if (!codigo) return '';
+  return codigo.startsWith('Key') ? codigo.slice(3) : codigo;
+};
 
 // Tipo padrão de uma condição recém-criada.
 const DEFAULT_CONDITION_TYPE = SELECTABLE_CONDITION_TYPES[0].type;
@@ -95,6 +108,12 @@ export class DialogueEditorApp {
       usosExtras: () => this._conjuntosPedidosPelasAgendas(),
       aoSalvar: dados => this._persistAnimacoes(dados),
     });
+    // Aba Textos: a voz do jogo. O formulário sai do ESQUEMA de textos.js.
+    this.textos = new AbaTextos({
+      teclas: KEYBIND_ACTIONS,
+      rotuloDaTecla: rotuloDaTeclaPadrao,
+      aoSalvar: dados => this._persistTextos(dados),
+    });
     this.aba = 'dialogos';
 
     this._bindStaticEvents();
@@ -124,6 +143,12 @@ export class DialogueEditorApp {
 
     this.animacoes.definir(this._lerRascunho(DRAFT_KEY_ANIMACOES) ?? await (await fetch('src/data/animacoes.json')).json());
     this.animacoes.ligarBotoes();
+
+    // O publicado vai junto: é comparando com ele que a conferência avisa
+    // sobre id de mensagem trocado, que só quebra em save antigo.
+    const textosPublicados = await (await fetch('src/data/textos.json')).json();
+    this.textos.publicado = textosPublicados;
+    this.textos.definir(this._lerRascunho(DRAFT_KEY_TEXTOS) ?? textosPublicados);
   }
 
   _lerRascunho(chave) {
@@ -173,6 +198,11 @@ export class DialogueEditorApp {
 
   _persistAnimacoes(dados) {
     localStorage.setItem(DRAFT_KEY_ANIMACOES, JSON.stringify(dados));
+    this._avisarSalvo();
+  }
+
+  _persistTextos(dados) {
+    localStorage.setItem(DRAFT_KEY_TEXTOS, JSON.stringify(dados));
     this._avisarSalvo();
   }
 
@@ -232,6 +262,13 @@ export class DialogueEditorApp {
       const dados = await (await fetch('src/data/routine.json')).json();
       this.rotina.definir(dados);
       this._persistRotina(dados);
+      return;
+    }
+    if (this.aba === 'textos') {
+      if (!confirm('Isso substitui o rascunho dos textos pelos que estão hoje no jogo. Continuar?')) return;
+      const dados = await (await fetch('src/data/textos.json')).json();
+      this.textos.definir(dados);
+      this._persistTextos(dados);
       return;
     }
     if (this.aba === 'animacoes') {
@@ -363,11 +400,13 @@ export class DialogueEditorApp {
     document.getElementById('layout-rotina').classList.toggle('hidden', aba !== 'rotina');
     document.getElementById('layout-regras').classList.toggle('hidden', aba !== 'regras');
     document.getElementById('layout-animacoes').classList.toggle('hidden', aba !== 'animacoes');
+    document.getElementById('layout-textos').classList.toggle('hidden', aba !== 'textos');
     // A aba Rotina depende do que existe na cena e da conferência: redesenha
     // ao abrir, pra não mostrar um painel de problemas velho.
     if (aba === 'rotina') this.rotina.render();
     if (aba === 'regras') this.regras.render();
     if (aba === 'animacoes') { this.animacoes.render(); this._abrirPrevia(); }
+    if (aba === 'textos') this.textos.render();
   }
 
   // --- Itens ---------------------------------------------------------------------
@@ -554,6 +593,7 @@ export class DialogueEditorApp {
       ...errosDaRotina(this.rotina._problemas()).map(e => ({ ...e, aba: 'rotina' })),
       ...errosDasRegras(this.regras._problemas()).map(e => ({ ...e, aba: 'regras' })),
       ...errosDasAnimacoes(this.animacoes._problemas()).map(e => ({ ...e, aba: 'animacoes' })),
+      ...errosDosTextos(this.textos._problemas()).map(e => ({ ...e, aba: 'textos' })),
     ];
     if (erros.length) {
       const lista = erros.slice(0, 5).map(e => `• ${e.onde}: ${e.mensagem}`).join('\n');
@@ -580,8 +620,9 @@ export class DialogueEditorApp {
         { caminho: 'src/data/routine.json', conteudo: `${JSON.stringify(this.rotina.rotina, null, 2)}\n` },
         { caminho: 'src/data/regras.json', conteudo: `${JSON.stringify(this.regras.regras, null, 2)}\n` },
         { caminho: 'src/data/animacoes.json', conteudo: `${JSON.stringify(this.animacoes.animacoes, null, 2)}\n` },
+        { caminho: 'src/data/textos.json', conteudo: `${JSON.stringify(this.textos.textos, null, 2)}\n` },
       ],
-      'Diálogos, missões, itens, rotina, regras e animações atualizados pelo editor de conteúdo',
+      'Diálogos, missões, itens, rotina, regras, animações e textos atualizados pelo editor de conteúdo',
       avisar,
     );
   }
@@ -594,6 +635,7 @@ export class DialogueEditorApp {
       rotina: ['routine.json', this.rotina.rotina],
       regras: ['regras.json', this.regras.regras],
       animacoes: ['animacoes.json', this.animacoes.animacoes],
+      textos: ['textos.json', this.textos.textos],
       dialogos: ['dialogues.json', this.trees],
     };
     const [nome, dados] = porAba[this.aba];
@@ -1065,6 +1107,7 @@ export class DialogueEditorApp {
       rotina: ['routine', 'JSON da rotina', this.rotina.rotina],
       regras: ['regras', 'JSON das regras do mundo', this.regras.regras],
       animacoes: ['animacoes', 'JSON dos conjuntos de animação', this.animacoes.animacoes],
+      textos: ['textos', 'JSON dos textos do jogo', this.textos.textos],
       dialogos: ['dialogues', 'JSON completo (todos os NPCs)', this.trees],
     };
     const [arquivo, titulo, dados] = porAba[this.aba];

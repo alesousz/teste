@@ -120,20 +120,35 @@ export class Tutorial {
    *   muda a dica.
    * @param {() => void} [opts.onChange] avisado quando o passo muda.
    */
-  constructor({ getKeyLabel = null, onChange = null } = {}) {
+  constructor({ getKeyLabel = null, onChange = null, passos = null } = {}) {
     this.getKeyLabel = getKeyLabel;
     this.onChange = onChange;
+    // Os passos vêm de fora (src/data/textos.json, aba Textos). A lista de
+    // fábrica só existe pra este arquivo continuar se bastando: sem ela,
+    // importar phone.js puxaria data.js e o teste em Node puro iria junto.
+    // Lista vazia é escolha do autor ("este jogo não tem tutorial"), e não
+    // falta de dado: só cai na de fábrica quem não passou lista nenhuma.
+    this.passos = Array.isArray(passos) ? passos : TUTORIAL_STEPS;
     this.index = 0;
     this.done = false;
   }
 
   get currentStep() {
-    return this.done ? null : (TUTORIAL_STEPS[this.index] || null);
+    return this.done ? null : (this.passos[this.index] || null);
   }
 
+  /**
+   * A dica de agora, com a tecla trocada NA LEITURA e não ao carregar: é o
+   * que faz remapear a tecla com a dica na tela já corrigir a dica.
+   * Aceita as duas formas — a de fábrica (`hint` é função) e a escrita no
+   * editor (`texto` com o marcador {tecla}).
+   */
   get currentHint() {
     const step = this.currentStep;
-    return step ? step.hint(this.keyLabel(step.action)) : null;
+    if (!step) return null;
+    const acao = step.acao ?? step.action ?? null;
+    if (typeof step.hint === 'function') return step.hint(this.keyLabel(acao));
+    return String(step.texto ?? '').replace(/\{tecla\}/g, this.keyLabel(acao));
   }
 
   get isDone() {
@@ -152,8 +167,8 @@ export class Tutorial {
     const step = this.currentStep;
     if (!step || eventId !== step.id) return false;
     this.index += 1;
-    if (this.index >= TUTORIAL_STEPS.length) {
-      this.index = TUTORIAL_STEPS.length;
+    if (this.index >= this.passos.length) {
+      this.index = this.passos.length;
       this.done = true;
     }
     this.onChange?.();
@@ -164,7 +179,7 @@ export class Tutorial {
   // rua, ou uma opção futura de "pular tutorial").
   finish() {
     if (this.done) return false;
-    this.index = TUTORIAL_STEPS.length;
+    this.index = this.passos.length;
     this.done = true;
     this.onChange?.();
     return true;
@@ -185,22 +200,22 @@ export class Tutorial {
     const d = plainObject(data);
     if (!d) return;
     if (d.done === true) {
-      this.index = TUTORIAL_STEPS.length;
+      this.index = this.passos.length;
       this.done = true;
       this.onChange?.();
       return;
     }
     let index = null;
     if (typeof d.step === 'string') {
-      const i = TUTORIAL_STEPS.findIndex(s => s.id === d.step);
+      const i = this.passos.findIndex(s => s.id === d.step);
       if (i >= 0) index = i;
     }
-    if (index === null && Number.isInteger(d.index) && d.index >= 0 && d.index <= TUTORIAL_STEPS.length) {
+    if (index === null && Number.isInteger(d.index) && d.index >= 0 && d.index <= this.passos.length) {
       index = d.index;
     }
     if (index === null) return; // nada utilizável: fica como estava
     this.index = index;
-    this.done = index >= TUTORIAL_STEPS.length;
+    this.done = index >= this.passos.length;
     this.onChange?.();
   }
 }
@@ -227,7 +242,11 @@ export class Phone {
    *   tutorial que este celular carrega em `phone.tutorial`.
    */
   constructor(opts = {}) {
-    const { view, onOpen, onClose, onMessageRead, onNotify, getTimeLabel, sex, getKeyLabel } = opts;
+    const { view, onOpen, onClose, onMessageRead, onNotify, getTimeLabel, sex, getKeyLabel, passos, abertura } = opts;
+    // A conversa de abertura e os passos do tutorial são conteúdo (aba
+    // Textos). Chegam por injeção pra este arquivo não importar data.js.
+    this.textoVazio = opts.textoVazio || null;
+    this.abertura = abertura ?? { contato: PARENTS_CONTACT, mensagens: PARENTS_MESSAGES.map(m => ({ id: m.id, espera: m.delay, texto: m.text })) };
     this.onOpen = onOpen || null;
     this.onClose = onClose || null;
     this.onMessageRead = onMessageRead || null;
@@ -243,7 +262,7 @@ export class Phone {
     this._open = false;
     this._autoId = 0;
 
-    this.tutorial = new Tutorial({ getKeyLabel, onChange: () => this._sync() });
+    this.tutorial = new Tutorial({ getKeyLabel, passos, onChange: () => this._sync() });
 
     if (view !== undefined) {
       this.view = view;
@@ -364,9 +383,10 @@ export class Phone {
     if (this.parentsStarted) return false;
     this.parentsStarted = true;
     let acc = 0;
-    PARENTS_MESSAGES.forEach((m, i) => {
-      acc += i === 0 && Number.isFinite(delay) ? Math.max(0, delay) : m.delay;
-      this.scheduleMessage({ id: m.id, from: m.from, text: m.text }, acc);
+    const contato = this.abertura.contato || PARENTS_CONTACT;
+    this.abertura.mensagens.forEach((m, i) => {
+      acc += i === 0 && Number.isFinite(delay) ? Math.max(0, delay) : (m.espera ?? m.delay ?? 0);
+      this.scheduleMessage({ id: m.id, from: contato, text: m.texto ?? m.text }, acc);
     });
     return true;
   }
@@ -548,6 +568,9 @@ export class Phone {
       threadName: this.selected || '',
       hint: this.tutorial.currentHint,
       keyLabel: keyLabelFor(this.getKeyLabel, 'phone'),
+      // O que a conversa vazia diz também é conteúdo (aba Textos); a view
+      // continua sem regra nenhuma, só desenha o que chega pronto.
+      vazio: this.textoVazio || 'Nenhuma mensagem ainda.',
     };
   }
 }
@@ -613,7 +636,7 @@ export class PhoneView {
     if (this.threadName) this.threadName.textContent = state.threadName;
     if (this.thread) {
       this.thread.innerHTML = state.thread.length === 0
-        ? '<div class="phone-empty">Nenhuma mensagem ainda.</div>'
+        ? `<div class="phone-empty">${escapeHtml(state.vazio)}</div>`
         : state.thread.map(m => `
             <div class="phone-msg${m.read ? '' : ' unread'}">
               <div class="phone-msg-at">${escapeHtml(m.at)}</div>

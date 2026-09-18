@@ -1,4 +1,4 @@
-import { CONFIG } from './data.js';
+import { CONFIG, t } from './data.js';
 import { horaParaTexto as horaDoDia } from './rotina.js';
 
 // Quanto antes do fim da janela o jogo avisa que o compromisso vai fechar.
@@ -37,11 +37,11 @@ export class ObligationSystem {
     if (this.isInWindow(hourFloat)) {
       if (!this.warnedStart) {
         this.warnedStart = true;
-        aviso = `Começou agora: ${this.def.label}. Vai até ${horaDoDia(this.def.endHour)}.`;
+        aviso = t('compromisso.comecou', { compromisso: this.def.label, hora: horaDoDia(this.def.endHour) });
       } else if (!this.warnedEnd && hourFloat >= this.def.endHour - AVISO_ANTES_DO_FIM) {
         this.warnedEnd = true;
         const faltam = Math.max(1, Math.round((this.def.endHour - hourFloat) * 60));
-        aviso = `Falta ${faltam} min pra fechar: ${this.def.label}.`;
+        aviso = t('compromisso.fechando', { minutos: faltam, compromisso: this.def.label });
       }
 
       const d = Math.hypot(playerPos.x - this.def.location.x, playerPos.z - this.def.location.z);
@@ -64,8 +64,8 @@ export class ObligationSystem {
       result = {
         attended: true,
         message: this.def.payPerDay > 0
-          ? `Você cumpriu: ${this.def.label}. Ganhou R$${this.def.payPerDay}.`
-          : `Você cumpriu: ${this.def.label}.`,
+          ? t('compromisso.cumpriu_pago', { compromisso: this.def.label, dinheiro: this.def.payPerDay })
+          : t('compromisso.cumpriu', { compromisso: this.def.label }),
       };
     } else {
       this.misses += 1;
@@ -76,7 +76,7 @@ export class ObligationSystem {
       } else if (this.misses === this.def.maxMisses - 1) {
         result = { attended: false, message: this.def.warningMessage };
       } else {
-        result = { attended: false, message: `Você faltou: ${this.def.label}.` };
+        result = { attended: false, message: t('compromisso.faltou_dia', { compromisso: this.def.label }) };
       }
     }
     this.attendedToday = false;

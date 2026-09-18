@@ -1,0 +1,105 @@
+{
+  "recados": {
+    "prompt.porta.abrir": "Abrir: {porta}",
+    "prompt.porta.fechar": "Fechar: {porta}",
+    "prompt.porta.trancada": "{porta} — trancada",
+    "prompt.objeto": "{objeto}",
+    "prompt.npc": "Falar com {pessoa}",
+    "prompt.item": "Pegar {item}",
+    "prompt.dormir": "Dormir (recuperar energia e avançar o dia)",
+    "prompt.boneco": "Socar o boneco de treino",
+    "prompt.foto": "Fotografar este instante",
+    "prompt.esquiva": "Esquivar do contra-ataque!",
+    "toast.item.pegou": "Você pegou: {item}",
+    "toast.item.usou": "Usou: {item}",
+    "toast.item.descartou": "Descartou: {item}",
+    "toast.fragmento": "Fragmento capturado.",
+    "toast.diario": "Diário atualizado",
+    "toast.mensagem": "Nova mensagem — {contato}",
+    "alvo.nome": "Boneco de Treino",
+    "compromisso.comeca": "Começa às {hora}",
+    "compromisso.agora": "Agora — vá até lá!",
+    "compromisso.cumprido": "Cumprido hoje",
+    "compromisso.faltou": "Faltou hoje",
+    "compromisso.dispensado": "Dispensado(a)",
+    "compromisso.comecou": "Começou agora: {compromisso}. Vai até {hora}.",
+    "compromisso.fechando": "Falta {minutos} min pra fechar: {compromisso}.",
+    "compromisso.cumpriu_pago": "Você cumpriu: {compromisso}. Ganhou R${dinheiro}.",
+    "compromisso.cumpriu": "Você cumpriu: {compromisso}.",
+    "compromisso.faltou_dia": "Você faltou: {compromisso}.",
+    "vazio.hud.missao_ativa": "MISSÃO ATIVA",
+    "vazio.hud.sem_missao": "SEM MISSÕES ATIVAS",
+    "vazio.missoes": "Nenhuma missão iniciada ainda.",
+    "vazio.itens": "Nenhum item guardado ainda.",
+    "vazio.pessoas": "Você ainda não conversou com ninguém.",
+    "vazio.pessoas_log": "Nada anotado ainda.",
+    "vazio.celular": "Nenhuma mensagem ainda."
+  },
+  "tutorial": [
+    {
+      "id": "moveu",
+      "acao": "",
+      "texto": "W A S D para andar pelo apartamento."
+    },
+    {
+      "id": "olhou",
+      "acao": "",
+      "texto": "Mova o mouse para olhar em volta."
+    },
+    {
+      "id": "interagiu",
+      "acao": "interact",
+      "texto": "{tecla} perto de alguma coisa para dar uma olhada nela."
+    },
+    {
+      "id": "leu_mensagem",
+      "acao": "phone",
+      "texto": "{tecla} abre o celular."
+    },
+    {
+      "id": "saiu_do_apartamento",
+      "acao": "interact",
+      "texto": "{tecla} na porta para sair do apartamento."
+    },
+    {
+      "id": "desceu_a_escada",
+      "acao": "",
+      "texto": "A escada fica no fim do corredor. Desça até o térreo."
+    },
+    {
+      "id": "saiu_do_predio",
+      "acao": "interact",
+      "texto": "{tecla} no portão para sair do prédio."
+    }
+  ],
+  "dicas": [
+    "Faltar ao compromisso do dia tem consequência: primeiro vem o aviso, depois a demissão ou a expulsão do curso.",
+    "Dormir em casa recupera a energia toda e avança para a manhã seguinte.",
+    "Fragmentos de memória brilham em dourado. Chegue perto e pressione a tecla de foto.",
+    "Ficar exausto deixa você mais lento e sem poder correr. Um café resolve por um tempo.",
+    "Alguns NPCs só têm certas conversas depois que a noite cai.",
+    "A bússola no topo mostra sua casa e o compromisso do dia; os pontos dourados são fragmentos.",
+    "O peso e o valor dos itens são só informação — não existe limite de carga.",
+    "O jogo salva sozinho a cada 20 segundos e quando você pausa."
+  ],
+  "abertura": {
+    "contato": "Mãe",
+    "mensagens": [
+      {
+        "id": "pais_1",
+        "espera": 14,
+        "texto": "Oi, {{m:meu filho|f:minha filha|x:meu bem}}. Chegou bem? Estava esperando notícia."
+      },
+      {
+        "id": "pais_2",
+        "espera": 4.5,
+        "texto": "Come alguma coisa direito hoje, viu. Café puro não é almoço."
+      },
+      {
+        "id": "pais_3",
+        "espera": 5,
+        "texto": "Qualquer coisa você liga, a hora que for. Um beijo, {{m:querido|f:querida|x:amor}}."
+      }
+    ]
+  }
+}

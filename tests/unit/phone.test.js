@@ -566,3 +566,47 @@ describe('Phone — casos de borda do save', () => {
     assert.equal(p.pending.length, 0);
   });
 });
+
+describe('tutorial: as dicas vêm de fora (aba Textos)', () => {
+  test('a dica sai do texto injetado, não da lista de fábrica', () => {
+    const tutorial = new Tutorial({ passos: [{ id: 'moveu', acao: '', texto: 'Ande pelo quarto.' }] });
+    assert.equal(tutorial.currentHint, 'Ande pelo quarto.');
+  });
+
+  test('{tecla} é trocado na LEITURA: remapear com a dica na tela já corrige a dica', () => {
+    let tecla = 'E';
+    const tutorial = new Tutorial({
+      getKeyLabel: () => tecla,
+      passos: [{ id: 'interagiu', acao: 'interact', texto: '{tecla} para olhar.' }],
+    });
+    assert.equal(tutorial.currentHint, 'E para olhar.');
+    tecla = 'X';
+    assert.equal(tutorial.currentHint, 'X para olhar.', 'a dica tem que acompanhar a tecla nova');
+  });
+
+  test('tutorial sem passo nenhum não trava o jogo', () => {
+    const tutorial = new Tutorial({ passos: [] });
+    assert.equal(tutorial.currentHint, null);
+    assert.equal(tutorial.advance('moveu'), false);
+  });
+
+  test('save antigo com um passo que o autor apagou cai na posição, sem lançar', () => {
+    const tutorial = new Tutorial({ passos: [{ id: 'moveu', texto: 'a' }, { id: 'olhou', texto: 'b' }] });
+    tutorial.deserialize({ step: 'passo_que_foi_apagado', index: 1, done: false });
+    assert.equal(tutorial.currentStep.id, 'olhou');
+  });
+
+  test('a conversa de abertura também vem de fora, com a espera escrita pelo autor', () => {
+    const phone = new Phone({
+      view: null,
+      abertura: { contato: 'Vó', mensagens: [{ id: 'vo_1', espera: 2, texto: 'Oi!' }] },
+    });
+    phone.startParentsConversation();
+    phone.update(1.9);
+    assert.equal(phone.messages.length, 0, 'ainda não chegou');
+    phone.update(0.2);
+    assert.equal(phone.messages.length, 1);
+    assert.equal(phone.messages[0].from, 'Vó');
+    assert.equal(phone.messages[0].text, 'Oi!');
+  });
+});
